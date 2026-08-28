@@ -306,6 +306,7 @@ fn snapshot_two_agents_same_window_ui() {
         worktree: WorktreeMetadata::default(),
         session_id: None,
         session_name: String::new(),
+        pane_desc: String::new(),
         sidebar_spawned: false,
         bg_shell_cmd: None,
     };
@@ -327,6 +328,7 @@ fn snapshot_two_agents_same_window_ui() {
         worktree: WorktreeMetadata::default(),
         session_id: None,
         session_name: String::new(),
+        pane_desc: String::new(),
         sidebar_spawned: false,
         bg_shell_cmd: None,
     };

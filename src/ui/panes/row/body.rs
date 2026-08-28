@@ -80,6 +80,22 @@ pub(super) fn subagent_rows(subagents: &[String], ctx: &RowCtx) -> Vec<Line<'sta
     out
 }
 
+/// User-set `@pane_desc` tag, shown as its own muted row.
+pub(super) fn pane_desc_row(desc: &str, ctx: &RowCtx) -> Option<Line<'static>> {
+    if desc.is_empty() {
+        return None;
+    }
+    let text = truncate_to_width(&format!("  {desc}"), ctx.inner_width);
+    let text_dw = display_width(&text);
+    Some(ctx.row_line(
+        vec![Span::styled(
+            text,
+            ctx.apply_bg(Style::default().fg(ctx.theme.text_muted)),
+        )],
+        text_dw,
+    ))
+}
+
 pub(super) fn wait_reason_row(
     wait_reason: &str,
     status: &PaneStatus,

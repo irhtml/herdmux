@@ -118,6 +118,7 @@ fn test_line_to_row_two_agents() {
         worktree: WorktreeMetadata::default(),
         session_id: None,
         session_name: String::new(),
+        pane_desc: String::new(),
         sidebar_spawned: false,
         bg_shell_cmd: None,
     };
@@ -139,6 +140,7 @@ fn test_line_to_row_two_agents() {
         worktree: WorktreeMetadata::default(),
         session_id: None,
         session_name: String::new(),
+        pane_desc: String::new(),
         sidebar_spawned: false,
         bg_shell_cmd: None,
     };

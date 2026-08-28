@@ -21,6 +21,10 @@ pub struct PaneInfo {
     pub worktree: WorktreeMetadata,
     pub session_id: Option<String>,
     pub session_name: String,
+    /// User-set pane description from the `@pane_desc` tmux option (a
+    /// manual tagging convention, e.g. `tmux set -p @pane_desc "..."`).
+    /// Rendered as its own row; empty when the pane is untagged.
+    pub pane_desc: String,
     /// `true` when the window this pane lives in was created by the
     /// sidebar's spawn flow (via the `@agent-sidebar-spawned` window
     /// option). Used by the row renderer to show a clickable red `×`

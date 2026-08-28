@@ -10,8 +10,8 @@ mod ctx;
 mod status;
 
 use body::{
-    background_hint_row, idle_hint_row, prompt_rows, subagent_rows, task_progress_row,
-    wait_reason_row,
+    background_hint_row, idle_hint_row, pane_desc_row, prompt_rows, subagent_rows,
+    task_progress_row, wait_reason_row,
 };
 use branch::branch_ports_row;
 use ctx::{RowCtx, SELECTION_MARKER};
@@ -77,6 +77,9 @@ pub(super) fn render_pane_lines_with_ports(
         out.push(line);
     }
     let ctx = &plain_ctx;
+    if let Some(line) = pane_desc_row(&pane.pane_desc, ctx) {
+        out.push(line);
+    }
     if let Some(line) = task_progress_row(task_progress, ctx) {
         out.push(line);
     }
@@ -132,6 +135,7 @@ mod tests {
             worktree: WorktreeMetadata::default(),
             session_id: None,
             session_name: String::new(),
+            pane_desc: String::new(),
             sidebar_spawned: false,
             bg_shell_cmd: None,
         }
@@ -230,6 +234,29 @@ mod tests {
             !status.contains("codex"),
             "agent label should be replaced by session name, got: {status}"
         );
+    }
+
+    #[test]
+    fn render_pane_lines_shows_pane_desc_row() {
+        let theme = ColorTheme::default();
+        let mut p = pane(PermissionMode::Default, PaneStatus::Running, "");
+        p.pane_desc = "agent orchestrator research".into();
+        let lines = render_pane_lines_with_ports(
+            &p,
+            &PaneGitInfo::default(),
+            None,
+            None,
+            false,
+            false,
+            40,
+            &StatusIcons::default(),
+            &theme,
+            0,
+            0,
+        );
+
+        let desc = line_text(&lines[1]);
+        insta::assert_snapshot!(desc, @"    agent orchestrator research");
     }
 
     #[test]

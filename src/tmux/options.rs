@@ -25,6 +25,8 @@ pub const PANE_CWD: &str = "@pane_cwd";
 /// authoritative "live shell" signal: Stop routes to `background`
 /// while this is set, and the sidebar surfaces the command text.
 pub const PANE_BG_CMD: &str = "@pane_bg_cmd";
+/// User-owned pane tag (not written by hooks; never cleared on agent exit).
+pub const PANE_DESC: &str = "@pane_desc";
 /// Value written to [`PANE_BG_CMD`] when the hook payload omits the real
 /// command. The ps liveness sweep matches on this to skip its own entries
 /// (placeholder has no process to verify against).

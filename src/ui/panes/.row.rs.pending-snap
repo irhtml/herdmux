@@ -1,4 +1,0 @@
-{"run_id":"1787901356-639681926","line":259,"new":{"module_name":"tmux_agent_sidebar__ui__panes__row__tests","snapshot_name":"render_pane_lines_shows_pane_desc_row","metadata":{"source":"src/ui/panes/row.rs","assertion_line":259,"expression":"desc"},"snapshot":"    agent orchestrator research"},"old":{"module_name":"tmux_agent_sidebar__ui__panes__row__tests","metadata":{},"snapshot":""}}
-{"run_id":"1787901356-980370777","line":259,"new":{"module_name":"tmux_agent_sidebar__ui__panes__row__tests","snapshot_name":"render_pane_lines_shows_pane_desc_row","metadata":{"source":"src/ui/panes/row.rs","assertion_line":259,"expression":"desc"},"snapshot":"    agent orchestrator research"},"old":{"module_name":"tmux_agent_sidebar__ui__panes__row__tests","metadata":{},"snapshot":""}}
-{"run_id":"1787901375-963670246","line":259,"new":null,"old":null}
-{"run_id":"1787901376-566883046","line":259,"new":null,"old":null}

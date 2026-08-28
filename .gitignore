@@ -6,3 +6,4 @@
 dist
 .astro
 node_modules
+*.pending-snap

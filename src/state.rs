@@ -56,6 +56,10 @@ pub struct AppState {
     pub layout: FrameLayout,
     pub activity: ActivityState,
     pub tmux_pane: String,
+    /// Tmux session containing the sidebar's own pane. Resolved on refresh
+    /// while `global.session_scope` is on; `None` until then (scope falls
+    /// back to showing all sessions).
+    pub own_session_name: Option<String>,
     /// Scroll offsets for the agents list and git tab. Activity tab
     /// scroll lives in [`ActivityState::scroll`].
     pub scrolls: ScrollStates,
@@ -147,6 +151,7 @@ impl AppState {
             layout: FrameLayout::default(),
             activity: ActivityState::new(),
             tmux_pane,
+            own_session_name: None,
             scrolls: ScrollStates::default(),
             theme: ColorTheme::default(),
             icons: StatusIcons::default(),

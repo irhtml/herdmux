@@ -81,15 +81,26 @@ pub(super) fn render_secondary_header<'a>(
     let has_notices_info = crate::ui::notices::has_info(state);
     let notices_button_col = has_notices_info.then_some(0);
     let notices_width = crate::ui::notices::BUTTON_WIDTH;
-    let max_repo_label_width = width.saturating_sub((notices_width + 3) as u16) as usize;
+
+    // Session-scope indicator, left-aligned after the notices button.
+    let scope_label = state.global.session_scope.then(|| {
+        let name = state.own_session_name.as_deref().unwrap_or("session");
+        format!("⌂ {name}")
+    });
+    let scope_width = scope_label
+        .as_ref()
+        .map_or(0, |label| display_width(label) + 1); // label + trailing space
+
+    let max_repo_label_width =
+        width.saturating_sub((notices_width + scope_width + 3) as u16) as usize;
     let repo_label = match &state.global.repo_filter {
         RepoFilter::All => "—".to_string(),
         RepoFilter::Repo(name) => truncate_to_width(name, max_repo_label_width),
     };
     let repo_btn_width = display_width(&repo_label) + 2; // label + space + arrow
 
-    let gap = (width as usize).saturating_sub(repo_btn_width + notices_width);
-    let repo_button_col = Some((notices_width + gap) as u16);
+    let gap = (width as usize).saturating_sub(repo_btn_width + notices_width + scope_width);
+    let repo_button_col = Some((notices_width + scope_width + gap) as u16);
 
     let mut spans: Vec<Span<'a>> = Vec::new();
     if has_notices_info {
@@ -97,6 +108,10 @@ pub(super) fn render_secondary_header<'a>(
         spans.push(Span::raw(" "));
     } else {
         spans.push(Span::raw("  "));
+    }
+    if let Some(label) = scope_label {
+        spans.push(Span::styled(label, Style::default().fg(theme.text_active)));
+        spans.push(Span::raw(" "));
     }
     spans.push(Span::raw(" ".repeat(gap)));
     spans.push(Span::styled(repo_label, repo_style));
@@ -136,6 +151,16 @@ mod tests {
 
         let text = line_text(&render_secondary_header(&state, 30).0);
         insta::assert_snapshot!(text, @"ⓘ                          — ▾");
+    }
+
+    #[test]
+    fn snapshot_secondary_header_shows_session_scope_label() {
+        let mut state = crate::state::AppState::new(String::new());
+        state.global.session_scope = true;
+        state.own_session_name = Some("work".into());
+
+        let text = line_text(&render_secondary_header(&state, 30).0);
+        insta::assert_snapshot!(text, @"  ⌂ work                   — ▾");
     }
 
     #[test]

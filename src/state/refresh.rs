@@ -57,6 +57,13 @@ impl AppState {
         sessions: Vec<SessionInfo>,
     ) {
         self.focus_state.sidebar_focused = sidebar_focused;
+        let sessions = if self.global.session_scope
+            && let Some(own) = &self.own_session_name
+        {
+            Self::scope_sessions_to(sessions, own)
+        } else {
+            sessions
+        };
         // Capture the prior `pane_id → session_id` map so we can detect
         // anything that should re-trigger `refresh_session_names`:
         //   - a brand-new pane_id (first appearance)
@@ -136,6 +143,14 @@ impl AppState {
         out
     }
 
+    /// Keep only the tmux session named `own` — the session-scope filter.
+    fn scope_sessions_to(sessions: Vec<SessionInfo>, own: &str) -> Vec<SessionInfo> {
+        sessions
+            .into_iter()
+            .filter(|session| session.session_name == own)
+            .collect()
+    }
+
     fn refresh_activity_data(&mut self) {
         self.refresh_activity_log();
         self.refresh_task_progress();
@@ -146,6 +161,9 @@ impl AppState {
     /// Returns whether the sidebar's window is the active tmux window.
     pub fn refresh(&mut self) -> bool {
         self.refresh_now();
+        if self.global.session_scope {
+            self.own_session_name = tmux::pane_session_name(&self.tmux_pane);
+        }
         let (focused, window_active, _, _) = tmux::get_sidebar_pane_info(&self.tmux_pane);
         let (mut sessions, mut process_snapshot) = tmux::query_sessions_with_process_snapshot();
         self.sweep_dead_bg_shells_if_due(&mut sessions, &mut process_snapshot);
@@ -935,5 +953,65 @@ mod tests {
             state.repo_groups[0].panes[0].0.session_name.is_empty(),
             "pane without session_id must end up with an empty session_name"
         );
+    }
+    // ─── session scope ──────────────────────────────────────────────
+
+    fn named_session(name: &str, pane_id: &str) -> SessionInfo {
+        SessionInfo {
+            session_name: name.into(),
+            windows: vec![WindowInfo {
+                window_id: "@0".into(),
+                window_name: "test".into(),
+                window_active: true,
+                auto_rename: false,
+                panes: vec![test_pane(pane_id)],
+            }],
+        }
+    }
+
+    #[test]
+    fn scope_sessions_to_keeps_only_the_named_session() {
+        let sessions = vec![named_session("work", "%1"), named_session("private", "%2")];
+        let scoped = AppState::scope_sessions_to(sessions, "work");
+        assert_eq!(scoped.len(), 1);
+        assert_eq!(scoped[0].session_name, "work");
+    }
+
+    #[test]
+    fn scope_sessions_to_unknown_session_yields_empty() {
+        let sessions = vec![named_session("work", "%1")];
+        assert!(AppState::scope_sessions_to(sessions, "gone").is_empty());
+    }
+
+    #[test]
+    fn apply_session_snapshot_scopes_to_own_session_when_enabled() {
+        let mut state = AppState::new("%99".into());
+        state.global.session_scope = true;
+        state.own_session_name = Some("work".into());
+
+        let sessions = vec![named_session("work", "%1"), named_session("private", "%2")];
+        state.apply_session_snapshot(false, sessions);
+
+        let pane_ids: Vec<&str> = state
+            .repo_groups
+            .iter()
+            .flat_map(|g| g.panes.iter().map(|(p, _)| p.pane_id.as_str()))
+            .collect();
+        assert_eq!(pane_ids, vec!["%1"]);
+    }
+
+    #[test]
+    fn apply_session_snapshot_shows_all_when_own_session_unresolved() {
+        // Scope on but the sidebar's own session could not be resolved —
+        // fail open rather than blanking the list.
+        let mut state = AppState::new("%99".into());
+        state.global.session_scope = true;
+        state.own_session_name = None;
+
+        let sessions = vec![named_session("work", "%1"), named_session("private", "%2")];
+        state.apply_session_snapshot(false, sessions);
+
+        let count: usize = state.repo_groups.iter().map(|g| g.panes.len()).sum();
+        assert_eq!(count, 2);
     }
 }

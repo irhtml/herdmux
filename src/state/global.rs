@@ -11,12 +11,18 @@ pub struct GlobalState {
     pub status_filter: StatusFilter,
     pub selected_pane_row: usize,
     pub repo_filter: RepoFilter,
+    /// When `true`, each sidebar instance only lists agents from the tmux
+    /// session it lives in. The flag is shared globally like the other
+    /// filters, but its effect is relative to each instance's own session.
+    pub session_scope: bool,
     /// Last filter value successfully written to tmux.
     last_saved_filter: StatusFilter,
     /// Last cursor value successfully written to tmux.
     last_saved_cursor: usize,
     /// Last repo filter value successfully written to tmux.
     last_saved_repo_filter: RepoFilter,
+    /// Last session-scope value successfully written to tmux.
+    last_saved_session_scope: bool,
     /// When the selected cursor was last changed and still needs persisting.
     pending_cursor_save_since: Option<Instant>,
 }
@@ -33,9 +39,11 @@ impl GlobalState {
             status_filter: StatusFilter::All,
             selected_pane_row: 0,
             repo_filter: RepoFilter::All,
+            session_scope: false,
             last_saved_filter: StatusFilter::All,
             last_saved_cursor: 0,
             last_saved_repo_filter: RepoFilter::All,
+            last_saved_session_scope: false,
             pending_cursor_save_since: None,
         }
     }
@@ -115,6 +123,20 @@ impl GlobalState {
         }
     }
 
+    /// Save session scope to tmux global variable.
+    pub fn save_session_scope(&mut self) {
+        if tmux::run_tmux(&[
+            "set",
+            "-g",
+            tmux::SIDEBAR_SESSION_SCOPE,
+            if self.session_scope { "on" } else { "off" },
+        ])
+        .is_some()
+        {
+            self.last_saved_session_scope = self.session_scope;
+        }
+    }
+
     /// Load all global state from tmux variables.
     /// Called at startup and on SIGUSR1 (pane focus change).
     pub fn load_from_tmux(&mut self) {
@@ -145,5 +167,38 @@ impl GlobalState {
                 self.last_saved_repo_filter = tmux_repo;
             }
         }
+        if let Some(scope_str) = opts.get(tmux::SIDEBAR_SESSION_SCOPE) {
+            let tmux_scope = scope_str == "on";
+            if tmux_scope != self.last_saved_session_scope {
+                self.session_scope = tmux_scope;
+                self.last_saved_session_scope = tmux_scope;
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn apply_all_reads_session_scope() {
+        let mut global = GlobalState::new();
+        let mut opts = HashMap::new();
+        opts.insert(tmux::SIDEBAR_SESSION_SCOPE.to_string(), "on".to_string());
+        global.apply_all(&opts);
+        assert!(global.session_scope);
+
+        opts.insert(tmux::SIDEBAR_SESSION_SCOPE.to_string(), "off".to_string());
+        global.apply_all(&opts);
+        assert!(!global.session_scope);
+    }
+
+    #[test]
+    fn apply_all_missing_session_scope_keeps_current_value() {
+        let mut global = GlobalState::new();
+        global.session_scope = true;
+        global.apply_all(&HashMap::new());
+        assert!(global.session_scope);
     }
 }

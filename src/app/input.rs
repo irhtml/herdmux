@@ -137,6 +137,13 @@ pub(super) fn handle_key_event(
                 state.toggle_repo_popup();
             }
         }
+        KeyCode::Char('s') => {
+            state.global.session_scope = !state.global.session_scope;
+            state.global.save_session_scope();
+            // Re-snapshot immediately so the list reflects the new scope
+            // without waiting for the next 1s refresh tick.
+            state.refresh();
+        }
         KeyCode::Char('n') => {
             if state.focus_state.focus == Focus::Panes {
                 state.open_spawn_input_from_selection();

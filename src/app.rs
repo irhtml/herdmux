@@ -32,6 +32,10 @@ pub fn run(
 ) -> io::Result<()> {
     let mut state = setup::init_state(tmux_pane);
     let mut window_inactive_count: u32 = 0;
+    // Whether a client is viewing this sidebar's window, as of the last
+    // refresh tick. Hidden sidebars skip spinner redraws and git polling;
+    // see `AppState::refresh_tick` for the tmux snapshot cadence.
+    let mut window_visible = true;
 
     let workers = workers::spawn(&state);
     let workers::Workers {
@@ -81,18 +85,25 @@ pub fn run(
                 state.tick_pet(term_width);
             }
             last_spinner = std::time::Instant::now();
-            needs_redraw = true;
+            // A hidden pane's frames reach nobody, and every write still
+            // costs the tmux server a parse; draw them only when viewed.
+            if window_visible {
+                needs_redraw = true;
+            }
         }
 
         let sigusr1 = needs_refresh.swap(false, Ordering::Relaxed);
         if sigusr1 || last_refresh.elapsed() >= refresh_interval {
             let previous_focused_pane_id = state.focus_state.focused_pane_id.clone();
-            let is_window_active = state.refresh();
-            if state.focus_state.focused_pane_id != previous_focused_pane_id {
-                render::refresh_git_for_focused_pane(&mut state);
+            let outcome = state.refresh_tick(sigusr1);
+            window_visible = outcome.window_visible;
+            if outcome.synced {
+                if state.focus_state.focused_pane_id != previous_focused_pane_id {
+                    render::refresh_git_for_focused_pane(&mut state);
+                }
+                needs_redraw = true;
             }
-            needs_redraw = true;
-            if is_window_active {
+            if window_visible {
                 if window_inactive_count >= 2 {
                     state.global.load_from_tmux();
                     state.rebuild_row_targets();
@@ -101,7 +112,12 @@ pub fn run(
             } else {
                 window_inactive_count = window_inactive_count.saturating_add(1);
             }
-            git_tab_active.store(state.bottom_tab == BottomTab::GitStatus, Ordering::Relaxed);
+            // The git thread polls every 2s while set; a hidden sidebar's
+            // git tab is not on screen, so let it rest until viewed again.
+            git_tab_active.store(
+                state.bottom_tab == BottomTab::GitStatus && window_visible,
+                Ordering::Relaxed,
+            );
             last_refresh = std::time::Instant::now();
         }
 

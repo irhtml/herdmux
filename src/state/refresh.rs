@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::activity::{self, TaskProgress};
 use crate::cli::sanitize_tmux_value;
@@ -7,6 +7,41 @@ use crate::process::ProcessSnapshot;
 use crate::tmux::{self, PaneStatus, SessionInfo};
 
 use super::AppState;
+
+/// How often a sidebar nobody is viewing re-runs the full tmux snapshot.
+///
+/// `toggle-all` leaves one sidebar per window, and with dozens of windows
+/// their per-second `list-panes -a` was most of the tmux server's CPU while
+/// nothing they computed was on a screen. The per-second tick still probes
+/// visibility with one trivial `display-message`, so a hidden sidebar is back
+/// on the 1s cadence within a second of a client viewing it, and SIGUSR1
+/// from the select-window hook makes that instant.
+pub const HIDDEN_SYNC_INTERVAL: Duration = Duration::from_secs(10);
+
+/// What a refresh tick did, so the event loop can skip the redraw and the
+/// focus-change git fetch when nothing was re-synced.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RefreshOutcome {
+    /// A client is viewing the sidebar's window
+    /// (see [`tmux::SidebarPaneInfo::visible`]).
+    pub window_visible: bool,
+    /// The full tmux snapshot ran this tick.
+    pub synced: bool,
+}
+
+/// Decide whether a tick runs the full snapshot: always while visible or
+/// forced (SIGUSR1, user action), otherwise only once per
+/// [`HIDDEN_SYNC_INTERVAL`].
+pub(crate) fn full_sync_due(
+    visible: bool,
+    force: bool,
+    last_full_sync: Option<Instant>,
+    now: Instant,
+) -> bool {
+    visible
+        || force
+        || last_full_sync.is_none_or(|last| now.duration_since(last) >= HIDDEN_SYNC_INTERVAL)
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum TaskProgressDecision {
@@ -157,18 +192,44 @@ impl AppState {
         self.auto_switch_tab();
     }
 
-    /// Fast refresh: tmux state + activity log (called every 1s).
-    /// Returns whether the sidebar's window is the active tmux window.
+    /// Full refresh: tmux snapshot + activity log, unconditionally. Used at
+    /// startup and after user actions that must show up immediately.
+    /// Returns whether a client is viewing the sidebar's window.
     pub fn refresh(&mut self) -> bool {
+        self.refresh_tick(true).window_visible
+    }
+
+    /// Per-second refresh tick. Always probes the sidebar's own pane (one
+    /// cheap `display-message`), but runs the full tmux snapshot only when
+    /// [`full_sync_due`] says so: the window is visible, `force` is set
+    /// (SIGUSR1), or a hidden sidebar's [`HIDDEN_SYNC_INTERVAL`] elapsed.
+    pub fn refresh_tick(&mut self, force: bool) -> RefreshOutcome {
         self.refresh_now();
+        let info = tmux::get_sidebar_pane_info(&self.tmux_pane);
+        let now = Instant::now();
+        if !full_sync_due(info.visible, force, self.timers.last_full_sync, now) {
+            return RefreshOutcome {
+                window_visible: info.visible,
+                synced: false,
+            };
+        }
+        self.timers.last_full_sync = Some(now);
         if self.global.session_scope {
             self.own_session_name = tmux::pane_session_name(&self.tmux_pane);
         }
-        let (focused, window_active, _, _) = tmux::get_sidebar_pane_info(&self.tmux_pane);
+        let focused = info.focused;
         let (mut sessions, mut process_snapshot) = tmux::query_sessions_with_process_snapshot();
         self.sweep_dead_bg_shells_if_due(&mut sessions, &mut process_snapshot);
-        if let Some(process_snapshot) = self.refresh_port_data(&sessions, process_snapshot.as_ref())
-        {
+        // The port scan (`lsof` + a `ps` snapshot) is the most expensive
+        // thing a tick does, and ports / per-pane commands are display-only,
+        // so a hidden sidebar skips it. It catches up on its first visible
+        // tick: the 10s gate inside `refresh_port_data` is due by then.
+        let port_snapshot = if info.visible {
+            self.refresh_port_data(&sessions, process_snapshot.as_ref())
+        } else {
+            None
+        };
+        if let Some(process_snapshot) = port_snapshot {
             let sessions = Self::filter_sessions_to_live_agent_panes(
                 sessions,
                 &process_snapshot.live_agent_panes,
@@ -182,7 +243,10 @@ impl AppState {
             self.sessions.dirty = false;
         }
         self.refresh_activity_data();
-        window_active
+        RefreshOutcome {
+            window_visible: info.visible,
+            synced: true,
+        }
     }
 
     /// Apply the current `session_id → name` map to each pane so the
@@ -1014,5 +1078,41 @@ mod tests {
 
         let count: usize = state.repo_groups.iter().map(|g| g.panes.len()).sum();
         assert_eq!(count, 2);
+    }
+}
+
+#[cfg(test)]
+mod cadence_tests {
+    use super::*;
+
+    #[test]
+    fn visible_window_syncs_every_tick() {
+        let now = Instant::now();
+        assert!(full_sync_due(true, false, Some(now), now));
+    }
+
+    #[test]
+    fn force_syncs_even_when_hidden_and_fresh() {
+        let now = Instant::now();
+        assert!(full_sync_due(false, true, Some(now), now));
+    }
+
+    #[test]
+    fn hidden_window_syncs_once_when_never_synced() {
+        assert!(full_sync_due(false, false, None, Instant::now()));
+    }
+
+    #[test]
+    fn hidden_window_skips_while_recent() {
+        let now = Instant::now();
+        let recent = now - HIDDEN_SYNC_INTERVAL / 2;
+        assert!(!full_sync_due(false, false, Some(recent), now));
+    }
+
+    #[test]
+    fn hidden_window_syncs_once_interval_elapsed() {
+        let now = Instant::now();
+        let stale = now - HIDDEN_SYNC_INTERVAL;
+        assert!(full_sync_due(false, false, Some(stale), now));
     }
 }

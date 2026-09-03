@@ -20,7 +20,7 @@ Each field has a corresponding `last_saved_*` to prevent sync conflicts — only
 
 ### Per-pane State (keyed by pane ID)
 
-Written by `cli/hook.rs` on agent events, read by `query_sessions()` every **1 second**.
+Written by `cli/hook.rs` on agent events, read by `query_sessions()` every **1 second** while a client is viewing the sidebar's window. A hidden sidebar re-reads every 10 seconds instead (see [Refresh Cadence](#refresh-cadence)).
 
 Each pane's runtime data is split into two buckets:
 
@@ -70,6 +70,8 @@ Per-pane file-based state:
 
 ### Local State (single sidebar process only)
 
+"Every 1s" below means every refresh tick while the sidebar's window is visible; a hidden sidebar re-syncs every 10s (see [Refresh Cadence](#refresh-cadence)).
+
 | Field | Update Frequency | Description |
 |-------|-----------------|-------------|
 | `repo_groups` | Every 1s | Panes grouped by git repo root (built directly from `tmux::query_sessions()` output, not stored separately as a session list) |
@@ -114,12 +116,13 @@ Per-pane file-based state:
 │  Every frame (~200ms)                                       │
 │  layout.* (rebuilt by ui::draw), spinner + pet animation     │
 ├─────────────────────────────────────────────────────────────┤
-│  Every 1s (refresh cycle)                                   │
+│  Every 1s (refresh cycle) while a client views the window;  │
+│  every 10s while hidden (see Refresh Cadence)               │
 │  repo_groups, focus_state.focused_pane_id,                  │
 │  layout.pane_row_targets, activity.entries,                 │
 │  pane_states.map[..].task_progress                          │
 ├─────────────────────────────────────────────────────────────┤
-│  Every 10s (port scan, background)                          │
+│  Every 10s (port scan, visible window only)                 │
 │  pane_states.map[..].ports, agent liveness cleanup          │
 ├─────────────────────────────────────────────────────────────┤
 │  Every 10s (session_names background thread)                │
@@ -153,6 +156,20 @@ Per-pane file-based state:
 ```
 
 ---
+
+## Refresh Cadence
+
+`toggle-all` leaves one sidebar per tmux window, but only the windows a client is viewing render anything anyone sees. With dozens of windows open, the per-second `list-panes -a` from hidden instances was most of the tmux server's CPU.
+
+Each 1s tick in `app::run` therefore starts with a cheap probe of the sidebar's own pane (`tmux::get_sidebar_pane_info`, one `display-message` that also reads `window_active_clients`) and runs the full tmux snapshot (`AppState::refresh_tick`) only when one of these holds:
+
+- a client is viewing the window (`SidebarPaneInfo::visible`),
+- SIGUSR1 arrived (`after-select-pane` / `after-select-window` hooks), or
+- the sidebar is hidden and `HIDDEN_SYNC_INTERVAL` (10s) has elapsed since its last snapshot.
+
+While hidden, a tick that does run the snapshot still skips the port scan (`lsof` plus a `ps` snapshot, the most expensive work a tick does; ports and per-pane commands are display-only, and the scan's own 10s gate is due by the first visible tick). The event loop also skips spinner-driven redraws (every pty write is another parse for the tmux server) and clears the git polling thread's active flag. A hidden sidebar is back on the 1s cadence within one probe of a client viewing it; the select-window hook makes that instant.
+
+`SidebarPaneInfo::visible` falls back to `window_active` on tmux older than 3.1, which lacks `window_active_clients`, and to `true` when the probe cannot be parsed, so an unexpected tmux reply never slows down a sidebar someone is looking at.
 
 ## Data Flow
 

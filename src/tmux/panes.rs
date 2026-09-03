@@ -1,20 +1,55 @@
 use super::commands::{display_message, run_tmux};
 
-pub fn get_sidebar_pane_info(tmux_pane: &str) -> (bool, bool, u16, u16) {
+/// Snapshot of the sidebar's own pane, taken by the per-second refresh tick.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SidebarPaneInfo {
+    /// The sidebar pane itself holds tmux focus.
+    pub focused: bool,
+    /// The sidebar's window is its session's current window.
+    pub window_active: bool,
+    /// At least one attached client is viewing the sidebar's window, so
+    /// what it renders is actually on a screen. Falls back to
+    /// `window_active` on tmux < 3.1 (no `window_active_clients`), and to
+    /// `true` when the probe could not be parsed at all, so a surprise
+    /// never silently degrades a sidebar someone is looking at.
+    pub visible: bool,
+    pub width: u16,
+    pub height: u16,
+}
+
+pub fn get_sidebar_pane_info(tmux_pane: &str) -> SidebarPaneInfo {
     let out = display_message(
         tmux_pane,
-        "#{pane_active} #{window_active} #{pane_width} #{pane_height}",
+        "#{pane_active} #{window_active} #{pane_width} #{pane_height} #{window_active_clients}",
     );
-    let parts: Vec<&str> = out.splitn(4, ' ').collect();
-    if parts.len() >= 4 {
-        (
-            parts[0] == "1",
-            parts[1] == "1",
-            parts[2].parse().unwrap_or(28),
-            parts[3].parse().unwrap_or(24),
-        )
-    } else {
-        (false, false, 28, 24)
+    parse_sidebar_pane_info(&out)
+}
+
+/// Parse the `display-message` line requested by [`get_sidebar_pane_info`].
+/// `window_active_clients` is deliberately the last field: an older tmux
+/// expands it to nothing, which leaves the four leading fields intact.
+pub fn parse_sidebar_pane_info(out: &str) -> SidebarPaneInfo {
+    let parts: Vec<&str> = out.splitn(5, ' ').collect();
+    if parts.len() < 4 {
+        return SidebarPaneInfo {
+            focused: false,
+            window_active: false,
+            visible: true,
+            width: 28,
+            height: 24,
+        };
+    }
+    let window_active = parts[1] == "1";
+    let visible = parts
+        .get(4)
+        .and_then(|s| s.trim().parse::<u32>().ok())
+        .map_or(window_active, |clients| clients > 0);
+    SidebarPaneInfo {
+        focused: parts[0] == "1",
+        window_active,
+        visible,
+        width: parts[2].parse().unwrap_or(28),
+        height: parts[3].parse().unwrap_or(24),
     }
 }
 
@@ -124,5 +159,48 @@ mod tests {
             ("%2".into(), false, "/y".into()),
         ];
         assert!(pick_active_pane("%99", &panes).is_none());
+    }
+}
+
+#[cfg(test)]
+mod sidebar_pane_info_tests {
+    use super::*;
+
+    #[test]
+    fn viewed_window_is_visible() {
+        let info = parse_sidebar_pane_info("1 1 30 40 1");
+        assert!(info.focused);
+        assert!(info.window_active);
+        assert!(info.visible);
+        assert_eq!((info.width, info.height), (30, 40));
+    }
+
+    #[test]
+    fn active_window_in_detached_session_is_hidden() {
+        // `window_active` alone is not enough: nobody is attached.
+        let info = parse_sidebar_pane_info("0 1 30 40 0");
+        assert!(info.window_active);
+        assert!(!info.visible);
+    }
+
+    #[test]
+    fn background_window_is_hidden() {
+        assert!(!parse_sidebar_pane_info("0 0 30 40 0").visible);
+    }
+
+    #[test]
+    fn old_tmux_without_active_clients_falls_back_to_window_active() {
+        // tmux < 3.1 expands `#{window_active_clients}` to "", and
+        // `display_message` trims the trailing space away.
+        assert!(parse_sidebar_pane_info("0 1 30 40").visible);
+        assert!(!parse_sidebar_pane_info("0 0 30 40").visible);
+    }
+
+    #[test]
+    fn unparseable_probe_is_treated_as_visible() {
+        let info = parse_sidebar_pane_info("");
+        assert!(info.visible);
+        assert!(!info.focused);
+        assert_eq!((info.width, info.height), (28, 24));
     }
 }

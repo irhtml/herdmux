@@ -19,6 +19,9 @@ pub struct RefreshTimers {
     pub port_scan_initialized: bool,
     /// Timestamp of the last background-shell liveness sweep.
     pub last_bg_shell_sweep: Option<Instant>,
+    /// Timestamp of the last full tmux snapshot (`refresh_tick`). Gates
+    /// the slow cadence of sidebars whose window no client is viewing.
+    pub last_full_sync: Option<Instant>,
 }
 
 impl Default for RefreshTimers {
@@ -29,6 +32,7 @@ impl Default for RefreshTimers {
             last_port_refresh: now,
             port_scan_initialized: false,
             last_bg_shell_sweep: None,
+            last_full_sync: None,
         }
     }
 }

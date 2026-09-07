@@ -1,6 +1,6 @@
 use std::path::{Component, Path, PathBuf};
 
-use super::config::{DEFAULT_BRANCH_PREFIX, RemoveMode};
+use super::config::{DEFAULT_BRANCH_PREFIX, RemoveMode, copy_files_from, direnv_allow_from};
 use super::env::{RealEnv, SpawnEnv};
 use super::markers::{
     SPAWNED_BRANCH_OPTION, SPAWNED_FROM_OPTION, SPAWNED_OPTION, SPAWNED_WORKTREE_OPTION,
@@ -63,6 +63,31 @@ pub(crate) fn spawn_with<E: SpawnEnv>(env: &E, req: &SpawnRequest) -> Result<Str
 
     env.worktree_add(repo, worktree, &branch)
         .map_err(|e| format!("git: {e}"))?;
+
+    // `git worktree add` only checks out tracked content, so untracked
+    // per-directory environment files (`.envrc` and friends) do not
+    // follow. Copy them before the agent launches, otherwise the new
+    // pane starts with the wrong profile — e.g. a `direnv` `.envrc`
+    // pinning CLAUDE_CONFIG_DIR to a work config dir would be missing
+    // and the agent would silently fall back to the personal one.
+    //
+    // Best effort on purpose: the worktree and branch already exist at
+    // this point, and a copy failure is cosmetic next to rolling back a
+    // successful checkout.
+    let mut copied_envrc = false;
+    for name in copy_files_from(env.copy_files().as_deref()) {
+        if env.copy_into_worktree(repo, worktree, &name) == Ok(true) && name == ".envrc" {
+            copied_envrc = true;
+        }
+    }
+
+    // A copied `.envrc` is unapproved in its new path, so direnv blocks
+    // it and the pane starts without the exported variables. Approving
+    // it runs arbitrary shell on every `cd`, so this stays opt-in and
+    // only fires for an `.envrc` this spawn actually wrote.
+    if copied_envrc && direnv_allow_from(env.direnv_allow_option().as_deref()) {
+        let _ = env.direnv_allow(worktree);
+    }
 
     let (pane_id, window_id) = env
         .new_window(&req.session, worktree, &unique)
@@ -219,6 +244,14 @@ mod env_tests {
         /// branch was already dropped by a previous partial success
         /// so the remove flow should skip `git branch -D`.
         branch_already_gone: Option<bool>,
+        /// Raw `@agent-sidebar-worktree-copy` override; `None` exercises
+        /// the built-in default list.
+        copy_files: Option<String>,
+        /// Raw `@agent-sidebar-worktree-direnv-allow` override.
+        direnv_allow: Option<String>,
+        /// Make every copy report "nothing written", as happens when the
+        /// repo has no such file.
+        copy_is_noop: bool,
     }
 
     impl FakeEnv {
@@ -236,6 +269,25 @@ mod env_tests {
         }
         fn worktree_dir(&self) -> Option<String> {
             self.worktree_dir.clone()
+        }
+        fn copy_files(&self) -> Option<String> {
+            self.copy_files.clone()
+        }
+        fn copy_into_worktree(
+            &self,
+            repo: &str,
+            worktree: &str,
+            name: &str,
+        ) -> Result<bool, String> {
+            self.log(format!("copy_into_worktree({repo},{worktree},{name})"));
+            Ok(!self.copy_is_noop)
+        }
+        fn direnv_allow_option(&self) -> Option<String> {
+            self.direnv_allow.clone()
+        }
+        fn direnv_allow(&self, worktree: &str) -> Result<(), String> {
+            self.log(format!("direnv_allow({worktree})"));
+            Ok(())
         }
         fn branch_is_free(&self, _repo: &str, _branch: &str) -> bool {
             true
@@ -342,6 +394,108 @@ mod env_tests {
             !has_call(&calls, "kill_window("),
             "no rollback on happy path"
         );
+    }
+
+    #[test]
+    fn spawn_copies_envrc_into_the_new_worktree_before_launching() {
+        let env = FakeEnv::default();
+        spawn_with(&env, &sample_req()).expect("spawn should succeed");
+        let calls = env.calls();
+        assert!(has_call(
+            &calls,
+            "copy_into_worktree(/r,/r/.worktrees/task,.envrc)"
+        ));
+        // Ordering matters: the file has to land before the agent
+        // starts, otherwise direnv has nothing to load for the pane.
+        let copy = calls
+            .iter()
+            .position(|c| c.starts_with("copy_into_worktree("))
+            .expect("copy call recorded");
+        let add = calls
+            .iter()
+            .position(|c| c.starts_with("worktree_add("))
+            .expect("worktree_add call recorded");
+        let window = calls
+            .iter()
+            .position(|c| c.starts_with("new_window("))
+            .expect("new_window call recorded");
+        assert!(add < copy && copy < window, "calls: {calls:?}");
+    }
+
+    #[test]
+    fn spawn_copies_every_configured_file() {
+        let env = FakeEnv {
+            copy_files: Some(".envrc,.env.local".into()),
+            ..FakeEnv::default()
+        };
+        spawn_with(&env, &sample_req()).expect("spawn should succeed");
+        let calls = env.calls();
+        assert!(has_call(
+            &calls,
+            "copy_into_worktree(/r,/r/.worktrees/task,.envrc)"
+        ));
+        assert!(has_call(
+            &calls,
+            "copy_into_worktree(/r,/r/.worktrees/task,.env.local)"
+        ));
+    }
+
+    #[test]
+    fn spawn_skips_copying_when_the_option_is_empty() {
+        let env = FakeEnv {
+            copy_files: Some("".into()),
+            ..FakeEnv::default()
+        };
+        spawn_with(&env, &sample_req()).expect("spawn should succeed");
+        assert!(!has_call(&env.calls(), "copy_into_worktree("));
+    }
+
+    #[test]
+    fn spawn_does_not_run_direnv_allow_by_default() {
+        let env = FakeEnv::default();
+        spawn_with(&env, &sample_req()).expect("spawn should succeed");
+        assert!(
+            !has_call(&env.calls(), "direnv_allow("),
+            "direnv approval must stay opt-in"
+        );
+    }
+
+    #[test]
+    fn spawn_runs_direnv_allow_when_opted_in() {
+        let env = FakeEnv {
+            direnv_allow: Some("on".into()),
+            ..FakeEnv::default()
+        };
+        spawn_with(&env, &sample_req()).expect("spawn should succeed");
+        assert!(has_call(&env.calls(), "direnv_allow(/r/.worktrees/task)"));
+    }
+
+    #[test]
+    fn spawn_skips_direnv_allow_when_no_envrc_was_written() {
+        // Most repos have no `.envrc`. Approving a path that has none
+        // would just make direnv error, so the call is skipped.
+        let env = FakeEnv {
+            direnv_allow: Some("on".into()),
+            copy_is_noop: true,
+            ..FakeEnv::default()
+        };
+        spawn_with(&env, &sample_req()).expect("spawn should succeed");
+        assert!(!has_call(&env.calls(), "direnv_allow("));
+    }
+
+    #[test]
+    fn spawn_skips_direnv_allow_when_envrc_is_not_in_the_copy_list() {
+        let env = FakeEnv {
+            direnv_allow: Some("on".into()),
+            copy_files: Some(".env.local".into()),
+            ..FakeEnv::default()
+        };
+        spawn_with(&env, &sample_req()).expect("spawn should succeed");
+        assert!(has_call(
+            &env.calls(),
+            "copy_into_worktree(/r,/r/.worktrees/task,.env.local)"
+        ));
+        assert!(!has_call(&env.calls(), "direnv_allow("));
     }
 
     #[test]
@@ -552,6 +706,18 @@ mod env_tests {
             }
             fn worktree_dir(&self) -> Option<String> {
                 self.0.worktree_dir()
+            }
+            fn copy_files(&self) -> Option<String> {
+                self.0.copy_files()
+            }
+            fn copy_into_worktree(&self, r: &str, w: &str, n: &str) -> Result<bool, String> {
+                self.0.copy_into_worktree(r, w, n)
+            }
+            fn direnv_allow_option(&self) -> Option<String> {
+                self.0.direnv_allow_option()
+            }
+            fn direnv_allow(&self, w: &str) -> Result<(), String> {
+                self.0.direnv_allow(w)
             }
             fn branch_is_free(&self, r: &str, b: &str) -> bool {
                 self.0.branch_is_free(r, b)

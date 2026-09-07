@@ -27,6 +27,8 @@ Most options must be set **before** loading the plugin in your `tmux.conf`. Colo
 | `@agent-sidebar-default-agent`    | `claude`    | Agent launched by `n`&nbsp;(also accepts `codex`)         |
 | `@agent-sidebar-branch-prefix`    | `agent/`    | Branch prefix for new worktrees                           |
 | `@agent-sidebar-worktree-dir`     | `.worktrees` | Repo-relative directory for sidebar-spawned worktrees; absolute paths and `..` are rejected |
+| `@agent-sidebar-worktree-copy`    | `.envrc`    | Comma-separated untracked files copied from the repo root into a new worktree; set to an empty string to disable. Absolute paths and `..` entries are ignored |
+| `@agent-sidebar-worktree-direnv-allow` | `off` | Run `direnv allow` in the new worktree after an `.envrc` was copied there. Off by default because approving an `.envrc` lets direnv run its shell unattended |
 
 ## Status and filter colors
 

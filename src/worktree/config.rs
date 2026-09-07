@@ -1,11 +1,22 @@
+use std::path::{Component, Path};
+
 pub const DEFAULT_BRANCH_PREFIX: &str = "agent/";
 pub const DEFAULT_WORKTREE_DIR: &str = ".worktrees";
 pub const DEFAULT_AGENT: &str = "claude";
 pub const DEFAULT_MODE: &str = "default";
+/// Untracked files copied from the repo root into a freshly created
+/// worktree. `git worktree add` only materialises tracked content, so
+/// per-directory environment files (which are deliberately untracked)
+/// would otherwise be missing and the agent would launch with the
+/// wrong environment — e.g. a `direnv` `.envrc` pinning
+/// `CLAUDE_CONFIG_DIR` / `CODEX_HOME` to a work profile.
+pub const DEFAULT_COPY_FILES: &str = ".envrc";
 
 pub const AGENT_OPTION: &str = "@agent-sidebar-default-agent";
 pub const BRANCH_PREFIX_OPTION: &str = "@agent-sidebar-branch-prefix";
 pub const WORKTREE_DIR_OPTION: &str = "@agent-sidebar-worktree-dir";
+pub const COPY_FILES_OPTION: &str = "@agent-sidebar-worktree-copy";
+pub const DIRENV_ALLOW_OPTION: &str = "@agent-sidebar-worktree-direnv-allow";
 
 pub const AGENTS: &[&str] = &["claude", "codex", "opencode"];
 pub const CLAUDE_MODES: &[&str] = &[
@@ -17,6 +28,49 @@ pub const CLAUDE_MODES: &[&str] = &[
 ];
 pub const CODEX_MODES: &[&str] = &["default", "auto", "bypassPermissions"];
 pub const OPENCODE_MODES: &[&str] = &["default"];
+
+/// Parse the comma-separated `@agent-sidebar-worktree-copy` list into
+/// repo-relative paths. `None` (option unset) yields the default list;
+/// an explicitly empty value disables copying entirely, which is how a
+/// user opts out.
+///
+/// Entries that are absolute or that walk out of the repo via `..` are
+/// dropped rather than rejected: a malformed option should not fail an
+/// otherwise valid spawn.
+pub fn copy_files_from(raw: Option<&str>) -> Vec<String> {
+    let raw = match raw {
+        None => DEFAULT_COPY_FILES,
+        Some(v) => v,
+    };
+    raw.split(',')
+        .map(str::trim)
+        .filter(|entry| !entry.is_empty())
+        .filter(|entry| {
+            let path = Path::new(entry);
+            path.is_relative()
+                && !path
+                    .components()
+                    .any(|c| matches!(c, Component::ParentDir | Component::RootDir))
+        })
+        .map(str::to_string)
+        .collect()
+}
+
+/// Whether to run `direnv allow` in a freshly created worktree after a
+/// `.envrc` was copied into it.
+///
+/// Off by default, and deliberately so: an `.envrc` is arbitrary shell
+/// that `direnv` executes on every `cd`, and approving one on the
+/// user's behalf silently widens what runs unattended. Opting in says
+/// "the file I am copying is one I already trust in the source repo".
+///
+/// Accepts `on`/`true`/`1`/`yes` (case-insensitive), matching the
+/// `@sidebar_pet` convention.
+pub fn direnv_allow_from(raw: Option<&str>) -> bool {
+    raw.map(|s| s.trim().to_ascii_lowercase())
+        .map(|s| matches!(s.as_str(), "on" | "true" | "1" | "yes"))
+        .unwrap_or(false)
+}
 
 pub fn modes_for(agent: &str) -> &'static [&'static str] {
     match agent {
@@ -60,6 +114,66 @@ pub enum RemoveMode {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn copy_files_unset_yields_the_default_list() {
+        assert_eq!(copy_files_from(None), vec![DEFAULT_COPY_FILES.to_string()]);
+    }
+
+    #[test]
+    fn copy_files_explicit_empty_disables_copying() {
+        // The documented opt-out: setting the option to an empty string
+        // must not silently fall back to the default list.
+        assert!(copy_files_from(Some("")).is_empty());
+        assert!(copy_files_from(Some("  ,  ")).is_empty());
+    }
+
+    #[test]
+    fn copy_files_splits_and_trims_entries() {
+        assert_eq!(
+            copy_files_from(Some(".envrc, .env.local ,tool-versions")),
+            vec![
+                ".envrc".to_string(),
+                ".env.local".to_string(),
+                "tool-versions".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn copy_files_drops_escaping_entries() {
+        // A malformed option must not turn a spawn into a way to read
+        // files from outside the repo, and must not fail the spawn.
+        assert_eq!(
+            copy_files_from(Some("/etc/passwd,../../secret,.envrc")),
+            vec![".envrc".to_string()]
+        );
+    }
+
+    #[test]
+    fn copy_files_allows_nested_repo_relative_paths() {
+        assert_eq!(
+            copy_files_from(Some("config/local.toml")),
+            vec!["config/local.toml".to_string()]
+        );
+    }
+
+    #[test]
+    fn direnv_allow_defaults_to_off() {
+        // Approving an `.envrc` runs arbitrary shell on every `cd`, so
+        // an unset or unrecognised option must never enable it.
+        assert!(!direnv_allow_from(None));
+        assert!(!direnv_allow_from(Some("off")));
+        assert!(!direnv_allow_from(Some("")));
+        assert!(!direnv_allow_from(Some("maybe")));
+    }
+
+    #[test]
+    fn direnv_allow_accepts_the_usual_truthy_spellings() {
+        for raw in ["on", "ON", " true ", "1", "yes", "Yes"] {
+            assert!(direnv_allow_from(Some(raw)), "{raw} should enable");
+        }
+    }
 
     #[test]
     fn modes_for_claude_returns_claude_modes_by_default() {

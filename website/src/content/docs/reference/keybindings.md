@@ -52,10 +52,10 @@ Opened with `n` on a repo.
 
 | Key                                | Action                                                                                           |
 | ---------------------------------- | ------------------------------------------------------------------------------------------------ |
-| Text keys                          | Type the name (used as the branch slug and tmux window name)                                     |
+| Text keys                          | Type the name (used as the branch slug and worktree directory name)                              |
 | `↑` / `↓` / `Tab` / `Shift+Tab`    | Move focus between `NAME` / `AGENT` / `MODE` fields                                              |
 | `←` / `→`                          | Cycle the value when the agent or mode field has focus                                           |
-| `Enter`                            | Create the worktree + window and launch the agent                                                |
+| `Enter`                            | Create the worktree + current-window split and launch the agent in the background                |
 | `Esc`                              | Cancel                                                                                           |
 
 ## Close pane modal
@@ -64,6 +64,8 @@ Opened with `x` on a spawn-created pane.
 
 | Key             | Action                                                                                                    |
 | --------------- | --------------------------------------------------------------------------------------------------------- |
-| `y` / `Enter`   | Close the tmux window, remove the git worktree (`--force`), and delete the branch (`git branch -D`)       |
-| `c`             | Close the tmux window only, keep the worktree and branch on disk                                          |
+| `y` / `Enter`   | Close the owned pane, remove the git worktree (`--force`), and delete the branch (`git branch -D`)       |
+| `c`             | Close the owned pane only, keep the worktree and branch on disk                                          |
 | `n` / `Esc`     | Cancel                                                                                                    |
+
+Dedicated worktree windows created by older versions retain window-level cleanup.

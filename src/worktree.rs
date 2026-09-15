@@ -1,5 +1,5 @@
 //! Spawn / remove flow for the sidebar `n` / `x` keybindings. Owns the
-//! handful of writes (git worktree, tmux new-window) that turn this
+//! handful of writes (git worktree, tmux split-window) that turn this
 //! otherwise read-only sidebar into a worktree multiplexer.
 
 mod config;

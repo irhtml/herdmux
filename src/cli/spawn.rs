@@ -1,4 +1,4 @@
-//! `spawn` subcommand — create a new worktree + tmux window running an agent.
+//! `spawn` subcommand — create a new worktree + tmux split running an agent.
 
 use std::path::PathBuf;
 
@@ -24,10 +24,6 @@ pub fn cmd_spawn(args: &[String]) -> i32 {
         eprintln!("error: {cwd} is not inside a git repository");
         return 1;
     };
-    let Some(session) = tmux::pane_session_name(&pane) else {
-        eprintln!("error: could not resolve current tmux session");
-        return 1;
-    };
 
     let opts = tmux::get_all_global_options();
     let agent = opts
@@ -39,7 +35,7 @@ pub fn cmd_spawn(args: &[String]) -> i32 {
     let req = SpawnRequest {
         repo_root: PathBuf::from(repo_root),
         task_name: args.join(" "),
-        session,
+        origin_pane: pane,
         agent,
         mode: worktree::DEFAULT_MODE.into(),
     };

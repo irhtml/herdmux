@@ -8,7 +8,7 @@ import spawn from '../../../assets/captures/worktree-spawn.png';
 
 <Image src={spawn} alt="worktree spawn popup" densities={[1.5, 2]} />
 
-The sidebar can create a git worktree, open a new tmux window, and launch an agent in it — all from one keystroke. Closing lets you pick the scope: tear down the window, worktree, and branch together, or keep the worktree/branch on disk and only close the window.
+The sidebar can create a git worktree, split the current tmux window side by side, and launch an agent in the new pane — all from one keystroke. Creation runs in the background with a progress banner, so the sidebar stays responsive. Closing lets you pick the scope: tear down the pane, worktree, and branch together, or keep the worktree/branch on disk and only close the pane. Sibling panes and the sidebar are preserved.
 
 ## Spawn modal
 
@@ -16,10 +16,10 @@ Opened with `n` or by clicking the `+` button next to a repo header.
 
 | Key                                | Action                                                                                           |
 | ---------------------------------- | ------------------------------------------------------------------------------------------------ |
-| Text keys                          | Type the name. The slugified form (`add login form` → `add-login-form`) becomes both the tmux window name and the branch suffix (branch: `agent/add-login-form`). See "What gets created" below. |
+| Text keys                          | Type the name. The slugified form (`add login form` → `add-login-form`) becomes the worktree directory name and branch suffix (branch: `agent/add-login-form`). See "What gets created" below. |
 | `↑` / `↓` / `Tab` / `Shift+Tab`    | Move focus between `NAME` / `AGENT` / `MODE` fields                                              |
 | `←` / `→`                          | Cycle the value when the agent or mode field has focus                                           |
-| `Enter`                            | Create the worktree + window and launch the agent                                                |
+| `Enter`                            | Start creating the worktree + split and launch the agent in the background                       |
 | `Esc` / click outside              | Cancel                                                                                           |
 
 ### What gets created
@@ -31,7 +31,7 @@ The modal's `NAME` field is slugified (lowercase, non-alphanumeric → `-`) and 
 - **Untracked env files** — `git worktree add` only checks out tracked content, so untracked per-directory files do not follow. `.envrc` is copied from the repo root into the new worktree by default; change the list with `@agent-sidebar-worktree-copy`, or set it to an empty string to disable. A file the checkout already produced is never overwritten.
 
   With `direnv`, the copied `.envrc` still has to be approved in its new location, otherwise the pane starts without the exported variables. Set `@agent-sidebar-worktree-direnv-allow` to `on` to have the spawn run `direnv allow` for you; it fires only when this spawn actually wrote an `.envrc`. It is off by default because approving an `.envrc` lets direnv execute its shell on every `cd` — opting in says the file you are copying is one you already trust in the source repo.
-- **tmux window** — the slug is used as the window name; the agent you picked in the modal (`claude` / `codex` / `opencode`) launches inside it with the selected permission `MODE`.
+- **tmux split** — a non-sidebar pane in the originating window is split side by side; the agent you picked in the modal (`claude` / `codex` / `opencode`) launches in the new worktree with the selected permission `MODE`. Switching windows while creation runs does not redirect the split. Only one spawn can run per sidebar at a time; errors restore the input for retry unless another popup is already open.
 
 Defaults for the agent, branch prefix, and worktree directory live in tmux options — see [tmux options](/tmux-agent-sidebar/reference/tmux-options/) for the full list.
 
@@ -41,9 +41,11 @@ Opened with `x` on a spawn-created pane, or by clicking the `×` button next to 
 
 | Key             | Action                                                                                                                                 |
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `y` / `Enter`   | Close the tmux window, remove the git worktree (`--force`), **and** delete the branch the spawn created (`git branch -D`)             |
-| `c`             | Close the tmux window only, keep the worktree and branch on disk                                                                       |
+| `y` / `Enter`   | Close the owned pane, remove the git worktree (`--force`), **and** delete the branch the spawn created (`git branch -D`)             |
+| `c`             | Close the owned pane only, keep the worktree and branch on disk                                                                       |
 | `n` / `Esc`     | Cancel                                                                                                                                 |
+
+Worktrees created by older versions in dedicated windows retain window-level cleanup. Newly created splits use pane-local ownership markers and never close the shared window.
 
 ### Why `-D` and not `-d`?
 

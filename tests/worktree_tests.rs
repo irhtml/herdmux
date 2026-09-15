@@ -191,6 +191,181 @@ fn agents_list_is_non_empty_and_unique() {
     }
 }
 
+/// Exercise the real CLI and tmux commands on a private server, never the user's server.
+#[test]
+fn spawn_cli_splits_originating_window_and_keeps_sidebar_and_siblings_unmarked() {
+    use std::path::Path;
+    use std::process::Command;
+
+    if Command::new("tmux").arg("-V").output().is_err() {
+        eprintln!("skipping isolated tmux integration test: tmux is not installed");
+        return;
+    }
+    struct Server(PathBuf);
+    impl Server {
+        fn run(&self, args: &[&str]) -> String {
+            let output = Command::new("tmux")
+                .arg("-S")
+                .arg(&self.0)
+                .args(args)
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "tmux {args:?}: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            String::from_utf8_lossy(&output.stdout).trim().to_string()
+        }
+    }
+    impl Drop for Server {
+        fn drop(&mut self) {
+            let _ = Command::new("tmux")
+                .arg("-S")
+                .arg(&self.0)
+                .arg("kill-server")
+                .output();
+        }
+    }
+    fn git(repo: &Path, args: &[&str]) {
+        let output = Command::new("git")
+            .current_dir(repo)
+            .args(args)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "git {args:?}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    let temp = tempfile::tempdir().unwrap();
+    let repo = temp.path().join("repo");
+    std::fs::create_dir(&repo).unwrap();
+    git(&repo, &["init"]);
+    std::fs::write(repo.join("README.md"), "fixture\n").unwrap();
+    git(&repo, &["add", "README.md"]);
+    git(
+        &repo,
+        &[
+            "-c",
+            "user.name=Test",
+            "-c",
+            "user.email=test@example.com",
+            "-c",
+            "commit.gpgsign=false",
+            "commit",
+            "-m",
+            "fixture",
+        ],
+    );
+    let server = Server(temp.path().join("tmux.sock"));
+    let repo_str = repo.to_str().unwrap();
+    let main = server.run(&[
+        "-f",
+        "/dev/null",
+        "new-session",
+        "-d",
+        "-s",
+        "fixture",
+        "-x",
+        "140",
+        "-y",
+        "40",
+        "-c",
+        repo_str,
+        "-P",
+        "-F",
+        "#{pane_id}",
+        "sleep 60",
+    ]);
+    let window = server.run(&["display-message", "-p", "-t", &main, "#{window_id}"]);
+    let sidebar = server.run(&[
+        "split-window",
+        "-h",
+        "-l",
+        "28",
+        "-t",
+        &main,
+        "-c",
+        repo_str,
+        "-P",
+        "-F",
+        "#{pane_id}",
+        "sleep 60",
+    ]);
+    server.run(&["set", "-p", "-t", &sidebar, "@pane_role", "sidebar"]);
+    server.run(&["set", "-g", "@agent-sidebar-default-agent", "true"]);
+    let sidebar_width = server.run(&["display-message", "-p", "-t", &sidebar, "#{pane_width}"]);
+    // Make another window current: the spawn must still target the origin, not tmux's default.
+    server.run(&["new-window", "-t", "fixture", "sleep 60"]);
+
+    for (origin, task) in [(&sidebar, "sidebar-task"), (&main, "cli-task")] {
+        let output = Command::new(env!("CARGO_BIN_EXE_tmux-agent-sidebar"))
+            .args(["spawn", task])
+            .env("TMUX", format!("{},0,0", server.0.display()))
+            .env("TMUX_PANE", origin)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "spawn: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(repo.join(".worktrees").join(task).is_dir());
+    }
+    assert_eq!(
+        server
+            .run(&["list-windows", "-t", "fixture", "-F", "#{window_id}"])
+            .lines()
+            .count(),
+        2
+    );
+    assert_eq!(
+        server
+            .run(&["list-panes", "-t", &window, "-F", "#{pane_id}"])
+            .lines()
+            .count(),
+        4
+    );
+    assert_eq!(
+        server.run(&["display-message", "-p", "-t", &sidebar, "#{pane_width}"]),
+        sidebar_width
+    );
+    for sibling in [&main, &sidebar] {
+        assert_eq!(
+            server.run(&[
+                "display-message",
+                "-p",
+                "-t",
+                sibling,
+                "#{@agent-sidebar-spawned}"
+            ]),
+            ""
+        );
+    }
+    assert_eq!(
+        server.run(&[
+            "show-options",
+            "-w",
+            "-t",
+            &window,
+            "-qv",
+            "@agent-sidebar-spawned"
+        ]),
+        ""
+    );
+    let markers = server.run(&[
+        "list-panes",
+        "-t",
+        &window,
+        "-F",
+        "#{@agent-sidebar-spawned}:#{@agent-sidebar-spawned-scope}",
+    ]);
+    assert_eq!(markers.lines().filter(|line| *line == "1:pane").count(), 2);
+}
+
 #[test]
 fn mode_lists_start_with_default() {
     assert_eq!(CLAUDE_MODES.first().copied(), Some("default"));

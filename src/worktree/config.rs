@@ -105,9 +105,9 @@ pub fn agent_command(agent: &str, mode: &str) -> String {
 /// How much to clean up when the user presses `x` on a spawn-created pane.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RemoveMode {
-    /// Only `tmux kill-window`. The git worktree and branch stay.
+    /// Close only the owned pane (or legacy dedicated window). Keep git state.
     WindowOnly,
-    /// Kill the window AND `git worktree remove --force`.
+    /// Close the owned pane/window AND remove the worktree and branch.
     WindowAndWorktree,
 }
 

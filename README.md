@@ -17,7 +17,7 @@
 - **Live metadata** 
   — prompts, tool calls, response previews, background shell state, wait reasons, task progress, and subagent trees refresh as the agents work
 - **Worktrees, included** 
-  — spawn a fresh worktree + agent from the sidebar and tear it down — window, worktree, and branch — in one keystroke
+  — spawn a fresh worktree + agent in a split of the current window and tear it down — pane, worktree, and branch — in one keystroke
 - **Desktop notifications** 
   — native alerts when an agent finishes, needs permission, or errors out
 

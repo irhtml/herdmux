@@ -74,6 +74,7 @@ pub struct AppState {
     /// Current popup state. At most one popup is open at a time; the enum
     /// variant encodes both which popup is open and its per-popup data.
     pub popup: PopupState,
+    pub(crate) spawn_job: Option<popup::SpawnJob>,
     /// All fields related to the ⓘ notices button and its popup — the button
     /// click region, cached hook/plugin diagnostics, per-agent copy targets,
     /// and the transient "copied" feedback label.
@@ -160,6 +161,7 @@ impl AppState {
             pane_states: PaneRuntimeMap::new(),
             timers: RefreshTimers::default(),
             popup: PopupState::None,
+            spawn_job: None,
             notices: NoticesState::default(),
             pending_osc52_copy: None,
             pet_state: crate::ui::pet::PetState::Idle,

@@ -41,6 +41,61 @@ pub fn pane_session_name(pane_id: &str) -> Option<String> {
     Some(display_message(pane_id, "#{session_name}")).filter(|s| !s.is_empty())
 }
 
+/// Resolve a split target in the originating window, never the sidebar itself.
+pub fn worktree_split_target(origin: &str) -> Result<String, String> {
+    let window = run_tmux_capture(&["display-message", "-t", origin, "-p", "#{window_id}"])?;
+    if window.is_empty() {
+        return Err("could not resolve originating tmux window".into());
+    }
+    let panes = run_tmux_capture(&[
+        "list-panes",
+        "-t",
+        &window,
+        "-F",
+        "#{pane_id} #{pane_active} #{pane_last} #{@pane_role}",
+    ])?;
+    pick_worktree_split_target(origin, &panes)
+        .ok_or_else(|| "could not find a non-sidebar pane in this window".into())
+}
+
+fn pick_worktree_split_target(origin: &str, panes: &str) -> Option<String> {
+    panes
+        .lines()
+        .filter_map(|line| {
+            let mut fields = line.split_whitespace();
+            let pane = fields.next()?;
+            let active = fields.next()? == "1";
+            let last = fields.next()? == "1";
+            let role = fields.next().unwrap_or_default();
+            (role != "sidebar").then_some((pane, pane == origin, active, last))
+        })
+        .max_by_key(|(_, origin, active, last)| (*origin, *active, *last))
+        .map(|(pane, _, _, _)| pane.to_string())
+}
+
+/// Split only the target pane, preserving the sidebar and existing window layout.
+pub fn split_worktree_pane(target: &str, cwd: &str) -> Result<String, String> {
+    run_tmux_capture(&[
+        "split-window",
+        "-h",
+        "-t",
+        target,
+        "-c",
+        cwd,
+        "-P",
+        "-F",
+        "#{pane_id}",
+    ])
+}
+
+pub fn kill_pane(pane: &str) -> Result<(), String> {
+    run_tmux_capture(&["kill-pane", "-t", pane]).map(|_| ())
+}
+
+pub fn set_spawn_pane_option(pane: &str, key: &str, value: &str) -> Result<(), String> {
+    run_tmux_capture(&["set", "-p", "-t", pane, key, value]).map(|_| ())
+}
+
 /// Create a new tmux window in `session` whose initial cwd is `cwd` and whose
 /// title is `name`. Returns `(pane_id, window_id)` on success — the window id
 /// is used by the spawn flow to set markers at window scope so split panes
@@ -146,7 +201,38 @@ pub fn select_pane(pane_id: &str, own_pane_id: &str) {
 
 #[cfg(test)]
 mod tests {
-    use super::most_recent_client;
+    use super::{most_recent_client, pick_worktree_split_target};
+
+    #[test]
+    fn worktree_split_preserves_sidebar_and_prefers_last_main_pane() {
+        let panes = "%0 1 0 sidebar\n%1 0 0\n%2 0 1\n";
+        assert_eq!(
+            pick_worktree_split_target("%0", panes).as_deref(),
+            Some("%2")
+        );
+    }
+
+    #[test]
+    fn worktree_split_cli_prefers_origin_over_other_active_panes() {
+        let panes = "%0 0 0\n%1 1 1\n%2 0 0 sidebar\n";
+        assert_eq!(
+            pick_worktree_split_target("%0", panes).as_deref(),
+            Some("%0")
+        );
+    }
+
+    #[test]
+    fn worktree_split_uses_active_main_pane_or_fallback() {
+        assert_eq!(
+            pick_worktree_split_target("%0", "%0 0 0 sidebar\n%1 1 0\n%2 0 1").as_deref(),
+            Some("%1")
+        );
+        assert_eq!(
+            pick_worktree_split_target("%0", "%0 1 0 sidebar\n%1 0 0").as_deref(),
+            Some("%1")
+        );
+        assert!(pick_worktree_split_target("%0", "%0 1 0 sidebar\nbad line").is_none());
+    }
 
     #[test]
     fn most_recent_client_picks_highest_activity() {

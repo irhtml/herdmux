@@ -86,7 +86,8 @@ Per-pane file-based state:
 | `activity.entries` | Every 1s | Focused pane's activity entries (max 50) |
 | `activity.max_entries` | Once at startup | Max activity log entries to display |
 | `activity.log_cache` | Every 1s | `(focused_pane_id, mtime)` of the last-rendered activity log; skips re-reads when unchanged |
-| `git` | Every 2s (bg thread) | Branch, diff stats, ahead/behind, PR number |
+| `git` | On focus change / every 2s while visible (bg thread) | Branch, diff stats, ahead/behind, PR number. Focus requests wake the worker immediately; generation tags reject stale results. Local status arrives before PR lookups. |
+| `spawn_job` | On spawn confirmation / worker completion | One background checkout + split job, saved input for retry, and persistent progress banner. The input loop polls completion without blocking. |
 | `bottom_tab` | On user input / auto-switch | Current bottom panel tab |
 | `theme` | Once at startup | Color theme from tmux `@sidebar_color_*` variables |
 | `popup` | On user input / render | `PopupState` enum: `None` / `Repo { selected, area }` / `Notices { area }`. Enforces "at most one popup open" via the type system |

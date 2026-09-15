@@ -45,14 +45,23 @@ impl AppState {
     /// Return the current flash text if still valid, clearing it once the
     /// deadline passes. Called by the UI once per frame.
     pub fn take_flash(&mut self) -> Option<String> {
-        match &self.flash {
+        let flash = match &self.flash {
             Some((text, exp)) if Instant::now() < *exp => Some(text.clone()),
             Some(_) => {
                 self.flash = None;
                 None
             }
             None => None,
-        }
+        };
+        flash.or_else(|| {
+            self.spawn_job.as_ref().map(|job| {
+                format!(
+                    "{} creating {}…",
+                    ["◐", "◓", "◑", "◒"][self.spinner_frame % 4],
+                    job.task_name
+                )
+            })
+        })
     }
 
     pub fn apply_git_data(&mut self, data: crate::git::GitData) {

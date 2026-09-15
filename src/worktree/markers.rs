@@ -4,10 +4,11 @@ pub const SPAWNED_OPTION: &str = "@agent-sidebar-spawned";
 pub const SPAWNED_FROM_OPTION: &str = "@agent-sidebar-spawned-from";
 pub const SPAWNED_WORKTREE_OPTION: &str = "@agent-sidebar-spawned-worktree";
 pub const SPAWNED_BRANCH_OPTION: &str = "@agent-sidebar-spawned-branch";
+pub(super) const SPAWNED_SCOPE_OPTION: &str = "@agent-sidebar-spawned-scope";
 
 /// Build the tmux `display-message` template used by [`read_spawn_markers`]. One
-/// call, five fields: the truthy flag, the owning repo, the worktree
-/// path, the branch name, and the window id. Callers share this
+/// call, six fields: the truthy flag, owning repo, worktree path,
+/// branch name, window id, and ownership scope. Callers share this
 /// template so the remove confirmation popup and the remove flow
 /// itself always read the same set of fields in the same order.
 pub fn spawn_markers_template() -> String {
@@ -17,17 +18,18 @@ pub fn spawn_markers_template() -> String {
         format!("#{{{SPAWNED_WORKTREE_OPTION}}}"),
         format!("#{{{SPAWNED_BRANCH_OPTION}}}"),
         "#{window_id}".to_string(),
+        format!("#{{{SPAWNED_SCOPE_OPTION}}}"),
     ]
     .join("\n")
 }
 
-/// Parsed view of the window-scope markers the spawn/remove flow
-/// depends on. All fields are always present because
+/// Parsed ownership markers. New splits use pane scope; missing scope
+/// identifies dedicated windows created by older versions. Fields default because
 /// `display-message` returns empty strings for missing keys —
 /// [`SpawnMarkers::is_spawned`] is the canonical check. The remove
 /// flow also requires `worktree_path`, `branch`, and `window_id` to
 /// be populated and errors out otherwise; `spawn_with` always writes
-/// all four markers atomically (with rollback on partial failure),
+/// the scope before ownership (with rollback on partial failure),
 /// so a pane in the wild either has the full set or the remove flow
 /// correctly refuses to touch it.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -37,6 +39,7 @@ pub struct SpawnMarkers {
     pub worktree_path: String,
     pub branch: String,
     pub window_id: String,
+    pub pane_scoped: bool,
 }
 
 impl SpawnMarkers {
@@ -53,20 +56,21 @@ impl SpawnMarkers {
         let worktree_path = lines.next().unwrap_or("").to_string();
         let branch = lines.next().unwrap_or("").to_string();
         let window_id = lines.next().unwrap_or("").to_string();
+        let pane_scoped = lines.next().unwrap_or("") == "pane";
         Self {
             spawned,
             from_repo,
             worktree_path,
             branch,
             window_id,
+            pane_scoped,
         }
     }
 }
 
 /// Read the spawn markers for `pane_id` through tmux `display-message`,
-/// which falls through pane → window scope. The markers are stored at
-/// window scope so sub panes (e.g. Claude Code subagents split from the
-/// original) still resolve them; a pane-scope lookup would miss them.
+/// which falls through pane → window scope. New markers are pane-local;
+/// legacy window markers remain readable for backwards-compatible cleanup.
 pub fn read_spawn_markers(pane_id: &str) -> SpawnMarkers {
     SpawnMarkers::parse(&tmux::display_message(pane_id, &spawn_markers_template()))
 }
@@ -85,6 +89,14 @@ mod tests {
         assert_eq!(m.branch, "agent/foo");
         assert_eq!(m.window_id, "@42");
         assert!(m.is_spawned());
+        assert!(!m.pane_scoped, "legacy window remains window-owned");
+    }
+
+    #[test]
+    fn parse_pane_scope() {
+        let m = SpawnMarkers::parse("1\n/repo\n/repo/.worktrees/foo\nagent/foo\n@42\npane\n");
+        assert!(m.is_spawned());
+        assert!(m.pane_scoped);
     }
 
     #[test]

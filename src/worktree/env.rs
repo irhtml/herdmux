@@ -40,9 +40,11 @@ pub(crate) trait SpawnEnv {
     fn worktree_add(&self, repo: &str, worktree_path: &str, branch: &str) -> Result<(), String>;
     fn worktree_remove(&self, repo: &str, worktree_path: &str) -> Result<(), String>;
     fn branch_delete(&self, repo: &str, branch: &str) -> Result<(), String>;
-    fn new_window(&self, session: &str, cwd: &str, name: &str) -> Result<(String, String), String>;
+    fn split_target(&self, origin: &str) -> Result<String, String>;
+    fn split_pane(&self, target: &str, cwd: &str) -> Result<String, String>;
+    fn kill_pane(&self, pane_id: &str) -> Result<(), String>;
     fn kill_window(&self, window_id: &str) -> Result<(), String>;
-    fn set_window_option(&self, window: &str, key: &str, value: &str) -> Result<(), String>;
+    fn set_pane_option(&self, pane: &str, key: &str, value: &str) -> Result<(), String>;
     fn send_command(&self, target: &str, command: &str) -> Result<(), String>;
     fn display_message(&self, pane_id: &str, template: &str) -> String;
 }
@@ -124,14 +126,20 @@ impl SpawnEnv for RealEnv {
     fn branch_delete(&self, repo: &str, branch: &str) -> Result<(), String> {
         git::branch_delete(repo, branch)
     }
-    fn new_window(&self, session: &str, cwd: &str, name: &str) -> Result<(String, String), String> {
-        tmux::new_window(session, cwd, name)
+    fn split_target(&self, origin: &str) -> Result<String, String> {
+        tmux::worktree_split_target(origin)
+    }
+    fn split_pane(&self, target: &str, cwd: &str) -> Result<String, String> {
+        tmux::split_worktree_pane(target, cwd)
+    }
+    fn kill_pane(&self, pane_id: &str) -> Result<(), String> {
+        tmux::kill_pane(pane_id)
     }
     fn kill_window(&self, window_id: &str) -> Result<(), String> {
         tmux::kill_window(window_id)
     }
-    fn set_window_option(&self, window: &str, key: &str, value: &str) -> Result<(), String> {
-        tmux::set_window_option(window, key, value)
+    fn set_pane_option(&self, pane: &str, key: &str, value: &str) -> Result<(), String> {
+        tmux::set_spawn_pane_option(pane, key, value)
     }
     fn send_command(&self, target: &str, command: &str) -> Result<(), String> {
         tmux::send_command(target, command)

@@ -3,8 +3,8 @@ use std::path::{Component, Path, PathBuf};
 use super::config::{DEFAULT_BRANCH_PREFIX, RemoveMode, copy_files_from, direnv_allow_from};
 use super::env::{RealEnv, SpawnEnv};
 use super::markers::{
-    SPAWNED_BRANCH_OPTION, SPAWNED_FROM_OPTION, SPAWNED_OPTION, SPAWNED_WORKTREE_OPTION,
-    SpawnMarkers, spawn_markers_template,
+    SPAWNED_BRANCH_OPTION, SPAWNED_FROM_OPTION, SPAWNED_OPTION, SPAWNED_SCOPE_OPTION,
+    SPAWNED_WORKTREE_OPTION, SpawnMarkers, spawn_markers_template,
 };
 use super::slug::{MAX_COLLISION_ATTEMPTS, pick_unique_slug, slugify, worktree_path_for};
 
@@ -12,13 +12,14 @@ use super::slug::{MAX_COLLISION_ATTEMPTS, pick_unique_slug, slugify, worktree_pa
 pub struct SpawnRequest {
     pub repo_root: PathBuf,
     pub task_name: String,
-    pub session: String,
+    /// Originating pane: pins the window even if the user switches tabs while spawning.
+    pub origin_pane: String,
     pub agent: String,
     pub mode: String,
 }
 
-/// Create a worktree, open a new tmux window in it, launch the agent,
-/// and stash markers at window scope so the matching `x` flow can find
+/// Create a worktree, split the originating tmux window, launch the agent,
+/// and stash markers at pane scope so the matching `x` flow can find
 /// it later. Returns the resulting branch name on success. On any
 /// failure past `git worktree add` the worktree is rolled back.
 pub fn spawn(req: &SpawnRequest) -> Result<String, String> {
@@ -34,6 +35,10 @@ pub(crate) fn spawn_with<E: SpawnEnv>(env: &E, req: &SpawnRequest) -> Result<Str
         .repo_root
         .to_str()
         .ok_or("repo root is not valid UTF-8")?;
+    // Resolve before checkout so missing panes don't create orphaned worktrees.
+    let target = env
+        .split_target(&req.origin_pane)
+        .map_err(|e| format!("tmux: {e}"))?;
 
     let prefix = env
         .branch_prefix()
@@ -89,23 +94,24 @@ pub(crate) fn spawn_with<E: SpawnEnv>(env: &E, req: &SpawnRequest) -> Result<Str
         let _ = env.direnv_allow(worktree);
     }
 
-    let (pane_id, window_id) = env
-        .new_window(&req.session, worktree, &unique)
-        .map_err(|e| {
-            let rb = rollback_spawn(env, repo, worktree, &branch, None);
-            compose_spawn_error(format!("tmux: {e}"), rb)
-        })?;
+    let pane_id = env.split_pane(&target, worktree).map_err(|e| {
+        let rb = rollback_spawn(env, repo, worktree, &branch, None);
+        compose_spawn_error(format!("tmux: {e}"), rb)
+    })?;
 
-    // Window scope so sub panes (e.g. Claude Code subagents split from
-    // the original) inherit the markers via tmux's option fall-through.
+    // Pane scope: sibling panes in the shared window must not inherit ownership.
     for (key, value) in [
-        (SPAWNED_OPTION, "1"),
+        // Mask inherited legacy ownership while writing local markers.
+        // Scope precedes the remaining markers; ownership is enabled last.
+        (SPAWNED_OPTION, "0"),
+        (SPAWNED_SCOPE_OPTION, "pane"),
         (SPAWNED_FROM_OPTION, repo),
         (SPAWNED_WORKTREE_OPTION, worktree),
         (SPAWNED_BRANCH_OPTION, &branch),
+        (SPAWNED_OPTION, "1"),
     ] {
-        if let Err(e) = env.set_window_option(&window_id, key, value) {
-            let rb = rollback_spawn(env, repo, worktree, &branch, Some(&window_id));
+        if let Err(e) = env.set_pane_option(&pane_id, key, value) {
+            let rb = rollback_spawn(env, repo, worktree, &branch, Some(&pane_id));
             return Err(compose_spawn_error(
                 format!("tmux: failed to set {key}: {e}"),
                 rb,
@@ -117,14 +123,14 @@ pub(crate) fn spawn_with<E: SpawnEnv>(env: &E, req: &SpawnRequest) -> Result<Str
         &pane_id,
         &super::config::agent_command(&req.agent, &req.mode),
     ) {
-        let rb = rollback_spawn(env, repo, worktree, &branch, Some(&window_id));
+        let rb = rollback_spawn(env, repo, worktree, &branch, Some(&pane_id));
         return Err(compose_spawn_error(format!("tmux: {e}"), rb));
     }
 
     Ok(branch)
 }
 
-/// Best-effort rollback after a partial spawn. Kills the tmux window
+/// Best-effort rollback after a partial spawn. Kills only the created pane
 /// (when one was created), removes the git worktree, and deletes the
 /// branch ref that `git worktree add -b` created. Each step collects
 /// its error so the caller can surface a full picture of what is
@@ -136,13 +142,15 @@ fn rollback_spawn<E: SpawnEnv>(
     repo: &str,
     worktree_path: &str,
     branch: &str,
-    window_id: Option<&str>,
+    pane_id: Option<&str>,
 ) -> Vec<String> {
     let mut errs = Vec::new();
-    if let Some(window_id) = window_id
-        && let Err(e) = env.kill_window(window_id)
+    if let Some(pane_id) = pane_id
+        && let Err(e) = env.kill_pane(pane_id)
     {
-        errs.push(format!("kill_window: {e}"));
+        // Keep the checkout if an agent may still be running in it.
+        errs.push(format!("kill_pane: {e}"));
+        return errs;
     }
     if let Err(e) = env.worktree_remove(repo, worktree_path) {
         errs.push(format!("worktree_remove: {e}"));
@@ -169,8 +177,8 @@ fn compose_spawn_error(primary: String, rollback_errs: Vec<String>) -> String {
 
 /// Tear down a previously-spawned pane. Runs ALL git cleanup
 /// (`worktree remove --force`, then `git branch -D`) BEFORE killing
-/// the tmux window so a git failure at any step leaves the window
-/// (and its markers) intact — the window is the only UI handle the
+/// the owned pane (or legacy window) so a git failure leaves the UI
+/// handle and its markers intact. This is the only handle the
 /// retry path depends on, so killing it first would strand any
 /// leftover git state with no way to finish cleanup from the
 /// sidebar. Each git step is skipped when its target is already
@@ -212,8 +220,13 @@ pub(crate) fn remove_with<E: SpawnEnv>(
                 .map_err(|e| format!("git: {e}"))?;
         }
     }
-    env.kill_window(&markers.window_id)
-        .map_err(|e| format!("tmux: {e}"))?;
+    if markers.pane_scoped {
+        env.kill_pane(pane_id)
+    } else {
+        // Compatibility with worktrees spawned into dedicated windows by older versions.
+        env.kill_window(&markers.window_id)
+    }
+    .map_err(|e| format!("tmux: {e}"))?;
     Ok(())
 }
 
@@ -230,6 +243,7 @@ mod env_tests {
         worktree_dir: Option<String>,
         fail_set_option_at: Option<usize>,
         fail_kill_window: bool,
+        fail_kill_pane: bool,
         fail_worktree_remove: bool,
         fail_branch_delete: bool,
         fail_send_command: bool,
@@ -321,14 +335,21 @@ mod env_tests {
                 Ok(())
             }
         }
-        fn new_window(
-            &self,
-            session: &str,
-            cwd: &str,
-            name: &str,
-        ) -> Result<(String, String), String> {
-            self.log(format!("new_window({session},{cwd},{name})"));
-            Ok(("%1".into(), "@1".into()))
+        fn split_target(&self, origin: &str) -> Result<String, String> {
+            self.log(format!("split_target({origin})"));
+            Ok("%0".into())
+        }
+        fn split_pane(&self, target: &str, cwd: &str) -> Result<String, String> {
+            self.log(format!("split_pane({target},{cwd})"));
+            Ok("%1".into())
+        }
+        fn kill_pane(&self, pane: &str) -> Result<(), String> {
+            self.log(format!("kill_pane({pane})"));
+            if self.fail_kill_pane {
+                Err("kill_pane failed".into())
+            } else {
+                Ok(())
+            }
         }
         fn kill_window(&self, window_id: &str) -> Result<(), String> {
             self.log(format!("kill_window({window_id})"));
@@ -338,10 +359,10 @@ mod env_tests {
                 Ok(())
             }
         }
-        fn set_window_option(&self, window: &str, key: &str, _value: &str) -> Result<(), String> {
+        fn set_pane_option(&self, pane: &str, key: &str, value: &str) -> Result<(), String> {
             let idx = *self.set_option_calls.borrow();
             *self.set_option_calls.borrow_mut() += 1;
-            self.log(format!("set_window_option({window},{key})"));
+            self.log(format!("set_pane_option({pane},{key},{value})"));
             if Some(idx) == self.fail_set_option_at {
                 Err(format!("set {key} failed"))
             } else {
@@ -367,7 +388,7 @@ mod env_tests {
         SpawnRequest {
             repo_root: PathBuf::from("/r"),
             task_name: "task".into(),
-            session: "sess".into(),
+            origin_pane: "%0".into(),
             agent: "claude".into(),
             mode: "default".into(),
         }
@@ -387,8 +408,12 @@ mod env_tests {
             &calls,
             "worktree_add(/r,/r/.worktrees/task,agent/task)"
         ));
-        assert!(has_call(&calls, "new_window(sess,/r/.worktrees/task,task)"));
-        assert_eq!(*env.set_option_calls.borrow(), 4);
+        assert!(has_call(&calls, "split_pane(%0,/r/.worktrees/task)"));
+        assert_eq!(*env.set_option_calls.borrow(), 6);
+        assert!(has_call(
+            &calls,
+            "set_pane_option(%1,@agent-sidebar-spawned-scope,pane)"
+        ));
         assert!(has_call(&calls, "send_command(%1,claude"));
         assert!(
             !has_call(&calls, "kill_window("),
@@ -417,8 +442,8 @@ mod env_tests {
             .expect("worktree_add call recorded");
         let window = calls
             .iter()
-            .position(|c| c.starts_with("new_window("))
-            .expect("new_window call recorded");
+            .position(|c| c.starts_with("split_pane("))
+            .expect("split_pane call recorded");
         assert!(add < copy && copy < window, "calls: {calls:?}");
     }
 
@@ -510,7 +535,7 @@ mod env_tests {
             &calls,
             "worktree_add(/r,/r/.worktrees/task,agent/task)"
         ));
-        assert!(has_call(&calls, "new_window(sess,/r/.worktrees/task,task)"));
+        assert!(has_call(&calls, "split_pane(%0,/r/.worktrees/task)"));
     }
 
     #[test]
@@ -554,11 +579,14 @@ mod env_tests {
             ..FakeEnv::default()
         };
         let err = spawn_with(&env, &sample_req()).expect_err("spawn must fail");
-        assert!(err.contains(SPAWNED_OPTION), "error mentions marker: {err}");
+        assert!(
+            err.contains(SPAWNED_OPTION),
+            "error mentions ownership flag: {err}"
+        );
         let calls = env.calls();
         assert!(
-            has_call(&calls, "kill_window(@1)"),
-            "kill_window rollback: {calls:?}"
+            has_call(&calls, "kill_pane(%1)"),
+            "kill_pane rollback: {calls:?}"
         );
         assert!(
             has_call(&calls, "worktree_remove("),
@@ -573,16 +601,17 @@ mod env_tests {
     #[test]
     fn spawn_rolls_back_when_middle_marker_fails() {
         let env = FakeEnv {
-            fail_set_option_at: Some(1),
+            fail_set_option_at: Some(2),
             ..FakeEnv::default()
         };
         let err = spawn_with(&env, &sample_req()).expect_err("spawn must fail");
         assert!(
             err.contains(SPAWNED_FROM_OPTION),
-            "error mentions second marker: {err}"
+            "error mentions repo marker: {err}"
         );
         let calls = env.calls();
-        assert!(has_call(&calls, "kill_window(@1)"));
+        assert!(has_call(&calls, "kill_pane(%1)"));
+        assert!(!has_call(&calls, "kill_window("));
         assert!(has_call(&calls, "worktree_remove("));
         assert!(!has_call(&calls, "send_command("));
     }
@@ -669,8 +698,8 @@ mod env_tests {
         );
         let calls = env.calls();
         assert!(
-            has_call(&calls, "kill_window(@1)"),
-            "kill_window rollback on send failure: {calls:?}"
+            has_call(&calls, "kill_pane(%1)"),
+            "kill_pane rollback on send failure: {calls:?}"
         );
         assert!(
             has_call(&calls, "worktree_remove("),
@@ -697,10 +726,10 @@ mod env_tests {
     }
 
     #[test]
-    fn spawn_rolls_back_branch_when_new_window_fails() {
+    fn spawn_rolls_back_branch_when_split_fails() {
         #[derive(Default)]
-        struct NewWindowFailingEnv(FakeEnv);
-        impl SpawnEnv for NewWindowFailingEnv {
+        struct SplitFailingEnv(FakeEnv);
+        impl SpawnEnv for SplitFailingEnv {
             fn branch_prefix(&self) -> Option<String> {
                 self.0.branch_prefix()
             }
@@ -740,15 +769,21 @@ mod env_tests {
             fn branch_delete(&self, r: &str, b: &str) -> Result<(), String> {
                 self.0.branch_delete(r, b)
             }
-            fn new_window(&self, _s: &str, _c: &str, _n: &str) -> Result<(String, String), String> {
-                self.0.log("new_window(fail)".into());
-                Err("new_window failed".into())
+            fn split_target(&self, origin: &str) -> Result<String, String> {
+                self.0.split_target(origin)
+            }
+            fn split_pane(&self, _target: &str, _cwd: &str) -> Result<String, String> {
+                self.0.log("split_pane(fail)".into());
+                Err("split_pane failed".into())
+            }
+            fn kill_pane(&self, pane: &str) -> Result<(), String> {
+                self.0.kill_pane(pane)
             }
             fn kill_window(&self, w: &str) -> Result<(), String> {
                 self.0.kill_window(w)
             }
-            fn set_window_option(&self, w: &str, k: &str, v: &str) -> Result<(), String> {
-                self.0.set_window_option(w, k, v)
+            fn set_pane_option(&self, p: &str, k: &str, v: &str) -> Result<(), String> {
+                self.0.set_pane_option(p, k, v)
             }
             fn send_command(&self, t: &str, c: &str) -> Result<(), String> {
                 self.0.send_command(t, c)
@@ -758,29 +793,29 @@ mod env_tests {
             }
         }
 
-        let env = NewWindowFailingEnv::default();
+        let env = SplitFailingEnv::default();
         let err = spawn_with(&env, &sample_req()).expect_err("spawn must fail");
-        assert!(err.contains("new_window failed"));
+        assert!(err.contains("split_pane failed"));
         let calls = env.0.calls();
         assert!(
             !has_call(&calls, "kill_window("),
-            "no window was ever created: {calls:?}"
+            "no pane was ever created: {calls:?}"
         );
         assert!(
             has_call(&calls, "worktree_remove("),
-            "worktree must be cleaned up after new_window failure: {calls:?}"
+            "worktree must be cleaned up after split failure: {calls:?}"
         );
         assert!(
             has_call(&calls, "branch_delete(/r,agent/task)"),
-            "branch must be deleted after new_window failure: {calls:?}"
+            "branch must be deleted after split failure: {calls:?}"
         );
     }
 
     #[test]
-    fn spawn_surfaces_rollback_failure_when_kill_window_also_fails() {
+    fn spawn_preserves_checkout_when_rollback_cannot_kill_pane() {
         let env = FakeEnv {
             fail_set_option_at: Some(0),
-            fail_kill_window: true,
+            fail_kill_pane: true,
             ..FakeEnv::default()
         };
         let err = spawn_with(&env, &sample_req()).expect_err("spawn must fail");
@@ -789,9 +824,51 @@ mod env_tests {
             "rollback failure surfaced: {err}"
         );
         assert!(
-            err.contains("kill_window"),
-            "rollback error names kill_window: {err}"
+            err.contains("kill_pane"),
+            "rollback error names kill_pane: {err}"
         );
+        assert!(!has_call(&env.calls(), "worktree_remove("));
+        assert!(!has_call(&env.calls(), "branch_delete("));
+    }
+
+    #[test]
+    fn remove_split_never_kills_the_shared_window() {
+        for mode in [RemoveMode::WindowOnly, RemoveMode::WindowAndWorktree] {
+            let env = FakeEnv {
+                display_output: Some("1\n/r\n/r/.worktrees/task\nagent/task\n@1\npane\n".into()),
+                ..FakeEnv::default()
+            };
+            remove_with(&env, "%1", mode).unwrap();
+            let calls = env.calls();
+            assert!(has_call(&calls, "kill_pane(%1)"));
+            assert!(!has_call(&calls, "kill_window("));
+            assert_eq!(
+                has_call(&calls, "worktree_remove("),
+                mode == RemoveMode::WindowAndWorktree
+            );
+            assert_eq!(
+                has_call(&calls, "branch_delete("),
+                mode == RemoveMode::WindowAndWorktree
+            );
+            if mode == RemoveMode::WindowAndWorktree {
+                assert!(calls.last().unwrap().starts_with("kill_pane("));
+            }
+        }
+    }
+
+    #[test]
+    fn remove_split_retains_retry_handle_on_git_failure() {
+        for branch_failure in [false, true] {
+            let env = FakeEnv {
+                display_output: Some("1\n/r\n/r/.worktrees/task\nagent/task\n@1\npane\n".into()),
+                fail_worktree_remove: !branch_failure,
+                fail_branch_delete: branch_failure,
+                ..FakeEnv::default()
+            };
+            assert!(remove_with(&env, "%1", RemoveMode::WindowAndWorktree).is_err());
+            assert!(!has_call(&env.calls(), "kill_pane("));
+            assert!(!has_call(&env.calls(), "kill_window("));
+        }
     }
 
     #[test]

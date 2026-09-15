@@ -5,8 +5,9 @@ mod query;
 mod types;
 
 pub use commands::{
-    display_message, kill_window, new_window, pane_session_name, run_tmux, run_tmux_capture,
-    select_pane, send_command, set_window_option,
+    display_message, kill_pane, kill_window, new_window, pane_session_name, run_tmux,
+    run_tmux_capture, select_pane, send_command, set_spawn_pane_option, set_window_option,
+    split_worktree_pane, worktree_split_target,
 };
 pub use options::{
     BG_CMD_PLACEHOLDER, PANE_AGENT, PANE_ATTENTION, PANE_BG_CMD, PANE_CWD, PANE_NAME,

@@ -1,4 +1,11 @@
 use super::AppState;
+use std::sync::mpsc::{self, Receiver, TryRecvError};
+
+pub(crate) struct SpawnJob {
+    result: Receiver<Result<String, String>>,
+    popup: PopupState,
+    pub task_name: String,
+}
 
 /// Focus target inside the spawn input popup. Tab / Shift+Tab / arrow
 /// keys cycle through these in order; only `Task` accepts text input.
@@ -213,6 +220,10 @@ impl AppState {
         repo_root: String,
         anchor_y: Option<u16>,
     ) {
+        if self.spawn_job.is_some() {
+            self.set_flash("spawn already in progress");
+            return;
+        }
         self.popup = PopupState::SpawnInput {
             input: String::new(),
             target_repo: repo_name,
@@ -356,12 +367,18 @@ impl AppState {
         }
     }
 
-    /// Run the spawn flow against the repo stored in the popup, using
-    /// the agent / mode the user picked. On success the popup closes
-    /// silently (the new window appearing in the sidebar is the
-    /// feedback). On failure the error is surfaced inside the popup
-    /// and the modal stays open so the user can retry.
+    /// Start checkout and tmux creation in a worker so sidebar input remains responsive.
     pub fn confirm_spawn_input(&mut self) {
+        self.confirm_spawn_input_with(crate::worktree::spawn);
+    }
+
+    fn confirm_spawn_input_with<F>(&mut self, spawn: F)
+    where
+        F: FnOnce(&crate::worktree::SpawnRequest) -> Result<String, String> + Send + 'static,
+    {
+        if self.spawn_job.is_some() {
+            return;
+        }
         let PopupState::SpawnInput {
             input,
             target_repo_root,
@@ -389,22 +406,51 @@ impl AppState {
             .to_string();
         let repo_root = std::path::PathBuf::from(target_repo_root.clone());
 
-        let Some(session) = crate::tmux::pane_session_name(&self.tmux_pane) else {
-            self.set_spawn_error("could not resolve tmux session");
-            return;
-        };
-
         let req = crate::worktree::SpawnRequest {
             repo_root,
-            task_name,
-            session,
+            task_name: task_name.clone(),
+            origin_pane: self.tmux_pane.clone(),
             agent,
             mode,
         };
-        match crate::worktree::spawn(&req) {
-            Ok(_) => self.popup = PopupState::None,
-            Err(e) => self.set_spawn_error(e),
+        let (tx, result) = mpsc::channel();
+        match std::thread::Builder::new()
+            .name("worktree-spawn".into())
+            .spawn(move || {
+                let _ = tx.send(spawn(&req));
+            }) {
+            Ok(_) => {
+                self.spawn_job = Some(SpawnJob {
+                    result,
+                    popup: std::mem::take(&mut self.popup),
+                    task_name,
+                });
+                self.flash = None;
+            }
+            Err(e) => self.set_spawn_error(format!("could not start spawn worker: {e}")),
         }
+    }
+
+    /// Poll without waiting. Restore failed input only if it won't replace another popup.
+    pub(crate) fn poll_spawn_result(&mut self) -> bool {
+        let Some(job) = &self.spawn_job else {
+            return false;
+        };
+        let result = match job.result.try_recv() {
+            Ok(result) => result,
+            Err(TryRecvError::Empty) => return false,
+            Err(TryRecvError::Disconnected) => Err("spawn worker stopped unexpectedly".into()),
+        };
+        let job = self.spawn_job.take().expect("pending spawn job");
+        match result {
+            Ok(branch) => self.set_flash(format!("spawned {branch}")),
+            Err(e) if matches!(self.popup, PopupState::None) => {
+                self.popup = job.popup;
+                self.set_spawn_error(e);
+            }
+            Err(e) => self.set_flash(format!("spawn failed: {e}")),
+        }
+        true
     }
 
     // ─── Remove confirm popup (x key) ────────────────────────────────────
@@ -503,6 +549,146 @@ mod tests {
     }
 
     // ─── SpawnField cycle ────────────────────────────────────────────
+
+    fn spawn_test_state() -> AppState {
+        let mut state = AppState::new("%0".into());
+        state.open_spawn_input_for_repo("repo".into(), "/repo".into(), Some(2));
+        for c in "task".chars() {
+            state.spawn_input_push_char(c);
+        }
+        state
+    }
+
+    fn await_spawn(state: &mut AppState) {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        while !state.poll_spawn_result() {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "spawn worker did not finish"
+            );
+            std::thread::yield_now();
+        }
+    }
+
+    #[test]
+    fn spawn_creation_does_not_block_input_or_allow_duplicate_jobs() {
+        let mut state = spawn_test_state();
+        let (started_tx, started_rx) = mpsc::channel();
+        let (release_tx, release_rx) = mpsc::channel();
+        state.confirm_spawn_input_with(move |req| {
+            assert_eq!(req.origin_pane, "%0");
+            assert_eq!(req.task_name, "task");
+            assert_eq!(req.repo_root, std::path::PathBuf::from("/repo"));
+            started_tx.send(()).unwrap();
+            release_rx.recv().unwrap();
+            Ok("agent/task".into())
+        });
+        started_rx
+            .recv_timeout(std::time::Duration::from_secs(2))
+            .unwrap();
+        assert!(matches!(state.popup, PopupState::None));
+        assert!(state.spawn_job.is_some());
+        assert!(!state.poll_spawn_result());
+        state.confirm_spawn_input_with(|_| panic!("must not start a duplicate worker"));
+        state.open_spawn_input_for_repo("other".into(), "/other".into(), None);
+        assert!(matches!(state.popup, PopupState::None));
+        release_tx.send(()).unwrap();
+        await_spawn(&mut state);
+        assert!(state.spawn_job.is_none());
+        assert_eq!(state.take_flash().as_deref(), Some("spawned agent/task"));
+    }
+
+    #[test]
+    fn failed_spawn_restores_input_for_retry() {
+        let mut state = spawn_test_state();
+        state.confirm_spawn_input_with(|_| Err("checkout failed".into()));
+        await_spawn(&mut state);
+        let PopupState::SpawnInput {
+            input,
+            target_repo_root,
+            error,
+            anchor_y,
+            ..
+        } = &state.popup
+        else {
+            panic!("failed input must be restored");
+        };
+        assert_eq!(input, "task");
+        assert_eq!(target_repo_root, "/repo");
+        assert_eq!(error.as_deref(), Some("checkout failed"));
+        assert_eq!(*anchor_y, Some(2));
+        state.confirm_spawn_input_with(|_| Ok("agent/task".into()));
+        await_spawn(&mut state);
+        assert!(matches!(state.popup, PopupState::None));
+    }
+
+    #[test]
+    fn failed_spawn_does_not_replace_a_new_popup() {
+        let mut state = spawn_test_state();
+        state.confirm_spawn_input_with(|_| Err("checkout failed".into()));
+        state.popup = PopupState::Keymap { scroll: 3 };
+        await_spawn(&mut state);
+        assert!(matches!(state.popup, PopupState::Keymap { scroll: 3 }));
+        assert_eq!(
+            state.take_flash().as_deref(),
+            Some("spawn failed: checkout failed")
+        );
+    }
+
+    #[test]
+    fn disconnected_spawn_worker_reports_failure() {
+        let mut state = spawn_test_state();
+        let (tx, result) = mpsc::channel();
+        drop(tx);
+        state.spawn_job = Some(SpawnJob {
+            result,
+            popup: std::mem::take(&mut state.popup),
+            task_name: "task".into(),
+        });
+        assert!(state.poll_spawn_result());
+        assert!(
+            matches!(&state.popup, PopupState::SpawnInput { error: Some(e), .. } if e == "spawn worker stopped unexpectedly")
+        );
+        assert!(state.spawn_job.is_none());
+    }
+
+    #[test]
+    fn spawn_progress_banner_snapshot() {
+        use ratatui::{Terminal, backend::TestBackend};
+        let mut state = spawn_test_state();
+        state.bottom_panel_height = 0;
+        let (_tx, result) = mpsc::channel();
+        state.spawn_job = Some(SpawnJob {
+            result,
+            popup: std::mem::take(&mut state.popup),
+            task_name: "task".into(),
+        });
+        let mut terminal = Terminal::new(TestBackend::new(32, 8)).unwrap();
+        terminal
+            .draw(|frame| crate::ui::draw(frame, &mut state))
+            .unwrap();
+        let buffer = terminal.backend().buffer();
+        let output = (0..8)
+            .map(|y| {
+                (0..32)
+                    .map(|x| buffer[(x, y)].symbol())
+                    .collect::<String>()
+                    .trim_end()
+                    .to_string()
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        insta::assert_snapshot!(output, @r"
+         ≡0  ●0  ◎0  ◐0  ○0  ✕0
+                                     — ▾
+
+
+
+
+
+        ◐ creating task…
+        ");
+    }
 
     #[test]
     fn spawn_field_next_and_prev_cycle() {

@@ -331,7 +331,7 @@ pub(super) fn render_remove_confirm_popup(frame: &mut Frame, state: &mut AppStat
     render_row(
         frame,
         1,
-        "[c] close window only",
+        "[c] close only",
         Style::default().fg(theme.text_active),
     );
     render_row(

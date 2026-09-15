@@ -40,10 +40,13 @@ pub fn run(
     let workers = workers::spawn(&state);
     let workers::Workers {
         git_rx,
+        git_requests,
         session_rx,
         version_rx,
         git_tab_active,
     } = workers;
+    let mut git_generation = 0;
+    let mut git_pane = state.focus_state.focused_pane_id.clone();
 
     let mut last_refresh = std::time::Instant::now();
     let mut last_spinner = std::time::Instant::now();
@@ -94,13 +97,9 @@ pub fn run(
 
         let sigusr1 = needs_refresh.swap(false, Ordering::Relaxed);
         if sigusr1 || last_refresh.elapsed() >= refresh_interval {
-            let previous_focused_pane_id = state.focus_state.focused_pane_id.clone();
             let outcome = state.refresh_tick(sigusr1);
             window_visible = outcome.window_visible;
             if outcome.synced {
-                if state.focus_state.focused_pane_id != previous_focused_pane_id {
-                    render::refresh_git_for_focused_pane(&mut state);
-                }
                 needs_redraw = true;
             }
             if window_visible {
@@ -121,9 +120,26 @@ pub fn run(
             last_refresh = std::time::Instant::now();
         }
 
-        if let Ok(data) = git_rx.try_recv() {
-            state.apply_git_data(data);
+        // Input can change focus before the periodic refresh, so compare
+        // against the last request rather than the pre-refresh state.
+        if state.focus_state.focused_pane_id != git_pane {
+            git_generation += 1;
+            git_pane = state.focus_state.focused_pane_id.clone();
+            state.apply_git_data(crate::git::GitData::default());
+            let _ = git_requests.send(workers::GitRequest {
+                pane_id: git_pane.clone(),
+                generation: git_generation,
+            });
             needs_redraw = true;
+        }
+
+        while let Ok(snapshot) = git_rx.try_recv() {
+            needs_redraw |= workers::apply_git_snapshot(&mut state, git_generation, snapshot);
+        }
+
+        if state.poll_spawn_result() {
+            needs_redraw = true;
+            needs_refresh.store(true, Ordering::Relaxed);
         }
 
         if let Ok(names) = session_rx.try_recv() {

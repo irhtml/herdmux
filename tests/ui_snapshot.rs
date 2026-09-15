@@ -2243,7 +2243,7 @@ fn snapshot_remove_confirm_modal_shows_three_options() {
     ┃ ○ claude
     ┃   main   ╭ add-login ───────────────╮
         Waiting│[y] remove worktree       │
-               │[c] close window only     │
+               │[c] close only            │
                │[n] cancel                │
                ╰──────────────────────────╯
     ╭ Activity │ Git ────────────────────────────────╮
@@ -2314,7 +2314,7 @@ fn snapshot_remove_confirm_modal_shows_inline_error() {
     proj                                             +
     ┃ ○ claude ╭ add-login ───────────────╮
     ┃   main   │[y] remove worktree       │
-        Waiting│[c] close window only     │
+        Waiting│[c] close only            │
                │[n] cancel                │
                │git: worktree has uncommi…│
                ╰──────────────────────────╯

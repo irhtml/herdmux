@@ -1,6 +1,7 @@
 pub mod bottom;
 pub mod colors;
 pub mod icons;
+mod keymap;
 pub mod notices;
 pub mod panes;
 pub mod pet;
@@ -56,6 +57,10 @@ pub fn pet_enabled_from_tmux() -> bool {
 pub fn draw(frame: &mut Frame, state: &mut AppState) {
     state.layout.hyperlink_overlays.clear();
     let area = frame.area();
+    if matches!(state.popup, crate::state::PopupState::Keymap { .. }) {
+        keymap::draw(frame, state, area);
+        return;
+    }
 
     let bot_h = state.bottom_panel_height;
     let divider_h = if bot_h > 0 && state.pet_enabled {

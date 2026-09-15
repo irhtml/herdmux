@@ -18,6 +18,7 @@ description: Every shortcut in the sidebar, the worktree spawn modal, and the cl
 | `Tab`          | Cycle status filter                                           |
 | `Shift+Tab`    | Switch bottom panel tab (Activity ⇄ Git)                      |
 | `Esc`          | Return focus or close the popup                               |
+| `?`            | Show keymap (`?` or `Esc` to close; arrows or mouse wheel to scroll) |
 
 ## Repo filter popup
 

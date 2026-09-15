@@ -35,6 +35,9 @@ impl SpawnField {
 pub enum PopupState {
     #[default]
     None,
+    Keymap {
+        scroll: u16,
+    },
     Repo {
         selected: usize,
         area: Option<ratatui::layout::Rect>,

@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEventKind};
 use ratatui::{Terminal, backend::CrosstermBackend};
 
-use crate::state::{AppState, BottomTab, Focus};
+use crate::state::{AppState, BottomTab, Focus, PopupState};
 use crate::worktree::RemoveMode;
 
 /// Dispatch a single crossterm [`Event`] into the [`AppState`], returning
@@ -21,6 +21,14 @@ pub(super) fn handle_event(
     match ev {
         Event::Key(key) => handle_key_event(key, state, git_tab_active),
         Event::Mouse(mouse) => {
+            if let PopupState::Keymap { scroll } = &mut state.popup {
+                match mouse.kind {
+                    MouseEventKind::ScrollDown => *scroll = scroll.saturating_add(3),
+                    MouseEventKind::ScrollUp => *scroll = scroll.saturating_sub(3),
+                    _ => {}
+                }
+                return true;
+            }
             let term_height = terminal.size().map(|s| s.height).unwrap_or(0);
             let bottom_h = state.bottom_panel_height;
             match mouse.kind {
@@ -61,6 +69,21 @@ pub(super) fn handle_key_event(
     state: &mut AppState,
     git_tab_active: &AtomicBool,
 ) -> bool {
+    if let PopupState::Keymap { scroll } = &mut state.popup {
+        match key.code {
+            KeyCode::Esc | KeyCode::Char('?') => state.popup = PopupState::None,
+            KeyCode::Char('j') | KeyCode::Down => *scroll = scroll.saturating_add(1),
+            KeyCode::Char('n') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                *scroll = scroll.saturating_add(1);
+            }
+            KeyCode::Char('k') | KeyCode::Up => *scroll = scroll.saturating_sub(1),
+            KeyCode::Char('p') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                *scroll = scroll.saturating_sub(1);
+            }
+            _ => {}
+        }
+        return true;
+    }
     if state.is_notices_popup_open() {
         if key.code == KeyCode::Esc {
             state.close_notices_popup();
@@ -107,6 +130,7 @@ pub(super) fn handle_key_event(
     }
     let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
     match key.code {
+        KeyCode::Char('?') => state.popup = PopupState::Keymap { scroll: 0 },
         KeyCode::Esc => {
             if state.focus_state.focus == Focus::ActivityLog
                 || state.focus_state.focus == Focus::Filter
@@ -240,6 +264,41 @@ mod tests {
 
     fn ctrl_key(c: char) -> KeyEvent {
         KeyEvent::new(KeyCode::Char(c), KeyModifiers::CONTROL)
+    }
+
+    #[test]
+    fn keymap_is_modal_and_closes_with_question_mark_or_escape() {
+        let mut state = state_with_three_panes();
+        let flag = AtomicBool::new(false);
+        for close in [KeyCode::Char('?'), KeyCode::Esc] {
+            handle_key_event(key(KeyCode::Char('?')), &mut state, &flag);
+            assert!(matches!(state.popup, PopupState::Keymap { scroll: 0 }));
+            handle_key_event(key(KeyCode::Char('j')), &mut state, &flag);
+            assert!(matches!(state.popup, PopupState::Keymap { scroll: 1 }));
+            handle_key_event(key(KeyCode::Char('x')), &mut state, &flag);
+            assert_eq!(state.global.selected_pane_row, 0);
+            assert!(matches!(state.popup, PopupState::Keymap { .. }));
+            handle_key_event(key(close), &mut state, &flag);
+            assert!(matches!(state.popup, PopupState::None));
+        }
+    }
+
+    #[test]
+    fn question_mark_still_types_in_spawn_dialog() {
+        let mut state = AppState::new("%99".into());
+        state.popup = PopupState::SpawnInput {
+            input: String::new(),
+            target_repo: String::new(),
+            target_repo_root: String::new(),
+            agent_idx: 0,
+            mode_idx: 0,
+            field: crate::state::SpawnField::Task,
+            anchor_y: None,
+            error: None,
+            area: None,
+        };
+        handle_key_event(key(KeyCode::Char('?')), &mut state, &AtomicBool::new(false));
+        assert!(matches!(&state.popup, PopupState::SpawnInput { input, .. } if input == "?"));
     }
 
     /// Build an AppState with three navigable pane rows and Panes focus,

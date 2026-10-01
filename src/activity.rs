@@ -54,6 +54,58 @@ pub fn log_mtime(pane_id: &str) -> Option<std::time::SystemTime> {
         .and_then(|m| m.modified().ok())
 }
 
+/// Final assistant message of a pane's latest turn. The Stop hook writes
+/// it so `agent wait` / `agent read --response` can hand the full text to
+/// another agent (`@pane_prompt` only keeps a one-line sanitized copy).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct AgentResponse {
+    pub session_id: String,
+    /// `@pane_prompt_at` of the turn this response answers, when known.
+    pub prompt_at_ms: Option<u64>,
+    pub stopped_at_ms: u64,
+    pub message: String,
+}
+
+impl AgentResponse {
+    pub fn to_json(&self) -> serde_json::Value {
+        serde_json::json!({
+            "session_id": self.session_id,
+            "prompt_at_ms": self.prompt_at_ms,
+            "stopped_at_ms": self.stopped_at_ms,
+            "message": self.message,
+        })
+    }
+
+    pub fn from_json(value: &serde_json::Value) -> Option<Self> {
+        Some(Self {
+            session_id: value.get("session_id")?.as_str()?.to_string(),
+            prompt_at_ms: value.get("prompt_at_ms").and_then(|v| v.as_u64()),
+            stopped_at_ms: value.get("stopped_at_ms")?.as_u64()?,
+            message: value.get("message")?.as_str()?.to_string(),
+        })
+    }
+}
+
+pub fn response_file_path(pane_id: &str) -> PathBuf {
+    let encoded = pane_id.replace('%', "_");
+    PathBuf::from(format!("/tmp/tmux-agent-response{encoded}.json"))
+}
+
+/// Best effort: a failed write only degrades `agent read --response`.
+pub fn write_response(pane_id: &str, response: &AgentResponse) {
+    let body = response.to_json().to_string();
+    let _ = crate::fs_util::write_private_atomic(&response_file_path(pane_id), body.as_bytes());
+}
+
+pub fn read_response(pane_id: &str) -> Option<AgentResponse> {
+    let content = fs::read_to_string(response_file_path(pane_id)).ok()?;
+    AgentResponse::from_json(&serde_json::from_str(&content).ok()?)
+}
+
+pub fn remove_response(pane_id: &str) {
+    let _ = fs::remove_file(response_file_path(pane_id));
+}
+
 fn parse_entry(line: &str) -> Option<ActivityEntry> {
     let mut parts = line.splitn(3, '|');
     let timestamp = parts.next()?.to_string();
@@ -231,6 +283,34 @@ mod tests {
         assert_eq!(entries[2].tool, "Read");
 
         fs::remove_file(&path).unwrap();
+    }
+
+    #[test]
+    fn response_round_trips_and_removes() {
+        let pane_id = "%99_response_test";
+        let response = AgentResponse {
+            session_id: "sid".into(),
+            prompt_at_ms: Some(1_000),
+            stopped_at_ms: 2_000,
+            message: "line one\nline | two".into(),
+        };
+        write_response(pane_id, &response);
+        assert_eq!(read_response(pane_id), Some(response));
+        remove_response(pane_id);
+        assert_eq!(read_response(pane_id), None);
+    }
+
+    #[test]
+    fn response_without_prompt_at_parses() {
+        let value = serde_json::json!({
+            "session_id": "",
+            "prompt_at_ms": null,
+            "stopped_at_ms": 5,
+            "message": "",
+        });
+        let parsed = AgentResponse::from_json(&value).unwrap();
+        assert_eq!(parsed.prompt_at_ms, None);
+        assert_eq!(parsed.stopped_at_ms, 5);
     }
 
     #[test]

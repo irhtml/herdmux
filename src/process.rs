@@ -113,6 +113,150 @@ impl ProcessSnapshot {
     }
 }
 
+impl ProcessSnapshot {
+    /// Pid of the agent when it is the pane's interactive program: the
+    /// pane root itself, a direct child of the pane shell, or the child of
+    /// a launcher shim (`bun …/codex.js` spawning the native binary).
+    /// Agents nested deeper, e.g. `bash worker.sh` → `claude -p`, belong
+    /// to some script and must not be treated as resumable sessions.
+    pub(crate) fn interactive_agent_pid(&self, pane_pid: u32, agent_name: &str) -> Option<u32> {
+        let matches = |pid: &u32| {
+            self.info_by_pid
+                .get(pid)
+                .is_some_and(|info| process_matches_agent(info, agent_name))
+        };
+        if matches(&pane_pid) {
+            return Some(pane_pid);
+        }
+        let children = self.children_of.get(&pane_pid)?;
+        if let Some(&pid) = children.iter().find(|pid| matches(pid)) {
+            return Some(pid);
+        }
+        children.iter().find_map(|shim| {
+            let info = self.info_by_pid.get(shim)?;
+            if !is_launcher_shim(info, agent_name) {
+                return None;
+            }
+            let launched = self
+                .children_of
+                .get(shim)
+                .and_then(|kids| kids.iter().copied().find(|pid| matches(pid)));
+            Some(launched.unwrap_or(*shim))
+        })
+    }
+}
+
+/// `node`/`bun` running a script named after the agent (`codex.js`,
+/// `bin/opencode`). Only the script slot counts, so a watcher like
+/// `node watch.mjs … claude` is not mistaken for the agent.
+fn is_launcher_shim(info: &ProcessInfo, agent_name: &str) -> bool {
+    let mut tokens = info.args.split_whitespace();
+    let Some(interpreter) = tokens.next() else {
+        return false;
+    };
+    let interpreter = command_basename(interpreter);
+    if !matches!(interpreter, "node" | "bun" | "deno") {
+        return false;
+    }
+    tokens
+        .find(|t| !t.starts_with('-'))
+        .is_some_and(|script| script_stem(script) == agent_name)
+}
+
+fn script_stem(token: &str) -> &str {
+    let base = command_basename(token.trim_matches('"'));
+    [".js", ".mjs", ".cjs", ".ts"]
+        .iter()
+        .find_map(|ext| base.strip_suffix(ext))
+        .unwrap_or(base)
+}
+
+/// Environment variables `read_invocation` may copy from an agent process.
+/// Everything else in `environ` (API keys, tokens) is never read into
+/// memory beyond the filter, never stored, and never printed.
+pub(crate) const ENV_ALLOWLIST: &[&str] = &["CLAUDE_CONFIG_DIR", "CODEX_HOME", "XDG_DATA_HOME"];
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct Invocation {
+    pub(crate) argv: Vec<String>,
+    /// Allowlisted variables only (see [`ENV_ALLOWLIST`]).
+    pub(crate) env: Vec<(String, String)>,
+    /// False when argv came from whitespace-splitting `ps` output, which
+    /// cannot tell an argument containing spaces from two arguments.
+    pub(crate) argv_exact: bool,
+}
+
+/// Exact argv plus allowlisted env of a running process.
+pub(crate) fn read_invocation(pid: u32) -> Option<Invocation> {
+    #[cfg(target_os = "linux")]
+    {
+        let cmdline = std::fs::read(format!("/proc/{pid}/cmdline")).ok()?;
+        let environ = std::fs::read(format!("/proc/{pid}/environ")).unwrap_or_default();
+        let argv = split_nul(&cmdline);
+        if argv.is_empty() {
+            return None;
+        }
+        Some(Invocation {
+            argv,
+            env: filter_env(&environ),
+            argv_exact: true,
+        })
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let output = Command::new("ps")
+            .args(["-o", "args=", "-p", &pid.to_string()])
+            .output()
+            .ok()?;
+        let args = String::from_utf8_lossy(&output.stdout);
+        let argv: Vec<String> = args.split_whitespace().map(str::to_string).collect();
+        if argv.is_empty() {
+            return None;
+        }
+        Some(Invocation {
+            argv,
+            env: Vec::new(),
+            argv_exact: false,
+        })
+    }
+}
+
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+fn split_nul(bytes: &[u8]) -> Vec<String> {
+    bytes
+        .split(|b| *b == 0)
+        .filter(|part| !part.is_empty())
+        .map(|part| String::from_utf8_lossy(part).into_owned())
+        .collect()
+}
+
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+fn filter_env(environ: &[u8]) -> Vec<(String, String)> {
+    environ
+        .split(|b| *b == 0)
+        .filter_map(|entry| {
+            let entry = std::str::from_utf8(entry).ok()?;
+            let (key, value) = entry.split_once('=')?;
+            ENV_ALLOWLIST
+                .contains(&key)
+                .then(|| (key.to_string(), value.to_string()))
+        })
+        .collect()
+}
+
+/// Rewrite a raw agent argv so it starts with the bare agent name:
+/// `/…/vendor/…/codex --yolo` and `bun /…/codex.js --yolo` both become
+/// `codex --yolo`. When no token names the agent (a process that rewrote
+/// its title), only the agent name is kept since the flags are unknown.
+pub(crate) fn normalize_agent_argv(argv: &[String], agent_name: &str) -> Vec<String> {
+    match argv.iter().position(|t| script_stem(t) == agent_name) {
+        Some(i) => std::iter::once(agent_name.to_string())
+            .chain(argv[i + 1..].iter().cloned())
+            .collect(),
+        None => vec![agent_name.to_string()],
+    }
+}
+
 pub(crate) fn command_basename(command: &str) -> &str {
     Path::new(command)
         .file_name()
@@ -169,6 +313,102 @@ mod tests {
 
         assert!(snapshot.tree_has_agent(&[100], &AgentType::OpenCode));
         assert!(!snapshot.tree_has_agent(&[100], &AgentType::Codex));
+    }
+
+    #[test]
+    fn interactive_agent_pid_accepts_shell_child() {
+        let snapshot = ProcessSnapshot::from_ps_output(
+            "100 1 zsh -zsh\n101 100 claude claude --chrome\n102 101 uv uv tool uvx mcp\n",
+        );
+        assert_eq!(snapshot.interactive_agent_pid(100, "claude"), Some(101));
+        assert_eq!(snapshot.interactive_agent_pid(100, "codex"), None);
+    }
+
+    #[test]
+    fn interactive_agent_pid_accepts_pane_root() {
+        let snapshot = ProcessSnapshot::from_ps_output("100 1 claude claude\n");
+        assert_eq!(snapshot.interactive_agent_pid(100, "claude"), Some(100));
+    }
+
+    #[test]
+    fn interactive_agent_pid_follows_launcher_shim() {
+        let snapshot = ProcessSnapshot::from_ps_output(
+            "100 1 zsh -zsh\n\
+             101 100 bun bun /home/u/.bun/install/global/node_modules/@openai/codex/bin/codex.js --yolo\n\
+             102 101 codex /home/u/vendor/x86_64-unknown-linux-musl/bin/codex --yolo\n",
+        );
+        assert_eq!(snapshot.interactive_agent_pid(100, "codex"), Some(102));
+    }
+
+    #[test]
+    fn interactive_agent_pid_skips_agents_nested_in_scripts() {
+        // debit-loop style pane: the agent runs under worker.sh and a
+        // watcher whose args merely mention it.
+        let snapshot = ProcessSnapshot::from_ps_output(
+            "100 1 bash bash\n\
+             101 100 bash bash /loop/worker.sh /jobs/fix-550\n\
+             102 100 node-MainThread node /loop/watch.mjs /jobs/fix-550 101 200000 claude\n\
+             103 101 timeout timeout --foreground 2h claude -p fix it\n\
+             104 103 claude claude -p fix it\n",
+        );
+        assert_eq!(snapshot.interactive_agent_pid(100, "claude"), None);
+    }
+
+    #[test]
+    fn filter_env_keeps_only_allowlisted_keys() {
+        let environ = b"HOME=/home/u\0ANTHROPIC_API_KEY=secret\0CLAUDE_CONFIG_DIR=/home/u/.claude-x\0\0XDG_DATA_HOME=/d\0";
+        assert_eq!(
+            filter_env(environ),
+            vec![
+                (
+                    "CLAUDE_CONFIG_DIR".to_string(),
+                    "/home/u/.claude-x".to_string()
+                ),
+                ("XDG_DATA_HOME".to_string(), "/d".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn split_nul_drops_trailing_terminator() {
+        assert_eq!(
+            split_nul(b"claude\0--append-system-prompt\0two words\0"),
+            vec!["claude", "--append-system-prompt", "two words"]
+        );
+    }
+
+    #[test]
+    fn normalize_agent_argv_strips_paths_and_shims() {
+        let argv = |s: &str| s.split(' ').map(str::to_string).collect::<Vec<_>>();
+        assert_eq!(
+            normalize_agent_argv(&argv("/v/bin/codex --yolo"), "codex"),
+            argv("codex --yolo")
+        );
+        assert_eq!(
+            normalize_agent_argv(&argv("bun /g/codex.js -m o3"), "codex"),
+            argv("codex -m o3")
+        );
+        assert_eq!(
+            normalize_agent_argv(&argv("claude --chrome"), "claude"),
+            argv("claude --chrome")
+        );
+        assert_eq!(
+            normalize_agent_argv(&argv("node-title --x"), "opencode"),
+            argv("opencode")
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn read_invocation_reads_own_process() {
+        let inv = read_invocation(std::process::id()).expect("own invocation");
+        assert!(inv.argv_exact);
+        assert!(!inv.argv.is_empty());
+        assert!(
+            inv.env
+                .iter()
+                .all(|(k, _)| ENV_ALLOWLIST.contains(&k.as_str()))
+        );
     }
 
     #[test]

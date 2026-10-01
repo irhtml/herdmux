@@ -13,7 +13,7 @@ pub use config::{
     DEFAULT_BRANCH_PREFIX, DEFAULT_MODE, DEFAULT_WORKTREE_DIR, OPENCODE_MODES, RemoveMode,
     WORKTREE_DIR_OPTION, agent_command, modes_for,
 };
-pub use flow::{SpawnRequest, remove, spawn};
+pub use flow::{SpawnOutcome, SpawnRequest, launch_command, remove, spawn, spawn_detailed};
 pub use markers::{
     SPAWNED_BRANCH_OPTION, SPAWNED_FROM_OPTION, SPAWNED_OPTION, SPAWNED_WORKTREE_OPTION,
     SpawnMarkers, read_spawn_markers, spawn_markers_template,

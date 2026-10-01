@@ -8,7 +8,7 @@ use super::markers::{
 };
 use super::slug::{MAX_COLLISION_ATTEMPTS, pick_unique_slug, slugify, worktree_path_for};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct SpawnRequest {
     pub repo_root: PathBuf,
     pub task_name: String,
@@ -16,6 +16,17 @@ pub struct SpawnRequest {
     pub origin_pane: String,
     pub agent: String,
     pub mode: String,
+    /// Keep focus on the originating pane instead of the new split.
+    pub detached: bool,
+    /// Extra agent CLI arguments, shell-quoted onto the launch command.
+    pub extra_args: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpawnOutcome {
+    pub branch: String,
+    pub pane_id: String,
+    pub worktree_path: String,
 }
 
 /// Create a worktree, split the originating tmux window, launch the agent,
@@ -23,10 +34,25 @@ pub struct SpawnRequest {
 /// it later. Returns the resulting branch name on success. On any
 /// failure past `git worktree add` the worktree is rolled back.
 pub fn spawn(req: &SpawnRequest) -> Result<String, String> {
+    spawn_detailed(req).map(|outcome| outcome.branch)
+}
+
+/// [`spawn`], but also reports the new pane and worktree path so a
+/// caller can keep driving the agent it launched.
+pub fn spawn_detailed(req: &SpawnRequest) -> Result<SpawnOutcome, String> {
     spawn_with(&RealEnv, req)
 }
 
-pub(crate) fn spawn_with<E: SpawnEnv>(env: &E, req: &SpawnRequest) -> Result<String, String> {
+/// Shell command line that launches `agent` in `mode`, followed by
+/// `extra_args` quoted so the shell passes each one through verbatim.
+pub fn launch_command(agent: &str, mode: &str, extra_args: &[String]) -> String {
+    std::iter::once(super::config::agent_command(agent, mode))
+        .chain(extra_args.iter().map(|a| crate::cli::setup::shell_quote(a)))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+pub(crate) fn spawn_with<E: SpawnEnv>(env: &E, req: &SpawnRequest) -> Result<SpawnOutcome, String> {
     let slug = slugify(&req.task_name);
     if slug.is_empty() {
         return Err("name is empty after slugification".into());
@@ -94,10 +120,12 @@ pub(crate) fn spawn_with<E: SpawnEnv>(env: &E, req: &SpawnRequest) -> Result<Str
         let _ = env.direnv_allow(worktree);
     }
 
-    let pane_id = env.split_pane(&target, worktree).map_err(|e| {
-        let rb = rollback_spawn(env, repo, worktree, &branch, None);
-        compose_spawn_error(format!("tmux: {e}"), rb)
-    })?;
+    let pane_id = env
+        .split_pane(&target, worktree, req.detached)
+        .map_err(|e| {
+            let rb = rollback_spawn(env, repo, worktree, &branch, None);
+            compose_spawn_error(format!("tmux: {e}"), rb)
+        })?;
 
     // Pane scope: sibling panes in the shared window must not inherit ownership.
     for (key, value) in [
@@ -121,13 +149,17 @@ pub(crate) fn spawn_with<E: SpawnEnv>(env: &E, req: &SpawnRequest) -> Result<Str
 
     if let Err(e) = env.send_command(
         &pane_id,
-        &super::config::agent_command(&req.agent, &req.mode),
+        &launch_command(&req.agent, &req.mode, &req.extra_args),
     ) {
         let rb = rollback_spawn(env, repo, worktree, &branch, Some(&pane_id));
         return Err(compose_spawn_error(format!("tmux: {e}"), rb));
     }
 
-    Ok(branch)
+    Ok(SpawnOutcome {
+        branch,
+        pane_id,
+        worktree_path: worktree.to_string(),
+    })
 }
 
 /// Best-effort rollback after a partial spawn. Kills only the created pane
@@ -339,8 +371,9 @@ mod env_tests {
             self.log(format!("split_target({origin})"));
             Ok("%0".into())
         }
-        fn split_pane(&self, target: &str, cwd: &str) -> Result<String, String> {
-            self.log(format!("split_pane({target},{cwd})"));
+        fn split_pane(&self, target: &str, cwd: &str, detached: bool) -> Result<String, String> {
+            let suffix = if detached { ",detached" } else { "" };
+            self.log(format!("split_pane({target},{cwd}{suffix})"));
             Ok("%1".into())
         }
         fn kill_pane(&self, pane: &str) -> Result<(), String> {
@@ -391,6 +424,7 @@ mod env_tests {
             origin_pane: "%0".into(),
             agent: "claude".into(),
             mode: "default".into(),
+            ..Default::default()
         }
     }
 
@@ -401,8 +435,10 @@ mod env_tests {
     #[test]
     fn spawn_happy_path_sets_all_markers_then_sends_command() {
         let env = FakeEnv::default();
-        let branch = spawn_with(&env, &sample_req()).expect("spawn should succeed");
-        assert_eq!(branch, "agent/task");
+        let outcome = spawn_with(&env, &sample_req()).expect("spawn should succeed");
+        assert_eq!(outcome.branch, "agent/task");
+        assert_eq!(outcome.pane_id, "%1");
+        assert_eq!(outcome.worktree_path, "/r/.worktrees/task");
         let calls = env.calls();
         assert!(has_call(
             &calls,
@@ -418,6 +454,34 @@ mod env_tests {
         assert!(
             !has_call(&calls, "kill_window("),
             "no rollback on happy path"
+        );
+    }
+
+    #[test]
+    fn detached_spawn_appends_quoted_extra_args() {
+        let env = FakeEnv::default();
+        let req = SpawnRequest {
+            detached: true,
+            extra_args: vec!["--model".into(), "opus".into(), "two words".into()],
+            ..sample_req()
+        };
+        spawn_with(&env, &req).expect("spawn should succeed");
+        let calls = env.calls();
+        assert!(has_call(
+            &calls,
+            "split_pane(%0,/r/.worktrees/task,detached)"
+        ));
+        assert!(has_call(
+            &calls,
+            "send_command(%1,claude --model opus 'two words')"
+        ));
+    }
+
+    #[test]
+    fn launch_command_without_extra_args_matches_agent_command() {
+        assert_eq!(
+            launch_command("codex", "auto", &[]),
+            super::super::config::agent_command("codex", "auto")
         );
     }
 
@@ -772,7 +836,12 @@ mod env_tests {
             fn split_target(&self, origin: &str) -> Result<String, String> {
                 self.0.split_target(origin)
             }
-            fn split_pane(&self, _target: &str, _cwd: &str) -> Result<String, String> {
+            fn split_pane(
+                &self,
+                _target: &str,
+                _cwd: &str,
+                _detached: bool,
+            ) -> Result<String, String> {
                 self.0.log("split_pane(fail)".into());
                 Err("split_pane failed".into())
             }

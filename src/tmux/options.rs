@@ -55,9 +55,18 @@ pub const PANE_PERMISSION_MODE: &str = "@pane_permission_mode";
 /// Last user prompt the agent received. Shown in the bottom tab
 /// as activity context.
 pub const PANE_PROMPT: &str = "@pane_prompt";
+/// Epoch-ms timestamp of the latest `UserPromptSubmit`. Survives Stop so
+/// `agent prompt` can confirm a submit landed and `agent wait --since`
+/// can tell the current turn from an earlier one.
+pub const PANE_PROMPT_AT: &str = "@pane_prompt_at";
 /// Where the prompt came from (e.g. `UserPromptSubmit` vs
 /// resumed session) — drives rendering nuance.
 pub const PANE_PROMPT_SOURCE: &str = "@pane_prompt_source";
+/// Epoch-seconds stamp set by `resume restore` right before it relaunches
+/// an agent in a restored pane; cleared by SessionStart. While set,
+/// `resume save` keeps the pane's previous resume entry instead of
+/// dropping it because no agent has registered yet.
+pub const PANE_RESUME_PENDING: &str = "@pane_resume_pending";
 /// Pane role marker set by the setup flow (`sidebar` for the
 /// sidebar pane itself) so the TUI can exclude itself from the
 /// agent list.

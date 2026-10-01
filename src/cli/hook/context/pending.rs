@@ -42,6 +42,7 @@ pub(in crate::cli::hook) fn run_session_end_teardown(pane: &str) {
     set_status(pane, "clear");
     let log_path = crate::activity::log_file_path(pane);
     let _ = std::fs::remove_file(log_path);
+    crate::activity::remove_response(pane);
 }
 
 /// Side-effect body of the WorktreeRemove teardown. Same pattern as

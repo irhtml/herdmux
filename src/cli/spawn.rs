@@ -38,6 +38,7 @@ pub fn cmd_spawn(args: &[String]) -> i32 {
         origin_pane: pane,
         agent,
         mode: worktree::DEFAULT_MODE.into(),
+        ..Default::default()
     };
     match worktree::spawn(&req) {
         Ok(branch) => {

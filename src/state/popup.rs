@@ -412,6 +412,7 @@ impl AppState {
             origin_pane: self.tmux_pane.clone(),
             agent,
             mode,
+            ..Default::default()
         };
         let (tx, result) = mpsc::channel();
         match std::thread::Builder::new()

@@ -65,6 +65,8 @@ pub(in crate::cli::hook) fn clear_all_meta(pane: &str) {
         tmux::PANE_WORKTREE_NAME,
         tmux::PANE_WORKTREE_BRANCH,
         tmux::PANE_SESSION_ID,
+        tmux::PANE_PROMPT_AT,
+        tmux::PANE_RESUME_PENDING,
         PENDING_SESSION_END,
         PENDING_WORKTREE_REMOVE,
     ] {
@@ -273,6 +275,8 @@ mod tests {
             tmux::PANE_SESSION_ID,
             tmux::PANE_STARTED_AT,
             tmux::PANE_WAIT_REASON,
+            tmux::PANE_PROMPT_AT,
+            tmux::PANE_RESUME_PENDING,
             PENDING_SESSION_END,
             PENDING_WORKTREE_REMOVE,
         ] {
@@ -293,6 +297,8 @@ mod tests {
             tmux::PANE_SESSION_ID,
             tmux::PANE_STARTED_AT,
             tmux::PANE_WAIT_REASON,
+            tmux::PANE_PROMPT_AT,
+            tmux::PANE_RESUME_PENDING,
             PENDING_SESSION_END,
             PENDING_WORKTREE_REMOVE,
         ] {

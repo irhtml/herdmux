@@ -74,18 +74,15 @@ fn pick_worktree_split_target(origin: &str, panes: &str) -> Option<String> {
 }
 
 /// Split only the target pane, preserving the sidebar and existing window layout.
-pub fn split_worktree_pane(target: &str, cwd: &str) -> Result<String, String> {
-    run_tmux_capture(&[
-        "split-window",
-        "-h",
-        "-t",
-        target,
-        "-c",
-        cwd,
-        "-P",
-        "-F",
-        "#{pane_id}",
-    ])
+/// `detached` keeps focus on the current pane (`agent spawn` runs from
+/// inside another agent and must not steal the user's cursor).
+pub fn split_worktree_pane(target: &str, cwd: &str, detached: bool) -> Result<String, String> {
+    let mut args = vec!["split-window", "-h"];
+    if detached {
+        args.push("-d");
+    }
+    args.extend(["-t", target, "-c", cwd, "-P", "-F", "#{pane_id}"]);
+    run_tmux_capture(&args)
 }
 
 pub fn kill_pane(pane: &str) -> Result<(), String> {
@@ -100,9 +97,18 @@ pub fn set_spawn_pane_option(pane: &str, key: &str, value: &str) -> Result<(), S
 /// title is `name`. Returns `(pane_id, window_id)` on success — the window id
 /// is used by the spawn flow to set markers at window scope so split panes
 /// (e.g. Claude Code subagents) inherit them.
-pub fn new_window(session: &str, cwd: &str, name: &str) -> Result<(String, String), String> {
-    let out = run_tmux_capture(&[
-        "new-window",
+/// `detached` leaves the current window selected.
+pub fn new_window(
+    session: &str,
+    cwd: &str,
+    name: &str,
+    detached: bool,
+) -> Result<(String, String), String> {
+    let mut args = vec!["new-window"];
+    if detached {
+        args.push("-d");
+    }
+    args.extend([
         "-t",
         session,
         "-c",
@@ -112,7 +118,8 @@ pub fn new_window(session: &str, cwd: &str, name: &str) -> Result<(String, Strin
         "-P",
         "-F",
         "#{pane_id} #{window_id}",
-    ])?;
+    ]);
+    let out = run_tmux_capture(&args)?;
     let mut parts = out.split_whitespace();
     let pane = parts
         .next()
@@ -142,6 +149,61 @@ pub fn set_window_option(window: &str, key: &str, value: &str) -> Result<(), Str
 pub fn send_command(target: &str, command: &str) -> Result<(), String> {
     run_tmux_capture(&["send-keys", "-t", target, "-l", command])?;
     run_tmux_capture(&["send-keys", "-t", target, "Enter"]).map(|_| ())
+}
+
+/// Paste `text` into `target` as one bracketed paste, so multi-line
+/// prompts land in the agent's input box instead of submitting at the
+/// first newline. The text goes through `load-buffer` on stdin, never
+/// argv, and the named buffer is deleted after pasting.
+pub fn paste_text(target: &str, text: &str) -> Result<(), String> {
+    use std::io::Write;
+    use std::process::Stdio;
+
+    let buffer = format!("tas-{}", std::process::id());
+    let mut child = Command::new("tmux")
+        .args(["load-buffer", "-b", &buffer, "-"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("failed to spawn tmux: {e}"))?;
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin
+            .write_all(text.as_bytes())
+            .map_err(|e| format!("load-buffer: {e}"))?;
+    }
+    let output = child
+        .wait_with_output()
+        .map_err(|e| format!("load-buffer: {e}"))?;
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+    }
+    run_tmux_capture(&["paste-buffer", "-p", "-d", "-b", &buffer, "-t", target]).map(|_| ())
+}
+
+/// Send a single named key (e.g. `Enter`) to `target`.
+pub fn send_key(target: &str, key: &str) -> Result<(), String> {
+    run_tmux_capture(&["send-keys", "-t", target, key]).map(|_| ())
+}
+
+/// Leave copy mode (or any other pane mode) so pasted input reaches the
+/// program instead of the mode's key table.
+pub fn cancel_pane_mode(target: &str) -> Result<(), String> {
+    run_tmux_capture(&["send-keys", "-t", target, "-X", "cancel"]).map(|_| ())
+}
+
+/// Last `lines` non-blank lines of the pane, joining wrapped lines.
+/// Scrollback is included so a short screen still yields history.
+pub fn capture_pane(target: &str, lines: usize) -> Result<String, String> {
+    let start = format!("-{lines}");
+    let raw = run_tmux_capture(&["capture-pane", "-p", "-J", "-t", target, "-S", &start])?;
+    Ok(last_lines(&raw, lines))
+}
+
+fn last_lines(raw: &str, lines: usize) -> String {
+    let all: Vec<&str> = raw.lines().map(str::trim_end).collect();
+    let end = all.iter().rposition(|l| !l.is_empty()).map_or(0, |i| i + 1);
+    all[end.saturating_sub(lines)..end].join("\n")
 }
 
 /// Kill the tmux window identified by `window_id` (e.g. `@7`).
@@ -201,7 +263,15 @@ pub fn select_pane(pane_id: &str, own_pane_id: &str) {
 
 #[cfg(test)]
 mod tests {
-    use super::{most_recent_client, pick_worktree_split_target};
+    use super::{last_lines, most_recent_client, pick_worktree_split_target};
+
+    #[test]
+    fn last_lines_drops_trailing_blank_rows() {
+        let raw = "a\nb  \nc\n\n   \n";
+        assert_eq!(last_lines(raw, 2), "b\nc");
+        assert_eq!(last_lines(raw, 10), "a\nb\nc");
+        assert_eq!(last_lines("\n\n", 3), "");
+    }
 
     #[test]
     fn worktree_split_preserves_sidebar_and_prefers_last_main_pane() {

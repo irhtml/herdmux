@@ -1,21 +1,23 @@
 mod commands;
+mod locations;
 mod options;
 mod panes;
 mod query;
 mod types;
 
 pub use commands::{
-    display_message, kill_pane, kill_window, new_window, pane_session_name, run_tmux,
-    run_tmux_capture, select_pane, send_command, set_spawn_pane_option, set_window_option,
-    split_worktree_pane, worktree_split_target,
+    cancel_pane_mode, capture_pane, display_message, kill_pane, kill_window, new_window,
+    pane_session_name, paste_text, run_tmux, run_tmux_capture, select_pane, send_command, send_key,
+    set_spawn_pane_option, set_window_option, split_worktree_pane, worktree_split_target,
 };
+pub use locations::{PaneLocation, query_pane_locations};
 pub use options::{
     BG_CMD_PLACEHOLDER, PANE_AGENT, PANE_ATTENTION, PANE_BG_CMD, PANE_CWD, PANE_NAME,
     PANE_NOTIFICATION_RUN_ID, PANE_OS_NOTIFY_PERMISSION_REQUIRED, PANE_OS_NOTIFY_TASK_COMPLETED,
     PANE_OS_NOTIFY_TASK_FAILED, PANE_PENDING_SESSION_END, PANE_PENDING_WORKTREE_REMOVE,
-    PANE_PERMISSION_MODE, PANE_PROMPT, PANE_PROMPT_SOURCE, PANE_ROLE, PANE_SESSION_ID,
-    PANE_STARTED_AT, PANE_STATUS, PANE_SUBAGENTS, PANE_WAIT_REASON, PANE_WORKTREE_BRANCH,
-    PANE_WORKTREE_NAME, SIDEBAR_BOTTOM_HEIGHT, SIDEBAR_COLOR_ACCENT,
+    PANE_PERMISSION_MODE, PANE_PROMPT, PANE_PROMPT_AT, PANE_PROMPT_SOURCE, PANE_RESUME_PENDING,
+    PANE_ROLE, PANE_SESSION_ID, PANE_STARTED_AT, PANE_STATUS, PANE_SUBAGENTS, PANE_WAIT_REASON,
+    PANE_WORKTREE_BRANCH, PANE_WORKTREE_NAME, SIDEBAR_BOTTOM_HEIGHT, SIDEBAR_COLOR_ACCENT,
     SIDEBAR_COLOR_ACTIVITY_TIMESTAMP, SIDEBAR_COLOR_AGENT_CLAUDE, SIDEBAR_COLOR_AGENT_CODEX,
     SIDEBAR_COLOR_AGENT_OPENCODE, SIDEBAR_COLOR_ALL, SIDEBAR_COLOR_BORDER, SIDEBAR_COLOR_BRANCH,
     SIDEBAR_COLOR_COMMIT_HASH, SIDEBAR_COLOR_DIFF_ADDED, SIDEBAR_COLOR_DIFF_DELETED,
@@ -37,7 +39,7 @@ pub use panes::{
     query_active_window_panes,
 };
 pub use query::query_sessions;
-pub(crate) use query::query_sessions_with_process_snapshot;
+pub(crate) use query::{is_shell_command, query_sessions_with_process_snapshot, split_tmux_fields};
 pub use types::{
     AgentType, CLAUDE_AGENT, CODEX_AGENT, OPENCODE_AGENT, PaneInfo, PaneStatus, PermissionMode,
     SessionInfo, WindowInfo, WorktreeMetadata,

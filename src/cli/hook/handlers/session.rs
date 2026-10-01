@@ -37,6 +37,9 @@ pub(in crate::cli::hook) fn on_session_start(
     // for the previous run's subagents to drain.
     tmux::unset_pane_option(pane, PENDING_SESSION_END);
     tmux::unset_pane_option(pane, PENDING_WORKTREE_REMOVE);
+    // The agent `resume restore` launched has registered; the restore
+    // is complete for this pane.
+    tmux::unset_pane_option(pane, tmux::PANE_RESUME_PENDING);
     match source {
         "resume" => tmux::set_pane_option(pane, tmux::PANE_WAIT_REASON, "session_resumed"),
         "compact" => tmux::set_pane_option(pane, tmux::PANE_WAIT_REASON, "session_resumed_compact"),

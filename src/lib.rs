@@ -5,6 +5,7 @@ pub mod cli;
 pub mod clipboard;
 pub mod desktop_notification;
 pub mod event;
+pub(crate) mod fs_util;
 pub mod git;
 pub mod group;
 pub mod port;

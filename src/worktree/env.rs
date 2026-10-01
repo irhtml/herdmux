@@ -41,7 +41,7 @@ pub(crate) trait SpawnEnv {
     fn worktree_remove(&self, repo: &str, worktree_path: &str) -> Result<(), String>;
     fn branch_delete(&self, repo: &str, branch: &str) -> Result<(), String>;
     fn split_target(&self, origin: &str) -> Result<String, String>;
-    fn split_pane(&self, target: &str, cwd: &str) -> Result<String, String>;
+    fn split_pane(&self, target: &str, cwd: &str, detached: bool) -> Result<String, String>;
     fn kill_pane(&self, pane_id: &str) -> Result<(), String>;
     fn kill_window(&self, window_id: &str) -> Result<(), String>;
     fn set_pane_option(&self, pane: &str, key: &str, value: &str) -> Result<(), String>;
@@ -129,8 +129,8 @@ impl SpawnEnv for RealEnv {
     fn split_target(&self, origin: &str) -> Result<String, String> {
         tmux::worktree_split_target(origin)
     }
-    fn split_pane(&self, target: &str, cwd: &str) -> Result<String, String> {
-        tmux::split_worktree_pane(target, cwd)
+    fn split_pane(&self, target: &str, cwd: &str, detached: bool) -> Result<String, String> {
+        tmux::split_worktree_pane(target, cwd, detached)
     }
     fn kill_pane(&self, pane_id: &str) -> Result<(), String> {
         tmux::kill_pane(pane_id)

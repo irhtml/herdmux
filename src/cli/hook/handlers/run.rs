@@ -3,7 +3,7 @@ use crate::desktop_notification;
 use crate::desktop_notification::DesktopNotificationKind;
 use crate::tmux;
 
-use crate::time::now_epoch_secs;
+use crate::time::{now_epoch_millis, now_epoch_secs};
 
 use super::super::context::{
     AgentContext, clear_run_state, is_system_message, mark_task_reset, set_agent_meta,
@@ -30,6 +30,7 @@ pub(in crate::cli::hook) fn on_user_prompt_submit(
         tmux::set_pane_option(pane, tmux::PANE_PROMPT_SOURCE, "user");
     }
     tmux::set_pane_option(pane, tmux::PANE_STARTED_AT, &now_epoch_secs().to_string());
+    tmux::set_pane_option(pane, tmux::PANE_PROMPT_AT, &now_epoch_millis().to_string());
     tmux::unset_pane_option(pane, tmux::PANE_WAIT_REASON);
     0
 }
@@ -43,6 +44,9 @@ pub(in crate::cli::hook) fn on_stop(
 ) -> i32 {
     set_agent_meta(pane, ctx);
     set_attention(pane, "clear");
+    // Written before the status flips so an `agent wait` that sees the
+    // pane go idle always finds the matching response on disk.
+    write_turn_response(pane, ctx, last_message);
     if !last_message.is_empty() {
         let msg = sanitize_tmux_value(last_message);
         tmux::set_pane_option(pane, tmux::PANE_PROMPT, &msg);
@@ -93,6 +97,25 @@ pub(in crate::cli::hook) fn on_stop(
         println!("{resp}");
     }
     0
+}
+
+fn write_turn_response(pane: &str, ctx: &AgentContext<'_>, last_message: &str) {
+    let session_id = ctx
+        .session_id
+        .clone()
+        .unwrap_or_else(|| tmux::get_pane_option_value(pane, tmux::PANE_SESSION_ID));
+    let prompt_at_ms = tmux::get_pane_option_value(pane, tmux::PANE_PROMPT_AT)
+        .parse()
+        .ok();
+    crate::activity::write_response(
+        pane,
+        &crate::activity::AgentResponse {
+            session_id,
+            prompt_at_ms,
+            stopped_at_ms: now_epoch_millis(),
+            message: last_message.to_string(),
+        },
+    );
 }
 
 pub(in crate::cli::hook) fn on_stop_failure(
@@ -176,6 +199,8 @@ mod tests {
             Some("user")
         );
         assert!(tmux::test_mock::contains(pane, tmux::PANE_STARTED_AT));
+        let prompt_at = tmux::test_mock::get(pane, tmux::PANE_PROMPT_AT).unwrap();
+        assert!(prompt_at.parse::<u64>().unwrap() > 1_000_000_000_000);
     }
 
     #[test]
@@ -288,6 +313,42 @@ mod tests {
             Some("idle")
         );
         assert!(!tmux::test_mock::contains(pane, tmux::PANE_STARTED_AT));
+    }
+
+    #[test]
+    fn on_stop_writes_response_and_keeps_prompt_at() {
+        let _guard = tmux::test_mock::install();
+        let pane = "%STOP_RESPONSE";
+        tmux::test_mock::set(pane, tmux::PANE_PROMPT_AT, "1790000000123");
+        let ctx = AgentContext {
+            agent: "claude",
+            cwd: "/repo",
+            permission_mode: "default",
+            worktree: &None,
+            session_id: &Some("sid-1".into()),
+        };
+
+        on_stop(
+            pane,
+            &ctx,
+            "done:\nall | good",
+            None,
+            &desktop_notification::DesktopNotificationSettings {
+                enabled: false,
+                events: Default::default(),
+            },
+        );
+
+        let response = crate::activity::read_response(pane).expect("response file");
+        crate::activity::remove_response(pane);
+        assert_eq!(response.session_id, "sid-1");
+        assert_eq!(response.prompt_at_ms, Some(1790000000123));
+        assert_eq!(response.message, "done:\nall | good");
+        assert_eq!(
+            tmux::test_mock::get(pane, tmux::PANE_PROMPT_AT).as_deref(),
+            Some("1790000000123"),
+            "Stop must keep @pane_prompt_at so `agent wait --since` can match it"
+        );
     }
 
     #[test]

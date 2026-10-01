@@ -7,8 +7,9 @@ use super::commands::run_tmux;
 use super::options::{
     PANE_AGENT, PANE_ATTENTION, PANE_BG_CMD, PANE_CWD, PANE_DESC, PANE_NAME,
     PANE_PENDING_SESSION_END, PANE_PENDING_WORKTREE_REMOVE, PANE_PERMISSION_MODE, PANE_PROMPT,
-    PANE_PROMPT_SOURCE, PANE_ROLE, PANE_SESSION_ID, PANE_STARTED_AT, PANE_STATUS, PANE_SUBAGENTS,
-    PANE_WAIT_REASON, PANE_WORKTREE_BRANCH, PANE_WORKTREE_NAME, unset_pane_option,
+    PANE_PROMPT_AT, PANE_PROMPT_SOURCE, PANE_RESUME_PENDING, PANE_ROLE, PANE_SESSION_ID,
+    PANE_STARTED_AT, PANE_STATUS, PANE_SUBAGENTS, PANE_WAIT_REASON, PANE_WORKTREE_BRANCH,
+    PANE_WORKTREE_NAME, unset_pane_option,
 };
 use super::types::{
     AgentType, CODEX_AGENT, PaneInfo, PaneStatus, PermissionMode, SessionInfo, WindowInfo,
@@ -376,6 +377,8 @@ fn clear_agent_pane_state(pane_id: &str) {
         PANE_PENDING_SESSION_END,
         PANE_PENDING_WORKTREE_REMOVE,
         PANE_STARTED_AT,
+        PANE_PROMPT_AT,
+        PANE_RESUME_PENDING,
         PANE_WAIT_REASON,
         PANE_ATTENTION,
         PANE_STATUS,
@@ -385,9 +388,10 @@ fn clear_agent_pane_state(pane_id: &str) {
     }
     let log_path = crate::activity::log_file_path(pane_id);
     let _ = std::fs::remove_file(log_path);
+    crate::activity::remove_response(pane_id);
 }
 
-fn is_shell_command(command: &str) -> bool {
+pub(crate) fn is_shell_command(command: &str) -> bool {
     const SHELL_COMMANDS: &[&str] = &[
         "ash",
         "bash",
@@ -526,7 +530,7 @@ fn parse_subagents(raw: &str) -> Vec<String> {
 }
 
 /// Split a tmux format line while honoring tmux `#{q:...}` backslash escapes.
-fn split_tmux_fields(line: &str, delimiter: char) -> Vec<String> {
+pub(crate) fn split_tmux_fields(line: &str, delimiter: char) -> Vec<String> {
     let mut fields = Vec::new();
     let mut current = String::new();
     let mut escaped = false;

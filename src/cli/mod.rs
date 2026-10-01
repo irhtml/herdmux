@@ -1,8 +1,10 @@
 mod agent;
+mod args;
 pub mod capture;
 mod hook;
 mod label;
 pub mod plugin_state;
+mod resume;
 pub(crate) mod setup;
 pub(crate) mod shared_html;
 mod spawn;
@@ -26,6 +28,7 @@ pub fn run(args: &[String]) -> Option<i32> {
         "set-status" => cmd_set_status(rest),
         "spawn" => spawn::cmd_spawn(rest),
         "agent" => agent::cmd_agent(rest),
+        "resume" => resume::cmd_resume(rest),
         "capture" => capture::cmd_capture(rest),
         "--version" | "version" => {
             println!("{}", crate::VERSION);

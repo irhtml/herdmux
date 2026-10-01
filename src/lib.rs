@@ -10,6 +10,7 @@ pub mod git;
 pub mod group;
 pub mod port;
 pub(crate) mod process;
+pub(crate) mod resume;
 pub mod session;
 pub mod state;
 pub mod time;

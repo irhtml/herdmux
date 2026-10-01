@@ -1,4 +1,4 @@
-//! Minimal long-option parser for the `agent` subcommands: `--flag value`,
+//! Minimal long-option parser for the `agent` and `resume` subcommands: `--flag value`,
 //! `--flag=value`, boolean switches, positionals, and everything after
 //! `--` kept verbatim.
 

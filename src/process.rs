@@ -244,6 +244,21 @@ fn filter_env(environ: &[u8]) -> Vec<(String, String)> {
         .collect()
 }
 
+/// Working directory of a running process (Linux only).
+pub(crate) fn process_cwd(pid: u32) -> Option<String> {
+    #[cfg(target_os = "linux")]
+    {
+        std::fs::read_link(format!("/proc/{pid}/cwd"))
+            .ok()
+            .map(|p| p.to_string_lossy().into_owned())
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = pid;
+        None
+    }
+}
+
 /// Rewrite a raw agent argv so it starts with the bare agent name:
 /// `/…/vendor/…/codex --yolo` and `bun /…/codex.js --yolo` both become
 /// `codex --yolo`. When no token names the agent (a process that rewrote

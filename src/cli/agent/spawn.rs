@@ -4,11 +4,11 @@
 use std::io::Read;
 use std::time::Duration;
 
-use super::args::{Args, Spec};
 use super::env::{AgentTmux, RealTmux};
 use super::{
     EXIT_ERROR, EXIT_GONE, EXIT_NOT_SUBMITTED, EXIT_OK, self_pane, timeout_ms, usage_error,
 };
+use crate::cli::args::{Args, Spec};
 use crate::{git, tmux, worktree};
 
 const READY_LIMIT_MS: u64 = 60_000;

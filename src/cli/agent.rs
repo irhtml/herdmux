@@ -3,7 +3,6 @@
 //! same `@pane_*` options the hooks maintain for the sidebar, so this is
 //! a thin control layer, not a second source of truth.
 
-mod args;
 mod env;
 mod list;
 mod prompt;
@@ -81,7 +80,7 @@ pub(crate) fn cmd_agent(args: &[String]) -> i32 {
 }
 
 /// Parse `--timeout` (seconds, `0` = no limit) into milliseconds.
-fn timeout_ms(parsed: &args::Args) -> Result<Option<u64>, String> {
+fn timeout_ms(parsed: &super::args::Args) -> Result<Option<u64>, String> {
     let secs = parsed.number("timeout")?.unwrap_or(DEFAULT_TIMEOUT_SECS);
     Ok((secs > 0).then_some(secs * 1000))
 }

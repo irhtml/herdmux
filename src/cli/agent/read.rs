@@ -1,9 +1,9 @@
 //! `agent read`: an agent's last full reply, or the bottom of its screen.
 
-use super::args::{Args, Spec};
 use super::env::{AgentTmux, RealTmux};
 use super::{EXIT_ERROR, EXIT_OK, target, usage_error};
 use crate::activity::AgentResponse;
+use crate::cli::args::{Args, Spec};
 
 const DEFAULT_SCREEN_LINES: u64 = 40;
 

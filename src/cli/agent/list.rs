@@ -1,7 +1,7 @@
 //! `agent list`: every agent pane with its status, tag and location.
 
-use super::args::{Args, Spec};
 use super::{EXIT_OK, self_pane, usage_error};
+use crate::cli::args::{Args, Spec};
 use crate::cli::hook::is_permission_wait_reason;
 use crate::process::ProcessSnapshot;
 use crate::tmux::{self, PaneLocation};

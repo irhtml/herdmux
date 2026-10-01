@@ -26,3 +26,19 @@ fi
 tmux set -g @agent_sidebar_bin "$SIDEBAR_BINARY"
 
 tmux source-file "$PLUGIN_DIR/agent-sidebar.conf"
+
+# --- Resume agents after tmux-resurrect (opt-in: set -g @sidebar_resume on) ---
+# Only claims a resurrect hook that is unset or already ours, so a user's
+# own hook is never replaced.
+if [[ "$(tmux show -gv @sidebar_resume 2>/dev/null)" == "on" ]]; then
+    claim_resurrect_hook() {
+        local name="$1" value="$2" current
+        current="$(tmux show -gv "$name" 2>/dev/null)"
+        if [[ -z "$current" || "$current" == *tmux-agent-sidebar*" resume "* ]]; then
+            tmux set -g "$name" "$value"
+        fi
+    }
+    quoted_bin="$(printf '%q' "$SIDEBAR_BINARY")"
+    claim_resurrect_hook @resurrect-hook-post-save-layout "$quoted_bin resume save --resurrect-file"
+    claim_resurrect_hook @resurrect-hook-post-restore-all "$quoted_bin resume restore --detach"
+fi

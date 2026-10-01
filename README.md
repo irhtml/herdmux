@@ -20,6 +20,8 @@
   — spawn a fresh worktree + agent in a split of the current window and tear it down — pane, worktree, and branch — in one keystroke
 - **Desktop notifications** 
   — native alerts when an agent finishes, needs permission, or errors out
+- **Agents driving agents**: `agent list|spawn|prompt|wait|read` lets one agent start, prompt and collect replies from the others
+- **Resume after reboot**: with tmux-resurrect, restored panes relaunch their agents with the conversation resumed
 
 OpenCode uses a small local plugin bridge instead of per-event hook config. The plugin lives at `.opencode/plugins/tmux-agent-sidebar.js` and can be symlinked as a single file into `~/.config/opencode/plugins/` so it coexists with any existing plugins.
 
@@ -64,6 +66,34 @@ Full walkthroughs: [Claude Code setup](https://hiroppy.github.io/tmux-agent-side
 ### 3. Toggle the sidebar
 
 `prefix + e` toggles the sidebar in the current window, `prefix + E` toggles it everywhere.
+
+## Agents driving agents
+
+The `agent` subcommand reads the same hook-maintained state the sidebar shows, so any agent (or script) can coordinate the others:
+
+```sh
+TAS="$(tmux show -gv @agent_sidebar_bin)"
+"$TAS" agent list                                   # panes, state (idle/running/blocked), tag, cwd
+"$TAS" agent spawn --desc reviewer --wait \
+  --prompt "Review the diff on this branch"          # new split, focus stays put; prints pane id, then the reply
+"$TAS" agent prompt %12 "Now fix the first finding"  # refuses busy or permission-blocked panes unless --force
+"$TAS" agent wait %12 && "$TAS" agent read %12       # exit 0 done, 3 blocked, 4 error, 5 gone, 124 timeout
+```
+
+Prompts go in as one bracketed paste and are confirmed through the `UserPromptSubmit` hook. `wait` stops after 110 s by default so it fits in a single agent tool call. The Claude Code plugin ships a `tmux-agents` skill that teaches agents these rules; run `"$TAS" agent help` for every flag.
+
+## Resume after reboot
+
+With [tmux-resurrect](https://github.com/tmux-plugins/tmux-resurrect) (and optionally tmux-continuum), restored agent panes come back as shells. Opt in to relaunch them with their sessions resumed:
+
+```tmux
+set -g @sidebar_resume on
+set -g @plugin 'hiroppy/tmux-agent-sidebar'    # list before tmux-resurrect / tmux-continuum
+set -g @plugin 'tmux-plugins/tmux-resurrect'
+set -g @plugin 'tmux-plugins/tmux-continuum'
+```
+
+Every resurrect save then records each agent pane's command line, session id, `CLAUDE_CONFIG_DIR` / `CODEX_HOME` / `XDG_DATA_HOME`, and `@pane_desc` tag. After a restore the plugin types `claude <your flags> --resume <id>`, `codex resume <flags> <id>` or `opencode --session <id>` into each restored pane, 300 ms apart. It only acts within 10 minutes of a tmux server start, only into shell panes whose position, layout and directory match the snapshot, and never relaunches agents that a script started (for example `claude -p` inside a loop). Preview with `"$TAS" resume restore --dry-run`; each run is logged to `~/.local/state/tmux-agent-sidebar/restore.log`. The plugin only sets resurrect's `post-save-layout` and `post-restore-all` hooks when they are unset.
 
 ## Documentation
 

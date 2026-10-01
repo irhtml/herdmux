@@ -51,7 +51,7 @@ const RESIDUAL_HOOK_NEEDLE: &str = "tmux-agent-sidebar/hook.sh";
 /// - `hooks/hooks.json` — declares which Claude hook events route to
 ///   `hook.sh`. Adding or renaming events requires a cache refresh
 ///   before Claude Code wires the new events up.
-/// - `skills/tmux-agents/SKILL.md` — teaches agents the `agent`
+/// - `skills/tmux-agents/SKILL.md`: teaches agents the `agent`
 ///   subcommand. A stale copy would describe flags that no longer exist.
 ///
 /// `.claude-plugin/plugin.json` is deliberately excluded: its only

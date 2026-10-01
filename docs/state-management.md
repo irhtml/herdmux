@@ -40,6 +40,9 @@ Pane options written to tmux:
 | `@pane_prompt` | UserPromptSubmit, Stop | Latest prompt or response text |
 | `@pane_prompt_source` | UserPromptSubmit, Stop | "user" or "response" |
 | `@pane_started_at` | UserPromptSubmit | Unix epoch when agent started |
+| `@pane_prompt_at` | UserPromptSubmit | Epoch milliseconds of the latest submitted prompt. Kept across Stop so `agent prompt` can confirm a submit landed and `agent wait --since` can tell the current turn from an earlier one |
+| `@pane_resume_pending` | `resume restore` (set), SessionStart (clear) | Epoch seconds when `resume restore` typed a resume command into the pane. While set (up to 30 min), `resume save` keeps the pane's previous entry instead of dropping it |
+| `@pane_desc` | User (`tmux set -p @pane_desc`), `agent spawn --desc`, `resume restore` | Free-form pane tag. Never written by hooks and never cleared on agent exit; `agent` commands accept it as a target |
 | `@pane_attention` | SessionStart, Stop, StopFailure (clear); Notification, PermissionDenied, TeammateIdle (set) | "notification" or "clear" |
 | `@pane_wait_reason` | StopFailure, PermissionDenied, TeammateIdle | Reason for waiting/error (`permission_denied`, `teammate_idle:<name>`, or error text) |
 | `@pane_bg_cmd` | ActivityLog (bg Bash), Refresh sweep (clear), SessionEnd (clear) | Latest sanitized command of a Bash tool started with `run_in_background`. Its presence is the single source of truth for "live bg shell" — Stop routes to `background` while it is set, and the row body renders the command. Persists across UserPromptSubmit so shells spanning turns stay visible; overwritten by the next bg Bash. The refresh loop runs a `ps`-based liveness sweep each tick and clears the marker (plus downgrades `background → idle`) when no process matches the stored command. Only the most recent bg Bash is tracked; older ones are not retained. |
@@ -67,6 +70,20 @@ Per-pane file-based state:
 | File | Update Trigger | Read Frequency | Description |
 |------|---------------|----------------|-------------|
 | `/tmp/tmux-agent-activity_{pane_id}.log` | Each ActivityLog event | Every 1s | Tool usage log (`HH:MM\|tool\|label`), max 200 lines |
+| `/tmp/tmux-agent-response_{pane_id}.json` | Stop (written before the status flips to idle) | On `agent read` / `agent prompt --wait` | Full last assistant message as `{session_id, prompt_at_ms, stopped_at_ms, message}`, mode 0600, replaced atomically. Removed by both teardown paths. `agent read` refuses it when its `session_id` differs from the pane's current one |
+
+### Resume State (per tmux server)
+
+Written by `resume save` (run from tmux-resurrect's `post-save-layout` hook when `@sidebar_resume` is `on`) and read by `resume restore` (run from `post-restore-all`).
+
+| File | Description |
+|------|-------------|
+| `${XDG_STATE_HOME:-~/.local/state}/tmux-agent-sidebar/resume-{socket}.json` | Mode 0600, one file per tmux socket name. Holds `socket_path`, `saved_at`, `restored_at`, one entry per interactive agent pane (location as session / window index / pane index, window pane count, process cwd, agent, session id, normalized argv, allowlisted env, `had_turn`, `transcript_found`) and every pane's `@pane_desc` tag, because tmux-resurrect does not save pane options |
+| `${XDG_STATE_HOME:-~/.local/state}/tmux-agent-sidebar/restore.log` | One block per restore: the command typed into each pane or why it was skipped. Truncated past 256 KiB |
+
+Only `CLAUDE_CONFIG_DIR`, `CODEX_HOME` and `XDG_DATA_HOME` are ever read from an agent's environment (`process::ENV_ALLOWLIST`), and the list is re-applied when the file is loaded. An agent counts as interactive only when it is the pane's root process, a direct child of the pane shell, or the child of a `node`/`bun` launcher named after it; agents nested deeper (a script running `claude -p`) are never saved.
+
+`resume restore` acts only within 10 minutes of the tmux server's start and on the same socket (unless `--force`), and only types into a pane that is a shell with no `@pane_agent`, sits at the saved location, has the saved window pane count, and is in the saved directory. A save during that window does not replace a snapshot taken before the server started until a restore has run (`restored_at`).
 
 ### Local State (single sidebar process only)
 
@@ -351,4 +368,5 @@ struct NoticesState {
 8. `layout.line_to_row` is rebuilt every frame — ensures accurate click routing
 9. Pane runtime state is pruned when the pane disappears — prevents stale per-pane ports, task progress, and tab preferences from surviving after the agent is gone
 10. At most one popup is open at a time — enforced structurally by the `PopupState` enum, not by parallel boolean flags
-10. Hook-based cleanup wins when available; pid-based cleanup is a slower fallback that removes panes when the agent process is gone but the hook did not fire
+11. Hook-based cleanup wins when available; pid-based cleanup is a slower fallback that removes panes when the agent process is gone but the hook did not fire
+12. `@pane_prompt_at` only ever increases within a session, and the response file is written before `@pane_status` leaves `running`, so a waiter that sees the turn end always finds its reply

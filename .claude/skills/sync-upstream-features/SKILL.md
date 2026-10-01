@@ -34,13 +34,13 @@ Mapping between upstream hook events and internal event names used by this proje
 The following are unrelated to the sidebar monitoring TUI and should NOT be reported as gaps:
 
 - **`PreToolUse` / `PostToolUse` / `PostToolUseFailure`**: Already handled via `activity-log`. No need to handle these directly
-- **`PermissionRequest`**: For permission UI control. Sidebar only displays, doesn't need this
+- **`PermissionRequest` (Claude Code)**: Claude Code already reports permission prompts through `Notification`. For **Codex** it IS in scope: Codex has no `Notification` hook, so `PermissionRequest` is the only way a Codex pane reaches `waiting` (wired in `src/adapter/codex.rs`). The hook must keep printing nothing and exiting 0, which Codex treats as "no verdict"
 - **`PreCompact` / `PostCompact`**: Compaction doesn't affect sidebar
 - **`InstructionsLoaded`**: CLAUDE.md loading is unrelated to sidebar
 - **`ConfigChange`**: Config change monitoring is outside sidebar scope
 - **`FileChanged`**: File change monitoring is outside sidebar scope
 - **`Elicitation` / `ElicitationResult`**: MCP elicitation is outside sidebar scope
-- **`session_id`**, **`transcript_path`** fields: Information not used by sidebar
+- **`transcript_path`** field: Information not used by sidebar (`session_id` IS used: pane identity, `agent` commands, and resume after reboot)
 
 **Note**: Do NOT exclude `WorktreeCreate` / `WorktreeRemove`. The sidebar displays worktree information, so these events are useful for monitoring.
 

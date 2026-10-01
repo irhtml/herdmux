@@ -39,6 +39,6 @@ if [[ "$(tmux show -gv @sidebar_resume 2>/dev/null)" == "on" ]]; then
         fi
     }
     quoted_bin="$(printf '%q' "$SIDEBAR_BINARY")"
-    claim_resurrect_hook @resurrect-hook-post-save-layout "$quoted_bin resume save --resurrect-file"
+    claim_resurrect_hook @resurrect-hook-post-save-layout "$quoted_bin resume save --quiet --resurrect-file"
     claim_resurrect_hook @resurrect-hook-post-restore-all "$quoted_bin resume restore --detach"
 fi

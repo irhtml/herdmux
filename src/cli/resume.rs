@@ -20,9 +20,10 @@ const LOG_LIMIT_BYTES: u64 = 256 * 1024;
 const USAGE: &str = "\
 usage: tmux-agent-sidebar resume <save|restore> [options]
 
-  save [--resurrect-file FILE] [--dry-run]
+  save [--resurrect-file FILE] [--dry-run] [--quiet]
       Record every agent pane's command line and session id. FILE is the
       tmux-resurrect snapshot to cross-check pane positions against.
+      --quiet prints nothing and logs failures (for the resurrect hook).
   restore [--dry-run] [--force] [--detach]
       Relaunch the saved agents with their sessions resumed in the panes
       tmux-resurrect recreated. Runs only within 10 minutes of a tmux
@@ -83,48 +84,57 @@ fn protects_pre_restart_snapshot(
 fn save(raw: &[String]) -> i32 {
     const SPEC: Spec = Spec {
         values: &["resurrect-file"],
-        switches: &["dry-run", "force"],
+        switches: &["dry-run", "force", "quiet"],
     };
     let parsed = match parse(raw, &SPEC) {
         Ok(p) => p,
         Err(code) => return code,
     };
-    let dry_run = parsed.has("dry-run");
-    if !dry_run && !parsed.has("force") && !enabled() {
-        eprintln!("resume is off; enable it with `set -g {OPTION} on`");
-        return 0;
+    // Resurrect runs the hook inside `run-shell`, where any output pops
+    // up over the user's pane: hook mode logs errors and says nothing.
+    let quiet = parsed.has("quiet");
+    match run_save(&parsed) {
+        Ok(Some(message)) if !quiet => println!("{message}"),
+        Ok(_) => {}
+        Err(message) if quiet => append_log(&[format!("save failed: {message}")]),
+        Err(message) => {
+            eprintln!("error: {message}");
+            return 1;
+        }
     }
-    let Some(server) = ServerInfo::query() else {
-        eprintln!("error: cannot reach the tmux server");
-        return 1;
-    };
-    let Some(path) = resume::state_path(&server.socket_path) else {
-        eprintln!("error: cannot resolve a state directory (HOME unset?)");
-        return 1;
-    };
+    0
+}
+
+/// `Ok(Some(summary))` after a write or a deliberate no-op, `Ok(None)`
+/// after a dry run printed its report.
+fn run_save(parsed: &Args) -> Result<Option<String>, String> {
+    let dry_run = parsed.has("dry-run");
+    let force = parsed.has("force");
+    if !dry_run && !force && !enabled() {
+        return Ok(Some(format!(
+            "resume is off; enable it with `set -g {OPTION} on`"
+        )));
+    }
+    let server = ServerInfo::query().ok_or("cannot reach the tmux server")?;
+    let path = resume::state_path(&server.socket_path)
+        .ok_or("cannot resolve a state directory (HOME unset?)")?;
     let snapshot = match parsed.value("resurrect-file") {
-        Some(file) => match std::fs::read_to_string(file) {
-            Ok(content) => Some(resume::Snapshot::parse(&content)),
-            Err(e) => {
-                eprintln!("error: reading {file}: {e}; keeping the previous save");
-                return 1;
-            }
-        },
+        Some(file) => Some(resume::Snapshot::parse(
+            &std::fs::read_to_string(file)
+                .map_err(|e| format!("reading {file}: {e}; kept the previous save"))?,
+        )),
         None => None,
     };
     let panes = tmux::query_pane_locations();
     if panes.is_empty() {
-        eprintln!("error: no panes found; keeping the previous save");
-        return 1;
+        return Err("no panes found; kept the previous save".into());
     }
     let now = now_epoch_secs();
     let previous = ResumeState::load(&path);
-    if !dry_run
-        && !parsed.has("force")
-        && protects_pre_restart_snapshot(previous.as_ref(), &server, now)
-    {
-        eprintln!("keeping the snapshot from before this server started until restore has run");
-        return 0;
+    if !dry_run && !force && protects_pre_restart_snapshot(previous.as_ref(), &server, now) {
+        return Ok(Some(
+            "kept the snapshot from before this server started until restore has run".into(),
+        ));
     }
     let env = resume::RealSaveEnv {
         processes: ProcessSnapshot::scan(),
@@ -137,23 +147,21 @@ fn save(raw: &[String]) -> i32 {
         &server.socket_path,
         now,
     );
-
     if dry_run {
         print_save_report(&report);
-        return 0;
+        return Ok(None);
     }
-    if let Err(e) = report.state.write(&path) {
-        eprintln!("error: writing {}: {e}", path.display());
-        return 1;
-    }
-    println!(
+    report
+        .state
+        .write(&path)
+        .map_err(|e| format!("writing {}: {e}", path.display()))?;
+    Ok(Some(format!(
         "saved {} agent session(s), {} skipped, {} tag(s) to {}",
         report.state.entries.len(),
         report.skipped.len(),
         report.state.tags.len(),
         path.display()
-    );
-    0
+    )))
 }
 
 fn print_save_report(report: &resume::SaveReport) {
@@ -196,7 +204,9 @@ fn restore(raw: &[String]) -> i32 {
     let dry_run = parsed.has("dry-run");
     let force = parsed.has("force");
     if !dry_run && !force && !enabled() {
-        eprintln!("resume is off; enable it with `set -g {OPTION} on`");
+        if !parsed.has("detach") {
+            eprintln!("resume is off; enable it with `set -g {OPTION} on`");
+        }
         return 0;
     }
     if parsed.has("detach") && !dry_run {

@@ -82,6 +82,16 @@ TAS="$(tmux show -gv @agent_sidebar_bin)"
 
 Prompts go in as one bracketed paste and are confirmed through the `UserPromptSubmit` hook. `wait` stops after 110 s by default so it fits in a single agent tool call. The Claude Code plugin ships a `tmux-agents` skill that teaches agents these rules; run `"$TAS" agent help` for every flag.
 
+The skill calls the binary by name. Put it on `PATH` (for example `ln -s "$TAS" ~/.local/bin/`) and the read-only commands can be allowed in Claude Code without opening up `spawn` or `prompt`:
+
+```json
+"permissions": { "allow": [
+  "Bash(tmux-agent-sidebar agent list:*)",
+  "Bash(tmux-agent-sidebar agent wait:*)",
+  "Bash(tmux-agent-sidebar agent read:*)"
+] }
+```
+
 ## Resume after reboot
 
 With [tmux-resurrect](https://github.com/tmux-plugins/tmux-resurrect) (and optionally tmux-continuum), restored agent panes come back as shells. Opt in to relaunch them with their sessions resumed:

@@ -43,13 +43,13 @@ Pane options written to tmux:
 | `@pane_prompt_at` | UserPromptSubmit | Epoch milliseconds of the latest submitted prompt. Kept across Stop so `agent prompt` can confirm a submit landed and `agent wait --since` can tell the current turn from an earlier one |
 | `@pane_resume_pending` | `resume restore` (set), SessionStart (clear) | Epoch seconds when `resume restore` typed a resume command into the pane. While set (up to 30 min), `resume save` keeps the pane's previous entry instead of dropping it |
 | `@pane_desc` | User (`tmux set -p @pane_desc`), `agent spawn --desc`, `resume restore` | Free-form pane tag. Never written by hooks and never cleared on agent exit; `agent` commands accept it as a target |
-| `@pane_attention` | SessionStart, Stop, StopFailure (clear); Notification, PermissionDenied, TeammateIdle (set) | "notification" or "clear" |
+| `@pane_attention` | SessionStart, Stop, StopFailure, Interrupt (clear); Notification, PermissionDenied, TeammateIdle (set) | "notification" or "clear" |
 | `@pane_wait_reason` | StopFailure, PermissionDenied, TeammateIdle | Reason for waiting/error (`permission_denied`, `teammate_idle:<name>`, or error text) |
 | `@pane_bg_cmd` | ActivityLog (bg Bash), Refresh sweep (clear), SessionEnd (clear) | Latest sanitized command of a Bash tool started with `run_in_background`. Its presence is the single source of truth for "live bg shell" — Stop routes to `background` while it is set, and the row body renders the command. Persists across UserPromptSubmit so shells spanning turns stay visible; overwritten by the next bg Bash. The refresh loop runs a `ps`-based liveness sweep each tick and clears the marker (plus downgrades `background → idle`) when no process matches the stored command. Only the most recent bg Bash is tracked; older ones are not retained. |
 | `@pane_subagents` | SubagentStart/Stop | Comma-separated active subagent list |
 | `@pane_worktree_name` | SessionStart | Worktree name (if applicable) |
 | `@pane_worktree_branch` | SessionStart | Worktree branch (if applicable) |
-| `@pane_session_id` | SessionStart, UserPromptSubmit, Notification, Stop, StopFailure, PermissionDenied, CwdChanged | Agent-reported session id (skipped when subagents are active) |
+| `@pane_session_id` | SessionStart, UserPromptSubmit, Notification, Stop, StopFailure, Interrupt, PermissionDenied, CwdChanged | Agent-reported session id (skipped when subagents are active) |
 
 In-memory per-pane runtime state. Every field lives inside
 `PaneRuntimeState` so the whole record is dropped together when its
@@ -70,7 +70,7 @@ Per-pane file-based state:
 | File | Update Trigger | Read Frequency | Description |
 |------|---------------|----------------|-------------|
 | `/tmp/tmux-agent-activity_{pane_id}.log` | Each ActivityLog event | Every 1s | Tool usage log (`HH:MM\|tool\|label`), max 200 lines |
-| `/tmp/tmux-agent-response_{pane_id}.json` | Stop (written before the status flips to idle) | On `agent read` / `agent prompt --wait` | Full last assistant message as `{session_id, prompt_at_ms, stopped_at_ms, message}`, mode 0600, replaced atomically. Removed by both teardown paths. `agent read` refuses it when its `session_id` differs from the pane's current one |
+| `/tmp/tmux-agent-response_{pane_id}.json` | Stop, Interrupt (empty `message`); written before the status flips to idle | On `agent read` / `agent prompt --wait` | Full last assistant message as `{session_id, prompt_at_ms, stopped_at_ms, message}`, mode 0600, replaced atomically. Removed by both teardown paths. `agent read` refuses it when its `session_id` differs from the pane's current one |
 
 ### Resume State (per tmux server)
 

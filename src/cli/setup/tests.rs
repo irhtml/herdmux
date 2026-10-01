@@ -868,10 +868,27 @@ const EXPECTED_FULL_OUTPUT: &str = r#"{
           "event": "session-end",
           "matcher": null,
           "trigger": "SessionEnd"
+        },
+        {
+          "command": "bash /fake/hook.sh codex interrupt",
+          "event": "interrupt",
+          "matcher": null,
+          "trigger": "Interrupt"
         }
       ],
       "snippet": {
         "hooks": {
+          "Interrupt": [
+            {
+              "hooks": [
+                {
+                  "command": "bash /fake/hook.sh codex interrupt",
+                  "type": "command"
+                }
+              ],
+              "matcher": ""
+            }
+          ],
           "PermissionRequest": [
             {
               "hooks": [

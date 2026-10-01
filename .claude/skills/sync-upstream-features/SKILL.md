@@ -25,6 +25,7 @@ Mapping between upstream hook events and internal event names used by this proje
 | `Notification` | `notification` | |
 | `Stop` | `stop` | |
 | `StopFailure` | `stop-failure` | |
+| `Interrupt` (Codex) | `interrupt` | User aborted the turn; `Stop` does not follow. Idle without a notification |
 | `SubagentStart` | `subagent-start` | |
 | `SubagentStop` | `subagent-stop` | |
 | `PostToolUse` | `activity-log` | **Important**: `PreToolUse`/`PostToolUse` are not used directly. Instead, a custom `activity-log` event passes `tool_name`, `tool_input`, `tool_response` from the `PostToolUse` hook |

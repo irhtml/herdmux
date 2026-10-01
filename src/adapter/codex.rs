@@ -21,8 +21,11 @@ impl CodexAdapter {
     ///   the pane lands in `waiting` until the next tool event.
     /// - Subagent `UserPromptSubmit` events carry `agent_id` and are dropped
     ///   so a child prompt cannot overwrite the parent's prompt preview.
-    /// - `PreToolUse`, the compact events, the subagent lifecycle events and
-    ///   `Interrupt` are supported by Codex but not yet wired.
+    /// - `Interrupt` fires when the user aborts a turn (never for subagents)
+    ///   and is the only signal that ends it: `Stop` does not follow. Its
+    ///   output schema rejects unknown fields, so the hook prints nothing.
+    /// - `PreToolUse`, the compact events and the subagent lifecycle events
+    ///   are supported by Codex but not yet wired.
     pub const HOOK_REGISTRATIONS: &'static [HookRegistration] = &[
         HookRegistration {
             trigger: "SessionStart",
@@ -53,6 +56,11 @@ impl CodexAdapter {
             trigger: "SessionEnd",
             matcher: None,
             kind: AgentEventKind::SessionEnd,
+        },
+        HookRegistration {
+            trigger: "Interrupt",
+            matcher: None,
+            kind: AgentEventKind::Interrupt,
         },
     ];
 }
@@ -97,6 +105,13 @@ impl EventAdapter for CodexAdapter {
                 meta_only: false,
                 worktree: None,
                 agent_id: optional_str(input, "agent_id"),
+                session_id: optional_str(input, "session_id"),
+            }),
+            "interrupt" => Some(AgentEvent::Interrupt {
+                agent: CODEX_AGENT.into(),
+                cwd: json_str(input, "cwd").into(),
+                permission_mode: json_str(input, "permission_mode").into(),
+                worktree: None,
                 session_id: optional_str(input, "session_id"),
             }),
             "session-end" => Some(AgentEvent::SessionEnd {
@@ -160,6 +175,29 @@ mod tests {
             CodexAdapter.parse("session-end", &input),
             Some(AgentEvent::SessionEnd {
                 end_reason: "other".into(),
+            })
+        );
+    }
+
+    #[test]
+    fn interrupt_ends_the_turn() {
+        let input = json!({
+            "hook_event_name": "Interrupt",
+            "session_id": "sess-codex-7",
+            "turn_id": "turn-3",
+            "transcript_path": null,
+            "cwd": "/tmp",
+            "model": "gpt-5.5",
+            "permission_mode": "default",
+        });
+        assert_eq!(
+            CodexAdapter.parse("interrupt", &input),
+            Some(AgentEvent::Interrupt {
+                agent: CODEX_AGENT.into(),
+                cwd: "/tmp".into(),
+                permission_mode: "default".into(),
+                worktree: None,
+                session_id: Some("sess-codex-7".into()),
             })
         );
     }

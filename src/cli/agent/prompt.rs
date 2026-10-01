@@ -170,10 +170,14 @@ pub(super) fn deliver<T: AgentTmux>(
 
 fn print_reply(pane: &str, since: u64) {
     match crate::activity::read_response(pane) {
-        Some(resp) if resp.prompt_at_ms.is_none_or(|at| at >= since) => {
+        Some(resp)
+            if resp.prompt_at_ms.is_none_or(|at| at >= since) && !resp.message.is_empty() =>
+        {
             println!("{}", resp.message)
         }
-        _ => eprintln!("note: {pane} finished but recorded no reply text"),
+        _ => eprintln!(
+            "note: {pane} ended its turn without reply text (it may have been interrupted)"
+        ),
     }
 }
 

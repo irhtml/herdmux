@@ -1,3 +1,4 @@
+mod agent;
 pub mod capture;
 mod hook;
 mod label;
@@ -24,6 +25,7 @@ pub fn run(args: &[String]) -> Option<i32> {
         "auto-close" => toggle::cmd_auto_close(rest),
         "set-status" => cmd_set_status(rest),
         "spawn" => spawn::cmd_spawn(rest),
+        "agent" => agent::cmd_agent(rest),
         "capture" => capture::cmd_capture(rest),
         "--version" | "version" => {
             println!("{}", crate::VERSION);

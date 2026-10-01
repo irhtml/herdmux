@@ -7,6 +7,10 @@ mod context;
 mod handlers;
 mod notifications;
 
+/// Shared with `agent wait`, which must agree with the sidebar on what
+/// counts as "blocked on the user".
+pub(super) use handlers::is_permission_wait_reason;
+
 use context::sync_pane_location;
 use notifications::notification_settings;
 

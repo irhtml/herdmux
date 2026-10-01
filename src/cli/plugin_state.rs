@@ -51,6 +51,8 @@ const RESIDUAL_HOOK_NEEDLE: &str = "tmux-agent-sidebar/hook.sh";
 /// - `hooks/hooks.json` — declares which Claude hook events route to
 ///   `hook.sh`. Adding or renaming events requires a cache refresh
 ///   before Claude Code wires the new events up.
+/// - `skills/tmux-agents/SKILL.md` — teaches agents the `agent`
+///   subcommand. A stale copy would describe flags that no longer exist.
 ///
 /// `.claude-plugin/plugin.json` is deliberately excluded: its only
 /// per-release churn is the `version` field, and firing the Stale
@@ -66,6 +68,10 @@ const RESIDUAL_HOOK_NEEDLE: &str = "tmux-agent-sidebar/hook.sh";
 const EMBEDDED_PLUGIN_FILES: &[(&str, &str)] = &[
     ("hook.sh", include_str!("../../hook.sh")),
     ("hooks/hooks.json", include_str!("../../hooks/hooks.json")),
+    (
+        "skills/tmux-agents/SKILL.md",
+        include_str!("../../skills/tmux-agents/SKILL.md"),
+    ),
 ];
 
 /// Lifetime state of the Claude Code plugin install, resolved once at

@@ -14,7 +14,7 @@
 
 /// Wait reasons that demand direct user action and must stay visible as
 /// `waiting` even with a live background shell.
-pub(in crate::cli::hook) fn is_permission_wait_reason(wait_reason: &str) -> bool {
+pub(crate) fn is_permission_wait_reason(wait_reason: &str) -> bool {
     matches!(
         wait_reason,
         "permission" | "permission_prompt" | "permission_denied" | "elicitation_dialog"

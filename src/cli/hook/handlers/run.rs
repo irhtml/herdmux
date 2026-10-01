@@ -252,6 +252,8 @@ mod tests {
     fn on_stop_with_background_shell_sets_background_status() {
         let _guard = tmux::test_mock::install();
         let pane = "%STOP_BG";
+        // Stop writes the real /tmp response file; remove it afterwards.
+        let _response = scopeguard::guard(pane, crate::activity::remove_response);
         tmux::test_mock::set(pane, tmux::PANE_BG_CMD, "npm run dev");
         tmux::test_mock::set(pane, tmux::PANE_STARTED_AT, "123");
         let ctx = AgentContext {
@@ -288,6 +290,8 @@ mod tests {
     fn on_stop_without_background_shell_sets_idle_status() {
         let _guard = tmux::test_mock::install();
         let pane = "%STOP_IDLE";
+        // Stop writes the real /tmp response file; remove it afterwards.
+        let _response = scopeguard::guard(pane, crate::activity::remove_response);
         tmux::test_mock::set(pane, tmux::PANE_STARTED_AT, "123");
         let ctx = AgentContext {
             agent: "claude",
@@ -355,6 +359,8 @@ mod tests {
     fn on_stop_clears_stale_subagents() {
         let _guard = tmux::test_mock::install();
         let pane = "%STOP_STALE_SUBAGENTS";
+        // Stop writes the real /tmp response file; remove it afterwards.
+        let _response = scopeguard::guard(pane, crate::activity::remove_response);
         tmux::test_mock::set(
             pane,
             tmux::PANE_SUBAGENTS,

@@ -5,8 +5,20 @@ set -euo pipefail
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BIN_DIR="$PLUGIN_DIR/bin"
 BINARY="$BIN_DIR/tmux-agent-sidebar"
-REPO="hiroppy/tmux-agent-sidebar"
 action="${1:-}"
+
+# Download releases from the GitHub repo this checkout was cloned from, so a
+# fork installs its own builds. Falls back to upstream.
+function detect_repo() {
+    local url
+    url="$(git -C "$PLUGIN_DIR" remote get-url origin 2>/dev/null)" || url=""
+    if [[ "$url" =~ github\.com[:/]+([^/]+/[^/]+)$ ]]; then
+        echo "${BASH_REMATCH[1]%.git}"
+    else
+        echo "hiroppy/tmux-agent-sidebar"
+    fi
+}
+REPO="$(detect_repo)"
 
 function finish {
     local exit_code=$?

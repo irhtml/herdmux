@@ -49,6 +49,24 @@ Rules of thumb when classifying:
 | minor     | 0.2.0 → 0.3.0 |
 | major     | 0.2.0 → 1.0.0 |
 
+## Fork releases (irhtml/tmux-agent-sidebar)
+
+This checkout is a fork. Its version is the upstream version plus a fork
+counter: `0.13.0-irhtml.1`, `0.13.0-irhtml.2`, and so on.
+
+- Bump the counter whenever a fork change touches the binary, so other
+  machines notice the update: `tmux-agent-sidebar.tmux` compares the binary's
+  version with `Cargo.toml` after a plugin update and offers the install menu
+  on a mismatch.
+- After merging an upstream release, restart the counter on the new base
+  (`0.14.0-irhtml.1`).
+- Push the tag to `origin` (`git push origin v0.13.0-irhtml.1`). The release
+  workflow then publishes binaries on the fork, and `install-wizard.sh`
+  downloads from the repo it was cloned from, so "Download binary" gets the
+  fork build.
+- The sidebar's update notice still checks upstream releases, so it reads as
+  "upstream has a release to merge".
+
 ## Notes
 
 - Tags use the `v` prefix (e.g., `v0.2.0`)

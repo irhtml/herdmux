@@ -117,6 +117,18 @@ mod tests {
     }
 
     #[test]
+    fn fork_version_only_trails_newer_upstream_releases() {
+        assert_eq!(
+            compare_versions("0.13.0", "0.13.0-irhtml.1"),
+            Ordering::Less
+        );
+        assert_eq!(
+            compare_versions("0.13.1", "0.13.0-irhtml.3"),
+            Ordering::Greater
+        );
+    }
+
+    #[test]
     fn normalize_version_strips_tag_prefix() {
         assert_eq!(normalize_version("v1.2.3"), Some("1.2.3".into()));
     }

@@ -1,12 +1,12 @@
 #[allow(dead_code, unused_imports)]
 mod test_helpers;
 
+use herdmux::activity::{ActivityEntry, TaskProgress, TaskStatus};
+use herdmux::state::{BottomTab, Focus};
+use herdmux::tmux::{AgentType, PaneStatus, PermissionMode, SessionInfo, WindowInfo};
+use herdmux::ui::colors::ColorTheme;
 use ratatui::style::Color;
 use test_helpers::*;
-use tmux_agent_sidebar::activity::{ActivityEntry, TaskProgress, TaskStatus};
-use tmux_agent_sidebar::state::{BottomTab, Focus};
-use tmux_agent_sidebar::tmux::{AgentType, PaneStatus, PermissionMode, SessionInfo, WindowInfo};
-use tmux_agent_sidebar::ui::colors::ColorTheme;
 
 // ─── ColorTheme Default Values ──────────────────────────────────────
 
@@ -303,7 +303,7 @@ fn test_git_summary_modified_uses_badge_auto_color() {
     state.focus_state.focus = Focus::ActivityLog;
     state.focus_state.sidebar_focused = true;
     state.git.branch = "main".into();
-    state.git.unstaged_files = vec![tmux_agent_sidebar::git::GitFileEntry {
+    state.git.unstaged_files = vec![herdmux::git::GitFileEntry {
         status: 'M',
         name: "src/lib.rs".into(),
         additions: 5,
@@ -739,7 +739,7 @@ fn test_file_change_stat_uses_file_change_color() {
     state.focus_state.focus = Focus::ActivityLog;
     state.focus_state.sidebar_focused = true;
     state.git.branch = "main".into();
-    state.git.unstaged_files = vec![tmux_agent_sidebar::git::GitFileEntry {
+    state.git.unstaged_files = vec![herdmux::git::GitFileEntry {
         status: 'M',
         name: "lib.rs".into(),
         additions: 40,
@@ -830,12 +830,12 @@ fn test_branch_color_in_agent_panel() {
             panes: vec![pane.clone()],
         }],
     }]);
-    state.repo_groups = vec![tmux_agent_sidebar::group::RepoGroup {
+    state.repo_groups = vec![herdmux::group::RepoGroup {
         name: "project".into(),
         has_focus: true,
         panes: vec![(
             pane,
-            tmux_agent_sidebar::group::PaneGitInfo {
+            herdmux::group::PaneGitInfo {
                 repo_root: Some("/home/user/project".into()),
                 branch: Some("feature/cool-feature".into()),
                 is_worktree: false,
@@ -929,15 +929,15 @@ fn test_accent_vs_border_inactive_colors() {
         }],
     }]);
     state.repo_groups = vec![
-        tmux_agent_sidebar::group::RepoGroup {
+        herdmux::group::RepoGroup {
             name: "focused-repo".into(),
             has_focus: true,
-            panes: vec![(pane1, tmux_agent_sidebar::group::PaneGitInfo::default())],
+            panes: vec![(pane1, herdmux::group::PaneGitInfo::default())],
         },
-        tmux_agent_sidebar::group::RepoGroup {
+        herdmux::group::RepoGroup {
             name: "unfocused-repo".into(),
             has_focus: false,
-            panes: vec![(pane2, tmux_agent_sidebar::group::PaneGitInfo::default())],
+            panes: vec![(pane2, herdmux::group::PaneGitInfo::default())],
         },
     ];
     state.focus_state.focused_pane_id = Some("%1".into());
@@ -1116,7 +1116,7 @@ fn test_idle_status_color_in_output() {
 
 #[test]
 fn test_unknown_status_color_in_output() {
-    let theme = tmux_agent_sidebar::ui::colors::ColorTheme::default();
+    let theme = herdmux::ui::colors::ColorTheme::default();
     assert_eq!(
         theme.status_color(&PaneStatus::Unknown, false),
         ratatui::style::Color::Indexed(244)

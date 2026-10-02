@@ -4,18 +4,18 @@ set -euo pipefail
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BIN_DIR="$PLUGIN_DIR/bin"
-BINARY="$BIN_DIR/tmux-agent-sidebar"
+BINARY="$BIN_DIR/herdmux"
 action="${1:-}"
 
 # Download releases from the GitHub repo this checkout was cloned from, so a
-# fork installs its own builds. Falls back to upstream.
+# fork installs its own builds. Falls back to irhtml/herdmux.
 function detect_repo() {
     local url
     url="$(git -C "$PLUGIN_DIR" remote get-url origin 2>/dev/null)" || url=""
     if [[ "$url" =~ github\.com[:/]+([^/]+/[^/]+)$ ]]; then
         echo "${BASH_REMATCH[1]%.git}"
     else
-        echo "hiroppy/tmux-agent-sidebar"
+        echo "irhtml/herdmux"
     fi
 }
 REPO="$(detect_repo)"
@@ -86,7 +86,7 @@ function download_binary() {
     mkdir -p "$BIN_DIR"
     local platform
     platform="$(detect_platform)"
-    local asset_name="tmux-agent-sidebar-${platform}"
+    local asset_name="herdmux-${platform}"
     local url="https://github.com/$REPO/releases/latest/download/$asset_name"
 
     echo "Downloading binary from $url"
@@ -117,7 +117,7 @@ function build_from_source() {
     cargo build --release --manifest-path "$PLUGIN_DIR/Cargo.toml"
 
     mkdir -p "$BIN_DIR"
-    cp "$PLUGIN_DIR/target/release/tmux-agent-sidebar" "$BINARY"
+    cp "$PLUGIN_DIR/target/release/herdmux" "$BINARY"
 
     post_install_fixups
 
@@ -139,16 +139,16 @@ esac
 # Interactive menu
 function get_message() {
     if [[ "${SIDEBAR_UPDATE:-}" == "1" ]]; then
-        echo "tmux-agent-sidebar has been updated. We need to get the new binary."
+        echo "herdmux has been updated. We need to get the new binary."
     else
-        echo "First time setup. We need to get the tmux-agent-sidebar binary."
+        echo "First time setup. We need to get the herdmux binary."
     fi
 }
 
-tmux display-menu -T "tmux-agent-sidebar" \
+tmux display-menu -T "herdmux" \
     "" \
     "- " "" "" \
-    "-  #[nodim,bold]tmux-agent-sidebar" "" "" \
+    "-  #[nodim,bold]herdmux" "" "" \
     "- " "" "" \
     "-  $(get_message) " "" "" \
     "- " "" "" \

@@ -5,13 +5,13 @@ description: Coordinate other coding agents (Claude Code, Codex, OpenCode) runni
 
 # Driving other agents in tmux
 
-The tmux-agent-sidebar binary has an `agent` command that lists, starts, prompts, waits on and reads the agents running in this tmux server. It reads the same status the sidebar shows.
+The herdmux binary has an `agent` command that lists, starts, prompts, waits on and reads the agents running in this tmux server. It reads the same status the sidebar shows.
 
 ```bash
-tmux-agent-sidebar agent list    # always start here
+herdmux agent list    # always start here
 ```
 
-Call the binary by name, as in every example here, so the user's permission rules can match the command. If `command -v tmux-agent-sidebar` finds nothing, use the path printed by `tmux show -gv @agent_sidebar_bin` in its place (works from any pane).
+Call the binary by name, as in every example here, so the user's permission rules can match the command. If `command -v herdmux` finds nothing, use the path printed by `tmux show -gv @agent_sidebar_bin` in its place (works from any pane).
 
 ## Commands
 
@@ -43,22 +43,22 @@ stdout carries only data: `spawn` prints the new pane id, then (with `--wait`) t
 Delegate and collect the answer in one call:
 
 ```bash
-tmux-agent-sidebar agent spawn --desc reviewer --wait --prompt "Review the diff on this branch for bugs. List findings only."
+herdmux agent spawn --desc reviewer --wait --prompt "Review the diff on this branch for bugs. List findings only."
 ```
 
 Fan out, then gather:
 
 ```bash
-a=$(tmux-agent-sidebar agent spawn --worktree fix-auth --desc auth --prompt "Fix the failing auth tests.")
-b=$(tmux-agent-sidebar agent spawn --worktree fix-api --desc api --prompt "Fix the failing API tests.")
-tmux-agent-sidebar agent wait "$a" && tmux-agent-sidebar agent read "$a"
-tmux-agent-sidebar agent wait "$b" && tmux-agent-sidebar agent read "$b"
+a=$(herdmux agent spawn --worktree fix-auth --desc auth --prompt "Fix the failing auth tests.")
+b=$(herdmux agent spawn --worktree fix-api --desc api --prompt "Fix the failing API tests.")
+herdmux agent wait "$a" && herdmux agent read "$a"
+herdmux agent wait "$b" && herdmux agent read "$b"
 ```
 
 Long or multi-line prompts go through stdin:
 
 ```bash
-tmux-agent-sidebar agent prompt %12 - --wait <<'EOF'
+herdmux agent prompt %12 - --wait <<'EOF'
 Summarize what you changed and what is left.
 EOF
 ```
@@ -70,7 +70,7 @@ Start the work without `--wait`, then wait separately. Do not poll with `agent l
 - **Shell tool with background commands (Claude Code `run_in_background: true`):** run the wait in the background and keep working, or end your turn; you are notified when it exits, and its output carries the reply. Keep `--timeout` under the background time limit (30 min by default):
 
   ```bash
-  tmux-agent-sidebar agent wait %12 --timeout 1500 && tmux-agent-sidebar agent read %12
+  herdmux agent wait %12 --timeout 1500 && herdmux agent read %12
   ```
 
   Start one background wait per agent. Exit 124 still means "still working": start another.

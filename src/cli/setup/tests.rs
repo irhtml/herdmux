@@ -7,17 +7,17 @@ const FAKE_HOOK: &str = "/fake/hook.sh";
 fn shell_quote_safe_string_passes_through() {
     // Fast path: common paths have no shell-special characters and are
     // returned verbatim. This is what keeps the fallback
-    // `~/.tmux/plugins/tmux-agent-sidebar/hook.sh` eligible for tilde
+    // `~/.tmux/plugins/herdmux/hook.sh` eligible for tilde
     // expansion in the generated command.
     assert_eq!(shell_quote("hello"), "hello");
     assert_eq!(shell_quote("/fake/hook.sh"), "/fake/hook.sh");
     assert_eq!(
-        shell_quote("~/.tmux/plugins/tmux-agent-sidebar/hook.sh"),
-        "~/.tmux/plugins/tmux-agent-sidebar/hook.sh"
+        shell_quote("~/.tmux/plugins/herdmux/hook.sh"),
+        "~/.tmux/plugins/herdmux/hook.sh"
     );
     assert_eq!(
-        shell_quote("/Users/alice/.tmux/plugins/tmux-agent-sidebar/hook.sh"),
-        "/Users/alice/.tmux/plugins/tmux-agent-sidebar/hook.sh"
+        shell_quote("/Users/alice/.tmux/plugins/herdmux/hook.sh"),
+        "/Users/alice/.tmux/plugins/herdmux/hook.sh"
     );
 }
 

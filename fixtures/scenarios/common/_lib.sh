@@ -39,7 +39,7 @@ setup() {
         ROOT="$PWD"
     fi
     SESSION="$session_name"
-    BIN="$ROOT/target/release/tmux-agent-sidebar"
+    BIN="$ROOT/target/release/herdmux"
     TMUX_CONF="$ROOT/fixtures/scenarios/common/.tmux.conf"
 
     # CRITICAL: if the scenario is invoked from inside a tmux session,

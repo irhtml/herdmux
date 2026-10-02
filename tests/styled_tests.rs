@@ -1,10 +1,10 @@
 #[allow(dead_code, unused_imports)]
 mod test_helpers;
 
+use herdmux::activity::ActivityEntry;
+use herdmux::state::{BottomTab, Focus};
+use herdmux::tmux::{AgentType, PaneStatus, SessionInfo, WindowInfo};
 use test_helpers::*;
-use tmux_agent_sidebar::activity::ActivityEntry;
-use tmux_agent_sidebar::state::{BottomTab, Focus};
-use tmux_agent_sidebar::tmux::{AgentType, PaneStatus, SessionInfo, WindowInfo};
 
 // ─── Styled Snapshot Tests for Selection and Focus ─────────────────
 
@@ -354,8 +354,8 @@ fn no_selection_bg_when_not_selected() {
 
 #[test]
 fn snapshot_custom_theme_colors() {
+    use herdmux::ui::colors::ColorTheme;
     use ratatui::style::Color;
-    use tmux_agent_sidebar::ui::colors::ColorTheme;
 
     let pane = make_pane(AgentType::Claude, PaneStatus::Idle);
     let mut state = make_state(vec![SessionInfo {
@@ -396,8 +396,8 @@ fn snapshot_custom_theme_colors() {
 
 #[test]
 fn test_theme_default_matches_shell_colors() {
+    use herdmux::ui::colors::ColorTheme;
     use ratatui::style::Color;
-    use tmux_agent_sidebar::ui::colors::ColorTheme;
 
     let theme = ColorTheme::default();
 

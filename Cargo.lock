@@ -545,6 +545,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 
 [[package]]
+name = "herdmux"
+version = "0.14.0"
+dependencies = [
+ "arboard",
+ "crossterm",
+ "indexmap",
+ "indoc",
+ "insta",
+ "libc",
+ "ratatui",
+ "scopeguard",
+ "serde_json",
+ "tempfile",
+ "unicode-width",
+ "vte",
+]
+
+[[package]]
 name = "hex"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1621,24 +1639,6 @@ name = "time-core"
 version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7694e1cfe791f8d31026952abf09c69ca6f6fa4e1a1229e18988f06a04a12dca"
-
-[[package]]
-name = "tmux-agent-sidebar"
-version = "0.13.0-irhtml.1"
-dependencies = [
- "arboard",
- "crossterm",
- "indexmap",
- "indoc",
- "insta",
- "libc",
- "ratatui",
- "scopeguard",
- "serde_json",
- "tempfile",
- "unicode-width",
- "vte",
-]
 
 [[package]]
 name = "typenum"

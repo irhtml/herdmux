@@ -252,12 +252,7 @@ fn send_desktop_notification(title: &str, body: &str) -> Result<(), String> {
     {
         let mut command = Command::new("notify-send");
         command
-            .args([
-                "--app-name=tmux-agent-sidebar",
-                "--urgency=normal",
-                title,
-                body,
-            ])
+            .args(["--app-name=herdmux", "--urgency=normal", title, body])
             .stdout(Stdio::null())
             .stderr(Stdio::null());
         run_notification_command(&mut command, "notify-send", DESKTOP_NOTIFICATION_TIMEOUT)

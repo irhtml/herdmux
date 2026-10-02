@@ -95,7 +95,7 @@ pub(crate) fn cmd_toggle(args: &[String]) -> i32 {
     let self_bin = std::env::current_exe()
         .ok()
         .and_then(|p| p.to_str().map(|s| s.to_string()))
-        .unwrap_or_else(|| "tmux-agent-sidebar".to_string());
+        .unwrap_or_else(|| "herdmux".to_string());
 
     // Create sidebar pane
     let sidebar_pane = tmux::run_tmux(&[

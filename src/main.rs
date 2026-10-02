@@ -6,8 +6,8 @@ use crossterm::{
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
+use herdmux::{app, tmux};
 use ratatui::{Terminal, backend::CrosstermBackend};
-use tmux_agent_sidebar::{app, tmux};
 
 static NEEDS_REFRESH: AtomicBool = AtomicBool::new(false);
 
@@ -40,7 +40,7 @@ impl Drop for TuiSession {
 
 fn main() -> io::Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    if let Some(code) = tmux_agent_sidebar::cli::run(&args) {
+    if let Some(code) = herdmux::cli::run(&args) {
         std::process::exit(code);
     }
 

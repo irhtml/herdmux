@@ -241,7 +241,7 @@ pub(super) fn run(raw: &[String]) -> i32 {
         }
         Readiness::TimedOut => {
             let hint = if plan.agent == "claude" {
-                "Claude never reported in; check that the tmux-agent-sidebar plugin hooks are installed."
+                "Claude never reported in; check that the herdmux plugin hooks are installed."
             } else {
                 "the agent never became ready; check the pane."
             };

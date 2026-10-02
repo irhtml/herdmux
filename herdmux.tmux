@@ -2,12 +2,12 @@
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-if [[ -x "$PLUGIN_DIR/bin/tmux-agent-sidebar" ]]; then
-    SIDEBAR_BINARY="$PLUGIN_DIR/bin/tmux-agent-sidebar"
-elif [[ -x "$PLUGIN_DIR/target/release/tmux-agent-sidebar" ]]; then
-    SIDEBAR_BINARY="$PLUGIN_DIR/target/release/tmux-agent-sidebar"
-elif command -v "tmux-agent-sidebar" &>/dev/null; then
-    SIDEBAR_BINARY="tmux-agent-sidebar"
+if [[ -x "$PLUGIN_DIR/bin/herdmux" ]]; then
+    SIDEBAR_BINARY="$PLUGIN_DIR/bin/herdmux"
+elif [[ -x "$PLUGIN_DIR/target/release/herdmux" ]]; then
+    SIDEBAR_BINARY="$PLUGIN_DIR/target/release/herdmux"
+elif command -v "herdmux" &>/dev/null; then
+    SIDEBAR_BINARY="herdmux"
 fi
 
 if [[ -z "$SIDEBAR_BINARY" ]]; then
@@ -34,7 +34,8 @@ if [[ "$(tmux show -gv @sidebar_resume 2>/dev/null)" == "on" ]]; then
     claim_resurrect_hook() {
         local name="$1" value="$2" current
         current="$(tmux show -gv "$name" 2>/dev/null)"
-        if [[ -z "$current" || "$current" == *tmux-agent-sidebar*" resume "* ]]; then
+        # Pre-rename hooks (tmux-agent-sidebar) count as ours too.
+        if [[ -z "$current" || "$current" == *herdmux*" resume "* || "$current" == *tmux-agent-sidebar*" resume "* ]]; then
             tmux set -g "$name" "$value"
         fi
     }

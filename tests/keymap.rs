@@ -1,8 +1,8 @@
 #[allow(dead_code)]
 mod test_helpers;
 
+use herdmux::state::{AppState, PopupState};
 use test_helpers::render_to_string;
-use tmux_agent_sidebar::state::{AppState, PopupState};
 
 #[test]
 fn keymap_wide() {

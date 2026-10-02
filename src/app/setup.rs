@@ -25,7 +25,7 @@ pub(super) fn init_state(tmux_pane: String) -> AppState {
     // the new state.
     state.notices.claude_plugin_status = plugin_state::installed_plugin_status();
     // Likewise resolve whether the user still has legacy
-    // tmux-agent-sidebar/hook.sh entries in ~/.claude/settings.json so
+    // herdmux/hook.sh entries in ~/.claude/settings.json so
     // the notices popup can warn about duplicate hook execution.
     state.notices.claude_settings_has_residual_hooks =
         plugin_state::claude_settings_has_residual_hooks();

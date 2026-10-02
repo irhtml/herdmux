@@ -5,7 +5,7 @@ use serde_json::Value;
 
 pub const LOCAL_VERSION: &str = crate::VERSION;
 const GITHUB_LATEST_RELEASE_URL: &str =
-    "https://api.github.com/repos/hiroppy/tmux-agent-sidebar/releases/latest";
+    "https://api.github.com/repos/irhtml/herdmux/releases/latest";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UpdateNotice {
@@ -36,7 +36,7 @@ fn fetch_latest_release_version() -> Option<String> {
             "-H",
             "Accept: application/vnd.github+json",
             "-H",
-            "User-Agent: tmux-agent-sidebar",
+            "User-Agent: herdmux",
             GITHUB_LATEST_RELEASE_URL,
         ])
         .output()
@@ -117,7 +117,7 @@ mod tests {
     }
 
     #[test]
-    fn fork_version_only_trails_newer_upstream_releases() {
+    fn prerelease_suffix_sorts_before_its_release() {
         assert_eq!(
             compare_versions("0.13.0", "0.13.0-irhtml.1"),
             Ordering::Less

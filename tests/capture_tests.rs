@@ -1,5 +1,5 @@
-use tmux_agent_sidebar::cli::capture::ansi::parse_ansi;
-use tmux_agent_sidebar::cli::capture::tmux_probe::PaneGeom;
+use herdmux::cli::capture::ansi::parse_ansi;
+use herdmux::cli::capture::tmux_probe::PaneGeom;
 
 #[test]
 fn pane_geom_parses_tmux_format_line() {
@@ -55,9 +55,9 @@ fn parse_ansi_sample_pane_snapshot() {
 
 #[test]
 fn canvas_assembles_two_panes_side_by_side_with_border() {
-    use tmux_agent_sidebar::cli::capture::ansi::StyledCell;
-    use tmux_agent_sidebar::cli::capture::canvas::{PaneContent, WindowGeom, assemble};
-    use tmux_agent_sidebar::cli::capture::tmux_probe::PaneGeom;
+    use herdmux::cli::capture::ansi::StyledCell;
+    use herdmux::cli::capture::canvas::{PaneContent, WindowGeom, assemble};
+    use herdmux::cli::capture::tmux_probe::PaneGeom;
 
     let left_pane = PaneGeom {
         pane_id: "%1".into(),
@@ -116,9 +116,9 @@ fn canvas_assembles_two_panes_side_by_side_with_border() {
 
 #[test]
 fn canvas_assembles_2x2_grid_resolves_center_cross() {
-    use tmux_agent_sidebar::cli::capture::ansi::StyledCell;
-    use tmux_agent_sidebar::cli::capture::canvas::{PaneContent, WindowGeom, assemble};
-    use tmux_agent_sidebar::cli::capture::tmux_probe::PaneGeom;
+    use herdmux::cli::capture::ansi::StyledCell;
+    use herdmux::cli::capture::canvas::{PaneContent, WindowGeom, assemble};
+    use herdmux::cli::capture::tmux_probe::PaneGeom;
 
     // 4 panes in a 2x2 grid, each 2x2, with 1-cell borders at col=2 and row=2
     // Window is 5x5: panes at (0,0),(3,0),(0,3),(3,3)
@@ -171,8 +171,8 @@ fn canvas_assembles_2x2_grid_resolves_center_cross() {
 
 #[test]
 fn render_html_emits_pre_with_per_cell_spans() {
-    use tmux_agent_sidebar::cli::capture::ansi::StyledCell;
-    use tmux_agent_sidebar::cli::capture::render_html::render_html;
+    use herdmux::cli::capture::ansi::StyledCell;
+    use herdmux::cli::capture::render_html::render_html;
 
     let cells = vec![vec![
         StyledCell {
@@ -194,8 +194,8 @@ fn render_html_emits_pre_with_per_cell_spans() {
 #[test]
 #[ignore = "requires local tmux"]
 fn capture_frames_sequence_integration() {
+    use herdmux::cli;
     use std::process::Command;
-    use tmux_agent_sidebar::cli;
 
     // Run every `tmux` invocation on an isolated server so the test can't
     // touch the user's live tmux (it would otherwise steal focus and
@@ -257,8 +257,8 @@ fn capture_frames_sequence_integration() {
 #[test]
 #[ignore = "requires local tmux"]
 fn capture_single_frame_integration() {
+    use herdmux::cli;
     use std::process::Command;
-    use tmux_agent_sidebar::cli;
 
     // Same isolation as capture_frames_sequence_integration — don't
     // touch the user's live tmux server.

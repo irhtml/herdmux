@@ -2,7 +2,7 @@
 # Thin wrapper: delegates to the Rust binary. Called by Claude Code /
 # Codex hooks (settings.json).
 #
-# Why this file exists even though `tmux-agent-sidebar setup` can emit
+# Why this file exists even though `herdmux setup` can emit
 # absolute binary paths:
 #
 # 1. Late binding. settings.json only needs to know where `hook.sh`
@@ -26,17 +26,17 @@ PLUGIN_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 # plugin install (e.g. `${CLAUDE_PLUGIN_ROOT}/hook.sh`). The plugin cache
 # never contains the binary, so hop over to the tmux plugin directory
 # where TPM placed it.
-TPM_DIR="$HOME/.tmux/plugins/tmux-agent-sidebar"
-if [ -x "$PLUGIN_DIR/bin/tmux-agent-sidebar" ]; then
-  BIN="$PLUGIN_DIR/bin/tmux-agent-sidebar"
-elif [ -x "$PLUGIN_DIR/target/release/tmux-agent-sidebar" ]; then
-  BIN="$PLUGIN_DIR/target/release/tmux-agent-sidebar"
-elif [ -x "$TPM_DIR/bin/tmux-agent-sidebar" ]; then
-  BIN="$TPM_DIR/bin/tmux-agent-sidebar"
-elif [ -x "$TPM_DIR/target/release/tmux-agent-sidebar" ]; then
-  BIN="$TPM_DIR/target/release/tmux-agent-sidebar"
-elif command -v tmux-agent-sidebar &>/dev/null; then
-  BIN="tmux-agent-sidebar"
+TPM_DIR="$HOME/.tmux/plugins/herdmux"
+if [ -x "$PLUGIN_DIR/bin/herdmux" ]; then
+  BIN="$PLUGIN_DIR/bin/herdmux"
+elif [ -x "$PLUGIN_DIR/target/release/herdmux" ]; then
+  BIN="$PLUGIN_DIR/target/release/herdmux"
+elif [ -x "$TPM_DIR/bin/herdmux" ]; then
+  BIN="$TPM_DIR/bin/herdmux"
+elif [ -x "$TPM_DIR/target/release/herdmux" ]; then
+  BIN="$TPM_DIR/target/release/herdmux"
+elif command -v herdmux &>/dev/null; then
+  BIN="herdmux"
 else
   exit 0
 fi

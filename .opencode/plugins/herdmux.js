@@ -23,7 +23,7 @@ const HOOK_COMMAND = (() => {
   const hookScript = resolveHookScript();
   return hookScript
     ? { cmd: "bash", prefix: [hookScript, "opencode"] }
-    : { cmd: "tmux-agent-sidebar", prefix: ["hook", "opencode"] };
+    : { cmd: "herdmux", prefix: ["hook", "opencode"] };
 })();
 
 // Fire-and-forget: OpenCode dispatches the `event` hook without awaiting

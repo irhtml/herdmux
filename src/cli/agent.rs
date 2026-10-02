@@ -27,7 +27,7 @@ const EXIT_TIMEOUT: i32 = 124;
 const DEFAULT_TIMEOUT_SECS: u64 = 110;
 
 const USAGE: &str = "\
-usage: tmux-agent-sidebar agent <command> [options]
+usage: herdmux agent <command> [options]
 
 Drive other coding agents running in tmux panes.
 
@@ -91,6 +91,6 @@ fn self_pane() -> String {
 }
 
 fn usage_error(message: &str) -> i32 {
-    eprintln!("error: {message}\nrun `tmux-agent-sidebar agent help` for usage");
+    eprintln!("error: {message}\nrun `herdmux agent help` for usage");
     EXIT_USAGE
 }

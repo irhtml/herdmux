@@ -50,13 +50,28 @@ pub(crate) struct ResumeState {
     pub(crate) tags: Vec<Tag>,
 }
 
-/// `${XDG_STATE_HOME:-~/.local/state}/tmux-agent-sidebar`.
+/// `${XDG_STATE_HOME:-~/.local/state}/herdmux`.
 pub(crate) fn state_dir() -> Option<PathBuf> {
     let base = match std::env::var_os("XDG_STATE_HOME").filter(|v| !v.is_empty()) {
         Some(dir) => PathBuf::from(dir),
         None => PathBuf::from(std::env::var_os("HOME")?).join(".local/state"),
     };
-    Some(base.join("tmux-agent-sidebar"))
+    Some(base.join("herdmux"))
+}
+
+/// Moves a state directory left under the pre-rename name
+/// (`tmux-agent-sidebar`) to [`state_dir`]. Does nothing once the new
+/// directory exists.
+pub(crate) fn migrate_legacy_state_dir() {
+    let Some(dir) = state_dir() else {
+        return;
+    };
+    let Some(legacy) = dir.parent().map(|base| base.join("tmux-agent-sidebar")) else {
+        return;
+    };
+    if !dir.exists() && legacy.is_dir() {
+        let _ = std::fs::rename(legacy, dir);
+    }
 }
 
 /// One file per tmux server socket, so a scratch server (`tmux -L x`)
@@ -279,8 +294,8 @@ mod tests {
     fn state_path_is_per_socket() {
         let a = state_path("/tmp/tmux-1000/default").unwrap();
         let b = state_path("/tmp/tmux-1000/restest").unwrap();
-        assert!(a.ends_with("tmux-agent-sidebar/resume-default.json"));
-        assert!(b.ends_with("tmux-agent-sidebar/resume-restest.json"));
+        assert!(a.ends_with("herdmux/resume-default.json"));
+        assert!(b.ends_with("herdmux/resume-restest.json"));
         assert!(
             state_path("/tmp/odd name/s.ock")
                 .unwrap()

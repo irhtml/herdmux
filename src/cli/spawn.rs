@@ -8,7 +8,7 @@ use crate::worktree::{self, SpawnRequest};
 
 pub fn cmd_spawn(args: &[String]) -> i32 {
     if args.is_empty() {
-        eprintln!("usage: tmux-agent-sidebar spawn <name>");
+        eprintln!("usage: herdmux spawn <name>");
         return 2;
     }
     let pane = std::env::var("TMUX_PANE").unwrap_or_default();

@@ -15,16 +15,16 @@ jobs:
         include:
           - target: aarch64-apple-darwin
             os: macos-latest
-            asset: tmux-agent-sidebar-darwin-aarch64
+            asset: herdmux-darwin-aarch64
           - target: x86_64-apple-darwin
             os: macos-latest
-            asset: tmux-agent-sidebar-darwin-x86_64
+            asset: herdmux-darwin-x86_64
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
-            asset: tmux-agent-sidebar-linux-x86_64
+            asset: herdmux-linux-x86_64
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-latest
-            asset: tmux-agent-sidebar-linux-aarch64
+            asset: herdmux-linux-aarch64
 
     runs-on: ${{ matrix.os }}
 
@@ -46,7 +46,7 @@ jobs:
         run: cargo build --release --target ${{ matrix.target }}
 
       - name: Rename binary
-        run: cp target/${{ matrix.target }}/release/tmux-agent-sidebar ${{ matrix.asset }}
+        run: cp target/${{ matrix.target }}/release/herdmux ${{ matrix.asset }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -90,4 +90,4 @@ jobs:
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
           body: ${{ steps.changelog.outputs.body }}
-          files: tmux-agent-sidebar-*
+          files: herdmux-*

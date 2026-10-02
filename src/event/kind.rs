@@ -48,7 +48,7 @@ impl AgentEventKind {
     ];
 
     /// Normalized external event name passed to
-    /// `tmux-agent-sidebar hook <agent> <event>`. Exhaustive match — adding
+    /// `herdmux hook <agent> <event>`. Exhaustive match — adding
     /// a variant without assigning a name is a compile error.
     pub const fn external_name(self) -> &'static str {
         match self {

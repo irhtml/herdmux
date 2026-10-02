@@ -1,5 +1,5 @@
 //! Read Claude Code's own plugin install registry to detect whether
-//! tmux-agent-sidebar has been installed as a Claude Code plugin.
+//! herdmux has been installed as a Claude Code plugin.
 //!
 //! Claude Code maintains `~/.claude/plugins/installed_plugins.json` —
 //! a JSON catalog keyed by `<plugin>@<marketplace>` whose value is a
@@ -34,8 +34,10 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const PLUGIN_NAME: &str = "tmux-agent-sidebar";
-const RESIDUAL_HOOK_NEEDLE: &str = "tmux-agent-sidebar/hook.sh";
+const PLUGIN_NAME: &str = "herdmux";
+/// `hook.sh` paths of the legacy manual setup, under the plugin directory
+/// name and its pre-rename name.
+const RESIDUAL_HOOK_NEEDLES: [&str; 2] = ["herdmux/hook.sh", "tmux-agent-sidebar/hook.sh"];
 
 /// Files that ship with *this* binary, snapshotted at compile time via
 /// `include_str!`, paired with their path relative to the plugin root.
@@ -78,7 +80,7 @@ const EMBEDDED_PLUGIN_FILES: &[(&str, &str)] = &[
 /// sidebar startup. All fields default to "plugin not installed".
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ClaudePluginStatus {
-    /// Whether `tmux-agent-sidebar` is recorded in Claude Code's
+    /// Whether `herdmux` is recorded in Claude Code's
     /// `installed_plugins.json`. Derived from the presence of a matching
     /// entry with a non-empty install path.
     pub installed: bool,
@@ -122,7 +124,7 @@ fn installed_plugin_status_from(
     }
 }
 
-/// Extract the recorded `installPath` for the `tmux-agent-sidebar`
+/// Extract the recorded `installPath` for the `herdmux`
 /// plugin, preferring the first entry that carries a non-empty path.
 /// Returns `None` when the plugin is not installed or the registry is
 /// malformed/unreadable.
@@ -175,7 +177,7 @@ fn cache_files_outdated(install_path: &Path, embedded_files: &[(&str, &str)]) ->
 }
 
 /// Whether the user's `~/.claude/settings.json` still contains residual
-/// `tmux-agent-sidebar/hook.sh` entries from the legacy manual setup.
+/// `herdmux/hook.sh` entries from the legacy manual setup.
 ///
 /// When this returns `true` AND the plugin is also installed, every hook
 /// fires twice — once via the plugin and once via the user's manual
@@ -210,7 +212,11 @@ fn claude_settings_has_residual_hooks_at(path: &Path) -> bool {
         .filter_map(|matcher_obj| matcher_obj.get("hooks").and_then(|h| h.as_array()))
         .flatten()
         .filter_map(|action| action.get("command").and_then(|c| c.as_str()))
-        .any(|cmd| cmd.contains(RESIDUAL_HOOK_NEEDLE))
+        .any(|cmd| {
+            RESIDUAL_HOOK_NEEDLES
+                .iter()
+                .any(|needle| cmd.contains(needle))
+        })
 }
 
 #[cfg(test)]
@@ -322,15 +328,15 @@ mod tests {
             r#"{
                 "version": 2,
                 "plugins": {
-                    "tmux-agent-sidebar@hiroppy": [
-                        {"scope":"user","installPath":"/opt/claude-cache/tmux-agent-sidebar/0.5.0","version":"0.5.0"}
+                    "herdmux@irhtml": [
+                        {"scope":"user","installPath":"/opt/claude-cache/herdmux/0.5.0","version":"0.5.0"}
                     ]
                 }
             }"#,
         );
         assert_eq!(
             installed_plugin_install_path_from(&path),
-            Some(PathBuf::from("/opt/claude-cache/tmux-agent-sidebar/0.5.0"))
+            Some(PathBuf::from("/opt/claude-cache/herdmux/0.5.0"))
         );
     }
 
@@ -374,10 +380,7 @@ mod tests {
     #[test]
     fn returns_none_when_install_array_is_empty() {
         let path = unique_registry("empty-installs");
-        write_registry(
-            &path,
-            r#"{"version":2,"plugins":{"tmux-agent-sidebar@hiroppy":[]}}"#,
-        );
+        write_registry(&path, r#"{"version":2,"plugins":{"herdmux@irhtml":[]}}"#);
         assert_eq!(installed_plugin_install_path_from(&path), None);
     }
 
@@ -391,7 +394,7 @@ mod tests {
             r#"{
                 "version": 2,
                 "plugins": {
-                    "tmux-agent-sidebar@somewhere-else": [
+                    "herdmux@somewhere-else": [
                         {"scope":"user","installPath":"/tmp/elsewhere/0.6.0","version":"0.6.0"}
                     ]
                 }
@@ -411,7 +414,7 @@ mod tests {
             r#"{
                 "version": 2,
                 "plugins": {
-                    "tmux-agent-sidebar@hiroppy": [
+                    "herdmux@irhtml": [
                         {"scope":"user","installPath":""}
                     ]
                 }
@@ -428,7 +431,7 @@ mod tests {
             r#"{
                 "version": 2,
                 "plugins": {
-                    "tmux-agent-sidebar@hiroppy": [
+                    "herdmux@irhtml": [
                         {"scope":"user","installPath":""},
                         {"scope":"project","installPath":"/project/0.6.0","version":"0.6.0"}
                     ]
@@ -555,7 +558,7 @@ mod tests {
         write_registry(
             &registry,
             &format!(
-                r#"{{"version":2,"plugins":{{"tmux-agent-sidebar@hiroppy":[{{"scope":"user","installPath":{:?}}}]}}}}"#,
+                r#"{{"version":2,"plugins":{{"herdmux@irhtml":[{{"scope":"user","installPath":{:?}}}]}}}}"#,
                 root.to_string_lossy()
             ),
         );
@@ -577,7 +580,7 @@ mod tests {
         write_registry(
             &registry,
             &format!(
-                r#"{{"version":2,"plugins":{{"tmux-agent-sidebar@hiroppy":[{{"scope":"user","installPath":{:?}}}]}}}}"#,
+                r#"{{"version":2,"plugins":{{"herdmux@irhtml":[{{"scope":"user","installPath":{:?}}}]}}}}"#,
                 root.to_string_lossy()
             ),
         );
@@ -617,7 +620,7 @@ mod tests {
     }
 
     #[test]
-    fn residual_hooks_false_when_no_command_mentions_tmux_agent_sidebar() {
+    fn residual_hooks_false_when_no_command_mentions_the_hook() {
         let path = unique_settings("clean");
         fs::write(
             &path,
@@ -645,10 +648,10 @@ mod tests {
             r#"{
                 "hooks": {
                     "SessionStart": [
-                        {"matcher":"","hooks":[{"type":"command","command":"bash ~/.tmux/plugins/tmux-agent-sidebar/hook.sh claude session-start"}]}
+                        {"matcher":"","hooks":[{"type":"command","command":"bash ~/.tmux/plugins/herdmux/hook.sh claude session-start"}]}
                     ],
                     "PostToolUse": [
-                        {"matcher":"","hooks":[{"type":"command","command":"bash ~/.tmux/plugins/tmux-agent-sidebar/hook.sh claude activity-log"}]}
+                        {"matcher":"","hooks":[{"type":"command","command":"bash ~/.tmux/plugins/herdmux/hook.sh claude activity-log"}]}
                     ]
                 }
             }"#,
@@ -659,7 +662,8 @@ mod tests {
 
     #[test]
     fn residual_hooks_true_when_only_one_legacy_command_present() {
-        // Even a single leftover entry causes a duplicate hook fire.
+        // Even a single leftover entry causes a duplicate hook fire, and
+        // entries from before the rename still count.
         let path = unique_settings("residual-one");
         fs::write(
             &path,

@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use tmux_agent_sidebar::worktree::{
+use herdmux::worktree::{
     AGENTS, CLAUDE_MODES, CODEX_MODES, agent_command, modes_for, pick_unique_slug, slugify,
     worktree_path_for,
 };
@@ -302,7 +302,7 @@ fn spawn_cli_splits_originating_window_and_keeps_sidebar_and_siblings_unmarked()
     server.run(&["new-window", "-t", "fixture", "sleep 60"]);
 
     for (origin, task) in [(&sidebar, "sidebar-task"), (&main, "cli-task")] {
-        let output = Command::new(env!("CARGO_BIN_EXE_tmux-agent-sidebar"))
+        let output = Command::new(env!("CARGO_BIN_EXE_herdmux"))
             .args(["spawn", task])
             .env("TMUX", format!("{},0,0", server.0.display()))
             .env("TMUX_PANE", origin)

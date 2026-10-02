@@ -1,16 +1,16 @@
 #[allow(dead_code, unused_imports)]
 mod test_helpers;
 
-use test_helpers::*;
-use tmux_agent_sidebar::activity::ActivityEntry;
-use tmux_agent_sidebar::group::{PaneGitInfo, RepoGroup};
-use tmux_agent_sidebar::state::{
+use herdmux::activity::ActivityEntry;
+use herdmux::group::{PaneGitInfo, RepoGroup};
+use herdmux::state::{
     AppState, BottomTab, Focus, GlobalState, PopupState, RepoFilter, RowTarget, StatusFilter,
 };
-use tmux_agent_sidebar::tmux::{
+use herdmux::tmux::{
     self, AgentType, PaneInfo, PaneStatus, SessionInfo, WindowInfo, WorktreeMetadata,
 };
-use tmux_agent_sidebar::worktree;
+use herdmux::worktree;
+use test_helpers::*;
 
 // ─── State Transition Tests ────────────────────────────────────────
 
@@ -112,7 +112,7 @@ fn test_line_to_row_two_agents() {
         prompt_is_response: false,
         started_at: None,
         wait_reason: String::new(),
-        permission_mode: tmux_agent_sidebar::tmux::PermissionMode::Default,
+        permission_mode: herdmux::tmux::PermissionMode::Default,
         subagents: vec![],
         pane_pid: None,
         worktree: WorktreeMetadata::default(),
@@ -135,7 +135,7 @@ fn test_line_to_row_two_agents() {
         prompt_is_response: false,
         started_at: None,
         wait_reason: String::new(),
-        permission_mode: tmux_agent_sidebar::tmux::PermissionMode::Default,
+        permission_mode: herdmux::tmux::PermissionMode::Default,
         subagents: vec![],
         pane_pid: None,
         worktree: WorktreeMetadata::default(),
@@ -207,7 +207,7 @@ fn test_line_to_row_with_version_banner() {
         }],
     }]);
     state.repo_groups = vec![make_repo_group("project", vec![pane])];
-    state.version_notice = Some(tmux_agent_sidebar::version::UpdateNotice {
+    state.version_notice = Some(herdmux::version::UpdateNotice {
         local_version: "0.2.6".into(),
         latest_version: "0.2.7".into(),
     });
@@ -238,7 +238,7 @@ fn test_secondary_header_click_on_i_opens_notices_popup_even_without_missing_hoo
     // tests; clear it here so the test actually exercises the
     // version-notice-only path described in the test name.
     state.notices.missing_hook_groups.clear();
-    state.version_notice = Some(tmux_agent_sidebar::version::UpdateNotice {
+    state.version_notice = Some(herdmux::version::UpdateNotice {
         local_version: "0.2.6".into(),
         latest_version: "0.2.7".into(),
     });
@@ -304,7 +304,7 @@ fn test_scroll_git_empty_is_noop() {
 #[test]
 fn test_scroll_git_bounds() {
     let mut state = make_state(vec![]);
-    state.git.unstaged_files = vec![tmux_agent_sidebar::git::GitFileEntry {
+    state.git.unstaged_files = vec![herdmux::git::GitFileEntry {
         status: 'M',
         name: "file.rs".into(),
         additions: 0,
@@ -331,7 +331,7 @@ fn test_scroll_git_bounds() {
 
 #[test]
 fn test_apply_git_data() {
-    use tmux_agent_sidebar::git::{GitData, GitFileEntry};
+    use herdmux::git::{GitData, GitFileEntry};
 
     let mut state = make_state(vec![]);
     let data = GitData {
@@ -433,7 +433,7 @@ fn test_move_pane_selection_return_value() {
 fn test_scroll_bottom_dispatches_to_git() {
     let mut state = make_state(vec![]);
     state.bottom_tab = BottomTab::GitStatus;
-    state.git.unstaged_files = vec![tmux_agent_sidebar::git::GitFileEntry {
+    state.git.unstaged_files = vec![herdmux::git::GitFileEntry {
         status: 'M',
         name: "file.rs".into(),
         additions: 0,
@@ -508,7 +508,7 @@ fn test_git_tab_active_after_tab_switch() {
 
 #[test]
 fn test_filter_change_rebuilds_row_targets() {
-    use tmux_agent_sidebar::state::StatusFilter;
+    use herdmux::state::StatusFilter;
 
     let running_pane = PaneInfo {
         pane_id: "%1".into(),
@@ -543,7 +543,7 @@ fn test_filter_change_rebuilds_row_targets() {
 
 #[test]
 fn test_cursor_sync_clamped_by_rebuild() {
-    use tmux_agent_sidebar::state::StatusFilter;
+    use herdmux::state::StatusFilter;
 
     let pane = make_pane(AgentType::Claude, PaneStatus::Running);
     let mut state = make_state(vec![]);
@@ -886,7 +886,7 @@ fn open_spawn_input_initialises_fields_to_defaults() {
             assert_eq!(target_repo_root, "/home/u/myproj");
             assert_eq!(*agent_idx, 0);
             assert_eq!(*mode_idx, 0);
-            assert_eq!(*field, tmux_agent_sidebar::state::SpawnField::Task);
+            assert_eq!(*field, herdmux::state::SpawnField::Task);
         }
         _ => panic!("expected SpawnInput popup"),
     }
@@ -938,14 +938,14 @@ fn spawn_input_field_wraps_forward_and_backward() {
     state.spawn_input_next_field(); // wraps back to Task
     match &state.popup {
         PopupState::SpawnInput { field, .. } => {
-            assert_eq!(*field, tmux_agent_sidebar::state::SpawnField::Task)
+            assert_eq!(*field, herdmux::state::SpawnField::Task)
         }
         _ => panic!(),
     }
     state.spawn_input_prev_field(); // should land on Mode
     match &state.popup {
         PopupState::SpawnInput { field, .. } => {
-            assert_eq!(*field, tmux_agent_sidebar::state::SpawnField::Mode)
+            assert_eq!(*field, herdmux::state::SpawnField::Mode)
         }
         _ => panic!(),
     }
@@ -1090,7 +1090,7 @@ fn handle_mouse_click_routes_spawn_remove_targets_to_open_remove_confirm() {
     // `open_remove_confirm_for_pane`. Without a tmux env the call
     // flashes "not spawned", which still proves the routing worked
     // (otherwise flash would stay None).
-    use tmux_agent_sidebar::state::SpawnRemoveTarget;
+    use herdmux::state::SpawnRemoveTarget;
     let mut state = make_state(vec![]);
     state.layout.spawn_remove_targets = vec![SpawnRemoveTarget {
         rect: ratatui::layout::Rect::new(4, 5, 3, 1),

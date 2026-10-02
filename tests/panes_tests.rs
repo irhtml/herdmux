@@ -1,11 +1,11 @@
 #[allow(dead_code, unused_imports)]
 mod test_helpers;
 
+use herdmux::state::Focus;
+use herdmux::tmux::{AgentType, PaneStatus, SessionInfo, WindowInfo};
+use herdmux::ui::colors::ColorTheme;
+use herdmux::ui::icons::StatusIcons;
 use test_helpers::*;
-use tmux_agent_sidebar::state::Focus;
-use tmux_agent_sidebar::tmux::{AgentType, PaneStatus, SessionInfo, WindowInfo};
-use tmux_agent_sidebar::ui::colors::ColorTheme;
-use tmux_agent_sidebar::ui::icons::StatusIcons;
 
 // ─── Agents: auto-scroll behavior Tests ─────────────────────────────
 
@@ -327,7 +327,7 @@ fn repo_popup_renders_repo_names_when_open() {
         make_repo_group("backend", vec![pane.clone()]),
     ];
     state.rebuild_row_targets();
-    state.popup = tmux_agent_sidebar::state::PopupState::Repo {
+    state.popup = herdmux::state::PopupState::Repo {
         selected: 0,
         area: None,
     };
@@ -375,7 +375,7 @@ fn repo_popup_highlights_selected_entry_with_background() {
     ];
     state.rebuild_row_targets();
     state.focus_state.sidebar_focused = false; // surface raw colors instead of REVERSED
-    state.popup = tmux_agent_sidebar::state::PopupState::Repo {
+    state.popup = herdmux::state::PopupState::Repo {
         selected: 2, // "backend" (0=All, 1=frontend, 2=backend)
         area: None,
     };

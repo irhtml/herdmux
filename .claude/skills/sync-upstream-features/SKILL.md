@@ -1,6 +1,6 @@
 ---
 name: sync-upstream-features
-description: Investigate whether the latest hook events and features from Claude Code / Codex CLI are covered by tmux-agent-sidebar's current implementation, and report gaps. Use on requests like "check diff with upstream", "look for new hooks", "check changelog for unsupported features". Does not implement anything.
+description: Investigate whether the latest hook events and features from Claude Code / Codex CLI are covered by herdmux's current implementation, and report gaps. Use on requests like "check diff with upstream", "look for new hooks", "check changelog for unsupported features". Does not implement anything.
 ---
 
 # Sync Upstream Features — Gap Reporter

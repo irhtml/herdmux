@@ -15,7 +15,7 @@ pub struct NoticesState {
     /// Missing hooks grouped per agent, shown in the "Missing hooks"
     /// section of the popup.
     pub missing_hook_groups: Vec<NoticesMissingHookGroup>,
-    /// Status of the `tmux-agent-sidebar` Claude Code plugin install
+    /// Status of the `herdmux` Claude Code plugin install
     /// (whether it is installed, and whether any tracked file in its
     /// cache differs from the copy embedded into this binary). Resolved
     /// once from `~/.claude/plugins/installed_plugins.json` and cached
@@ -25,7 +25,7 @@ pub struct NoticesState {
     /// Claude filter are derived from this field.
     pub claude_plugin_status: ClaudePluginStatus,
     /// Whether `~/.claude/settings.json` still contains residual
-    /// `tmux-agent-sidebar/hook.sh` entries from the legacy manual
+    /// `herdmux/hook.sh` entries from the legacy manual
     /// setup. Resolved once at startup. When this is `true` AND the
     /// plugin is installed, every hook fires twice and the popup must
     /// keep nagging the user to clean up.
@@ -60,7 +60,7 @@ pub enum ClaudePluginNotice {
     /// (clean up `~/.claude/settings.json` then run `/plugin install`).
     InstallRecommended,
     /// The plugin is installed AND the user still has legacy
-    /// `tmux-agent-sidebar/hook.sh` entries in `~/.claude/settings.json`.
+    /// `herdmux/hook.sh` entries in `~/.claude/settings.json`.
     /// Every hook fires twice in this state — once via the plugin, once
     /// via the manual setting. Takes precedence over `Stale` because it
     /// is an actively-broken state, not just a pending update.

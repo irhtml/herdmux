@@ -18,7 +18,7 @@ const DETACHED_DELAY_MS: u64 = 500;
 const LOG_LIMIT_BYTES: u64 = 256 * 1024;
 
 const USAGE: &str = "\
-usage: tmux-agent-sidebar resume <save|restore> [options]
+usage: herdmux resume <save|restore> [options]
 
   save [--resurrect-file FILE] [--dry-run] [--quiet]
       Record every agent pane's command line and session id. FILE is the
@@ -32,6 +32,7 @@ usage: tmux-agent-sidebar resume <save|restore> [options]
 Both do nothing unless `@sidebar_resume` is `on` (--dry-run always works).";
 
 pub(crate) fn cmd_resume(args: &[String]) -> i32 {
+    resume::migrate_legacy_state_dir();
     match args.first().map(String::as_str) {
         Some("save") => save(&args[1..]),
         Some("restore") => restore(&args[1..]),
@@ -292,7 +293,7 @@ fn restore(raw: &[String]) -> i32 {
     }
     let skipped = plan.actions.len() - plan.launches();
     let summary = format!(
-        "tmux-agent-sidebar: relaunched {} agent(s), {} skipped",
+        "herdmux: relaunched {} agent(s), {} skipped",
         plan.launches(),
         skipped
     );

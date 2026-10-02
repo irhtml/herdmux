@@ -79,8 +79,8 @@ Written by `resume save` (run from tmux-resurrect's `post-save-layout` hook when
 
 | File | Description |
 |------|-------------|
-| `${XDG_STATE_HOME:-~/.local/state}/tmux-agent-sidebar/resume-{socket}.json` | Mode 0600, one file per tmux socket name. Holds `socket_path`, `saved_at`, `restored_at`, one entry per interactive agent pane (location as session / window index / pane index, window pane count, process cwd, agent, session id, normalized argv, allowlisted env, `had_turn`, `transcript_found`) and every pane's `@pane_desc` tag, because tmux-resurrect does not save pane options |
-| `${XDG_STATE_HOME:-~/.local/state}/tmux-agent-sidebar/restore.log` | One block per restore (the command typed into each pane, or why it was skipped) plus failures of hook-mode (`--quiet`) saves. Truncated past 256 KiB |
+| `${XDG_STATE_HOME:-~/.local/state}/herdmux/resume-{socket}.json` | Mode 0600, one file per tmux socket name. Holds `socket_path`, `saved_at`, `restored_at`, one entry per interactive agent pane (location as session / window index / pane index, window pane count, process cwd, agent, session id, normalized argv, allowlisted env, `had_turn`, `transcript_found`) and every pane's `@pane_desc` tag, because tmux-resurrect does not save pane options |
+| `${XDG_STATE_HOME:-~/.local/state}/herdmux/restore.log` | One block per restore (the command typed into each pane, or why it was skipped) plus failures of hook-mode (`--quiet`) saves. Truncated past 256 KiB |
 
 Only `CLAUDE_CONFIG_DIR`, `CODEX_HOME` and `XDG_DATA_HOME` are ever read from an agent's environment (`process::ENV_ALLOWLIST`), and the list is re-applied when the file is loaded. An agent counts as interactive only when it is the pane's root process, a direct child of the pane shell, or the child of a `node`/`bun` launcher named after it; agents nested deeper (a script running `claude -p`) are never saved.
 

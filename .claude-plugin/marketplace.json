@@ -1,13 +1,13 @@
 {
-  "name": "hiroppy",
+  "name": "irhtml",
   "owner": {
-    "name": "Yuta Hiroto"
+    "name": "Tobias Thunström"
   },
   "plugins": [
     {
-      "name": "tmux-agent-sidebar",
+      "name": "herdmux",
       "source": "./",
-      "description": "Monitor Claude Code agents across tmux panes in a real-time sidebar TUI"
+      "description": "Monitor and coordinate coding agents across tmux panes from a real-time sidebar TUI"
     }
   ]
 }

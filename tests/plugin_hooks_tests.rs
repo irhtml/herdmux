@@ -9,8 +9,8 @@
 use std::collections::BTreeSet;
 use std::fs;
 
-use tmux_agent_sidebar::VERSION;
-use tmux_agent_sidebar::adapter::claude::ClaudeAdapter;
+use herdmux::VERSION;
+use herdmux::adapter::claude::ClaudeAdapter;
 
 const HOOKS_JSON_PATH: &str = "hooks/hooks.json";
 
@@ -108,10 +108,7 @@ fn plugin_manifest_omits_redundant_hooks_field() {
     // gets dropped.
     let json = load_plugin_manifest();
 
-    assert_eq!(
-        json.get("name").and_then(|v| v.as_str()),
-        Some("tmux-agent-sidebar")
-    );
+    assert_eq!(json.get("name").and_then(|v| v.as_str()), Some("herdmux"));
     assert!(
         json.get("hooks").is_none(),
         "plugin.json must NOT declare a `hooks` field — the standard \

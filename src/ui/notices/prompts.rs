@@ -3,7 +3,7 @@ use crate::tmux::{CLAUDE_AGENT, CODEX_AGENT};
 /// Build the ready-to-paste LLM prompt for the given agent name.
 ///
 /// - **Claude**: emits a *migration* prompt that asks the LLM to delete any
-///   existing `tmux-agent-sidebar/hook.sh` entries from the user's
+///   existing `herdmux/hook.sh` entries from the user's
 ///   `~/.claude/settings.json` and then point the user at `/plugin install`.
 ///   This is the only supported wiring path going forward — bundled
 ///   hooks via the Claude Code plugin manifest. The prompt embeds the
@@ -24,7 +24,7 @@ pub(crate) fn prompt_for_agent(agent: &str) -> Option<String> {
         )),
         CODEX_AGENT => {
             // Shell-quote the path so an install location containing
-            // spaces (e.g. macOS `/Applications/tmux-agent-sidebar/…`)
+            // spaces (e.g. macOS `/Applications/herdmux/…`)
             // still yields a runnable command when the user pastes
             // this prompt into their shell.
             let exe_path =
@@ -50,8 +50,8 @@ pub(crate) fn prompt_for_agent(agent: &str) -> Option<String> {
 
 /// Walk up from the running binary looking for `.claude-plugin/plugin.json`,
 /// matching the install layouts supported elsewhere in the project
-/// (`<plugin>/bin/tmux-agent-sidebar` and
-/// `<plugin>/target/release/tmux-agent-sidebar`). Shares the upward-walk
+/// (`<plugin>/bin/herdmux` and
+/// `<plugin>/target/release/herdmux`). Shares the upward-walk
 /// loop with `cli::setup::resolve_hook_script`.
 fn plugin_root_from_exe() -> Option<String> {
     crate::cli::setup::walk_up_from_exe(3, |dir| {
@@ -64,7 +64,7 @@ fn plugin_root_from_exe() -> Option<String> {
 
 /// Collapse an absolute path to a `~`-prefixed form when it lives
 /// under the user's home directory. Used to make the migration prompt
-/// portable across machines: `/Users/hiroppy/.tmux/plugins/...`
+/// portable across machines: `/Users/alice/.tmux/plugins/...`
 /// renders as `~/.tmux/plugins/...` so a screenshot or copy-paste
 /// from one user does not bake in another user's literal home path.
 fn tildify(path: &str) -> String {
@@ -98,13 +98,13 @@ fn tildify_with_home(path: &str, home: &str) -> String {
 fn build_claude_migration_prompt(plugin_root: Option<&str>) -> String {
     let marketplace_path = plugin_root
         .map(tildify)
-        .unwrap_or_else(|| "~/.tmux/plugins/tmux-agent-sidebar".to_string());
+        .unwrap_or_else(|| "~/.tmux/plugins/herdmux".to_string());
     format!(
         "Migrate this user from the manual ~/.claude/settings.json setup to the \
-         tmux-agent-sidebar Claude Code plugin:\n\
+         herdmux Claude Code plugin:\n\
          \n\
          1. Edit ~/.claude/settings.json and remove every \"command\" entry whose \
-         value contains \"tmux-agent-sidebar/hook.sh\" from each \"hooks\" section. \
+         value contains \"herdmux/hook.sh\" or \"tmux-agent-sidebar/hook.sh\" from each \"hooks\" section. \
          Clean up any \"hooks\" arrays that become empty (drop the trigger key) and \
          remove the top-level \"hooks\" object if it becomes empty. If no such \
          entries exist, skip this step silently.\n\
@@ -113,7 +113,7 @@ fn build_claude_migration_prompt(plugin_root: Option<&str>) -> String {
          \"Run these two commands in this Claude Code session, then restart \
          Claude Code so the bundled hooks take effect:\n\
          /plugin marketplace add {marketplace_path}\n\
-         /plugin install tmux-agent-sidebar@hiroppy\""
+         /plugin install herdmux@irhtml\""
     )
 }
 
@@ -156,7 +156,7 @@ mod tests {
             "claude prompt must surface the marketplace add command: {claude}"
         );
         assert!(
-            claude.contains("/plugin install tmux-agent-sidebar@hiroppy"),
+            claude.contains("/plugin install herdmux@irhtml"),
             "claude prompt must surface the plugin install command keyed to \
              the bundled marketplace name: {claude}"
         );
@@ -166,7 +166,7 @@ mod tests {
              which file to clean up: {claude}"
         );
         assert!(
-            claude.contains("tmux-agent-sidebar/hook.sh"),
+            claude.contains("herdmux/hook.sh"),
             "claude prompt must tell the LLM exactly which existing entries \
              to remove: {claude}"
         );
@@ -188,8 +188,8 @@ mod tests {
         // tildify pass cannot rewrite it on either the dev machine or
         // CI (where HOME varies). The tilde-collapse behavior is
         // covered directly by the `tildify_with_home` tests below.
-        let prompt = build_claude_migration_prompt(Some("/opt/tmux-agent-sidebar"));
-        assert!(prompt.contains("/opt/tmux-agent-sidebar"));
+        let prompt = build_claude_migration_prompt(Some("/opt/herdmux"));
+        assert!(prompt.contains("/opt/herdmux"));
     }
 
     #[test]
@@ -198,7 +198,7 @@ mod tests {
         // TPM install path so the pasted command is still runnable for
         // the typical user.
         let prompt = build_claude_migration_prompt(None);
-        assert!(prompt.contains("~/.tmux/plugins/tmux-agent-sidebar"));
+        assert!(prompt.contains("~/.tmux/plugins/herdmux"));
     }
 
     // ─── tildify_with_home ───────────────────────────────────────────
@@ -206,11 +206,8 @@ mod tests {
     #[test]
     fn tildify_collapses_paths_under_home_to_tilde() {
         assert_eq!(
-            tildify_with_home(
-                "/Users/alice/.tmux/plugins/tmux-agent-sidebar",
-                "/Users/alice"
-            ),
-            "~/.tmux/plugins/tmux-agent-sidebar"
+            tildify_with_home("/Users/alice/.tmux/plugins/herdmux", "/Users/alice"),
+            "~/.tmux/plugins/herdmux"
         );
     }
 
@@ -222,8 +219,8 @@ mod tests {
     #[test]
     fn tildify_leaves_paths_outside_home_unchanged() {
         assert_eq!(
-            tildify_with_home("/opt/tmux-agent-sidebar", "/Users/alice"),
-            "/opt/tmux-agent-sidebar"
+            tildify_with_home("/opt/herdmux", "/Users/alice"),
+            "/opt/herdmux"
         );
     }
 

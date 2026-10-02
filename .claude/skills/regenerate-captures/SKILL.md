@@ -20,7 +20,7 @@ If your change does **not** affect the visible output (pure logic refactor, test
 ```
 fixtures/scenarios/<name>/scenario.sh
   → sources common/_lib.sh (build_layout seeds 4 panes: MAIN, WAITING, BACKGROUND, ERROR)
-  → launches real sidebar binary (`target/release/tmux-agent-sidebar`)
+  → launches real sidebar binary (`target/release/herdmux`)
   → `capture` subcommand writes <name>.html into a tmp dir
     → scripts/render-frames.mjs (Playwright) converts .html → .png
       → copied to website/src/assets/captures/<name>.png
@@ -60,7 +60,7 @@ All scenarios share `build_layout` in `_lib.sh`, so a change to the seeded pane 
 cargo build --release
 ```
 
-Scenarios invoke `target/release/tmux-agent-sidebar`, so a stale debug build will not pick up source changes.
+Scenarios invoke `target/release/herdmux`, so a stale debug build will not pick up source changes.
 
 ### 4. Render Only The Affected Scenarios
 

@@ -294,7 +294,9 @@ pub(crate) fn run_git(path: &str, args: &[&str]) -> Option<String> {
         .output()
         .ok()?;
     if output.status.success() {
-        let s = String::from_utf8_lossy(&output.stdout).trim_end().to_string();
+        let s = String::from_utf8_lossy(&output.stdout)
+            .trim_end()
+            .to_string();
         if s.is_empty() { None } else { Some(s) }
     } else {
         None

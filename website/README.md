@@ -1,6 +1,6 @@
-# tmux-agent-sidebar website
+# herdmux website
 
-Documentation site for [tmux-agent-sidebar](https://github.com/hiroppy/tmux-agent-sidebar), built with [Astro Starlight](https://starlight.astro.build/).
+Documentation site for [herdmux](https://github.com/irhtml/herdmux), built with [Astro Starlight](https://starlight.astro.build/).
 
 ## Local development
 
@@ -9,7 +9,7 @@ npm install
 npm run dev
 ```
 
-Open <http://localhost:4321/tmux-agent-sidebar/> to view.
+Open <http://localhost:4321/herdmux/> to view.
 
 ## Build
 

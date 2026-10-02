@@ -8,7 +8,7 @@ import notification from '../../../assets/captures/desktop-notification.png';
 
 <Image src={notification} alt="desktop notification screenshot" densities={[1.5, 2]} />
 
-Desktop notifications are enabled by default. Once the agent hooks are wired up during [Getting Started](/tmux-agent-sidebar/getting-started/installation/), no extra agent-side configuration is needed — the sidebar reads the same hook events it already consumes for status tracking and triggers OS notifications itself.
+Desktop notifications are enabled by default. Once the agent hooks are wired up during [Getting Started](/herdmux/getting-started/installation/), no extra agent-side configuration is needed — the sidebar reads the same hook events it already consumes for status tracking and triggers OS notifications itself.
 
 ## Supported events
 
@@ -17,7 +17,7 @@ The **Default** column shows which events fire when `@sidebar_notifications_even
 | Event               | Fired when                                                | Agent            | Default |
 | ------------------- | --------------------------------------------------------- | ---------------- | ------- |
 | `stop`              | Assistant finished responding (`Stop` hook)               | Claude, Codex, OpenCode | ✓       |
-| `notification`      | Permission prompt or other attention request              | Claude, OpenCode | ✓       |
+| `notification`      | Permission prompt or other attention request              | Claude, Codex, OpenCode | ✓       |
 | `stop_failure`      | Assistant ended with an error (`StopFailure` hook)        | Claude, OpenCode | ✓       |
 | `permission_denied` | Permission explicitly denied (`PermissionDenied` hook)    | Claude only      | ✓       |
 | `task_completed`    | Sub-agent / Task tool completion (`TaskCompleted` hook)   | Claude only      | —       |

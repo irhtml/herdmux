@@ -109,6 +109,7 @@ The [documentation site](https://irhtml.github.io/herdmux/) covers every feature
 
 - [Agent pane breakdown](https://irhtml.github.io/herdmux/features/agent-pane/)
 - [Worktree lifecycle](https://irhtml.github.io/herdmux/features/worktree/)
+- [Agents driving agents](https://irhtml.github.io/herdmux/features/agent-orchestration/) · [Resume after reboot](https://irhtml.github.io/herdmux/features/resume/)
 - [Activity log](https://irhtml.github.io/herdmux/features/activity-log/) · [Git tab](https://irhtml.github.io/herdmux/features/git-status/) · [Notifications](https://irhtml.github.io/herdmux/features/notifications/)
 - [Agent support matrix](https://irhtml.github.io/herdmux/agents/)
 - [Keybindings](https://irhtml.github.io/herdmux/reference/keybindings/) · [tmux options](https://irhtml.github.io/herdmux/reference/tmux-options/) · [Scripting](https://irhtml.github.io/herdmux/reference/scripting/)

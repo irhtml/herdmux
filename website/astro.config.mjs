@@ -3,11 +3,11 @@ import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import sitemap from '@astrojs/sitemap';
 
-const SITE = 'https://hiroppy.github.io';
-const BASE = '/tmux-agent-sidebar';
+const SITE = 'https://irhtml.github.io';
+const BASE = '/herdmux';
 const OG_IMAGE = `${SITE}${BASE}/og-image.png`;
 const DESCRIPTION =
-  'tmux-agent-sidebar — one tmux sidebar that tracks every Claude Code, Codex, and OpenCode pane across every session and window. See status, prompts, Git state, activity, and worktrees without switching windows.';
+  'herdmux: one tmux sidebar that tracks every Claude Code, Codex, and OpenCode pane across every session and window, and lets the agents drive each other. See status, prompts, Git state, activity, and worktrees without switching windows.';
 
 export default defineConfig({
   site: SITE,
@@ -15,7 +15,7 @@ export default defineConfig({
   integrations: [
     sitemap(),
     starlight({
-      title: 'tmux-agent-sidebar',
+      title: 'herdmux',
       description: DESCRIPTION,
       favicon: '/favicon.svg',
       logo: {
@@ -26,19 +26,12 @@ export default defineConfig({
         {
           icon: 'github',
           label: 'GitHub',
-          href: 'https://github.com/hiroppy/tmux-agent-sidebar',
-        },
-        {
-          // Starlight's icon enum has no `x` — `twitter` renders the
-          // bird glyph, which is the conventional stand-in for X.
-          icon: 'twitter',
-          label: 'X',
-          href: 'https://x.com/about_hiroppy',
+          href: 'https://github.com/irhtml/herdmux',
         },
       ],
       editLink: {
         baseUrl:
-          'https://github.com/hiroppy/tmux-agent-sidebar/edit/main/website/',
+          'https://github.com/irhtml/herdmux/edit/main/website/',
       },
       customCss: ['./src/styles/custom.css'],
       components: {
@@ -61,7 +54,6 @@ export default defineConfig({
         { tag: 'meta', attrs: { property: 'og:image:width', content: '1200' } },
         { tag: 'meta', attrs: { property: 'og:image:height', content: '630' } },
         { tag: 'meta', attrs: { name: 'twitter:image', content: OG_IMAGE } },
-        { tag: 'meta', attrs: { name: 'twitter:creator', content: '@about_hiroppy' } },
         // Dark UI hint so address bars and PWA chrome match the theme.
         { tag: 'meta', attrs: { name: 'theme-color', content: '#0b1220' } },
         // Structured data: position this as a developer tool so Google
@@ -72,20 +64,20 @@ export default defineConfig({
           content: JSON.stringify({
             '@context': 'https://schema.org',
             '@type': 'SoftwareApplication',
-            name: 'tmux-agent-sidebar',
+            name: 'herdmux',
             applicationCategory: 'DeveloperApplication',
             operatingSystem: 'macOS, Linux',
             description: DESCRIPTION,
             url: `${SITE}${BASE}/`,
             image: OG_IMAGE,
-            codeRepository: 'https://github.com/hiroppy/tmux-agent-sidebar',
+            codeRepository: 'https://github.com/irhtml/herdmux',
             programmingLanguage: 'Rust',
-            license: 'https://github.com/hiroppy/tmux-agent-sidebar/blob/main/LICENSE',
+            license: 'https://github.com/irhtml/herdmux/blob/main/LICENSE',
             offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
             author: {
               '@type': 'Person',
-              name: 'Yuta Hiroto',
-              url: 'https://hiroppy.me',
+              name: 'Tobias Thunström',
+              url: 'https://github.com/irhtml',
             },
           }),
         },
@@ -107,6 +99,8 @@ export default defineConfig({
           items: [
             { slug: 'features/agent-pane' },
             { slug: 'features/worktree' },
+            { slug: 'features/agent-orchestration' },
+            { slug: 'features/resume' },
             { slug: 'features/activity-log' },
             { slug: 'features/git-status' },
             { slug: 'features/notifications' },

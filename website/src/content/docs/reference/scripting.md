@@ -51,4 +51,4 @@ tmux show -t "$pane_id" -pv @pane_agent
 set -g status-right '#(tmux show -t #{pane_id} -pv @pane_status) | %H:%M'
 ```
 
-If you pair this with a custom notifier, mirror the filter set supported by `@sidebar_notifications_events` — see [Notifications](/tmux-agent-sidebar/features/notifications/).
+If you pair this with a custom notifier, mirror the filter set supported by `@sidebar_notifications_events` — see [Notifications](/herdmux/features/notifications/).

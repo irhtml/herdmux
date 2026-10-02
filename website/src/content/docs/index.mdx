@@ -1,19 +1,19 @@
 ---
-title: tmux-agent-sidebar
-description: tmux-agent-sidebar — one tmux sidebar that tracks every Claude Code, Codex, and OpenCode pane across every session and window. See status, background shells, prompts, Git state, activity, and worktrees without switching windows.
+title: herdmux
+description: herdmux is one tmux sidebar that tracks every Claude Code, Codex, and OpenCode pane across every session and window, and lets the agents drive each other. See status, background shells, prompts, Git state, activity, and worktrees without switching windows.
 template: splash
 hero:
-  tagline: 'Every <span class="hero-agent"><img src="/tmux-agent-sidebar/brands/claude.ico" alt="" aria-hidden="true" width="16" height="16" />Claude Code</span>, <span class="hero-agent"><img src="/tmux-agent-sidebar/brands/codex.png" alt="" aria-hidden="true" width="16" height="16" />Codex</span>, and <span class="hero-agent"><img src="/tmux-agent-sidebar/brands/opencode.svg" alt="" aria-hidden="true" width="16" height="20" />OpenCode</span> pane across every tmux session and window — status, background shells, prompts, Git, and activity in one sidebar.'
+  tagline: 'Every <span class="hero-agent"><img src="/herdmux/brands/claude.ico" alt="" aria-hidden="true" width="16" height="16" />Claude Code</span>, <span class="hero-agent"><img src="/herdmux/brands/codex.png" alt="" aria-hidden="true" width="16" height="16" />Codex</span>, and <span class="hero-agent"><img src="/herdmux/brands/opencode.svg" alt="" aria-hidden="true" width="16" height="20" />OpenCode</span> pane across every tmux session and window — status, background shells, prompts, Git, and activity in one sidebar.'
   image:
-    alt: tmux-agent-sidebar screenshot
+    alt: herdmux screenshot
     file: ../../assets/captures/hero.png
   actions:
     - text: Get Started
-      link: /tmux-agent-sidebar/getting-started/installation/
+      link: /herdmux/getting-started/installation/
       icon: right-arrow
       variant: primary
     - text: View on GitHub
-      link: https://github.com/hiroppy/tmux-agent-sidebar
+      link: https://github.com/irhtml/herdmux
       icon: external
       variant: minimal
 ---
@@ -39,6 +39,14 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
     Native notifications when an agent finishes, needs a permission, or
     errors out. Configurable per event.
   </Card>
+  <Card title="Agents driving agents" icon="puzzle">
+    One agent can start, prompt, wait on, and read the replies of the others with
+    `herdmux agent`. A bundled skill teaches Claude Code the rules.
+  </Card>
+  <Card title="Resume after reboot" icon="laptop">
+    With tmux-resurrect, restored panes relaunch their agents with the conversation
+    resumed, flags and config directories included.
+  </Card>
 </CardGrid>
 
 ## Quick start
@@ -46,13 +54,18 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
 Using [TPM](https://github.com/tmux-plugins/tpm):
 
 ```bash
-set -g @plugin 'hiroppy/tmux-agent-sidebar'
+set -g @plugin 'irhtml/herdmux'
 ```
 
 Reload with `tmux source ~/.tmux.conf`, press `prefix + I` to install, and the
 install wizard downloads a pre-built binary or builds from source.
 
-Next, wire up your agent hooks — [Claude Code](/tmux-agent-sidebar/getting-started/claude-code/)
-installs as a plugin, [Codex](/tmux-agent-sidebar/getting-started/codex/) is a
-one-paste setup inside its own pane, and [OpenCode](/tmux-agent-sidebar/getting-started/opencode/)
+Next, wire up your agent hooks — [Claude Code](/herdmux/getting-started/claude-code/)
+installs as a plugin, [Codex](/herdmux/getting-started/codex/) is a
+one-paste setup inside its own pane, and [OpenCode](/herdmux/getting-started/opencode/)
 uses the bundled plugin bridge.
+
+## Origins
+
+herdmux started as a fork of [hiroppy/tmux-agent-sidebar](https://github.com/hiroppy/tmux-agent-sidebar)
+and is developed independently.

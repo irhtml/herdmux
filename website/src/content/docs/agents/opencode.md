@@ -41,4 +41,4 @@ surface is similar to Codex but with a different event source.
 
 ## Setup
 
-Wire the plugin bridge from [OpenCode setup](/tmux-agent-sidebar/getting-started/opencode/).
+Wire the plugin bridge from [OpenCode setup](/herdmux/getting-started/opencode/).

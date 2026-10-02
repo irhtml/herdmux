@@ -33,7 +33,7 @@ The modal's `NAME` field is slugified (lowercase, non-alphanumeric → `-`) and 
   With `direnv`, the copied `.envrc` still has to be approved in its new location, otherwise the pane starts without the exported variables. Set `@agent-sidebar-worktree-direnv-allow` to `on` to have the spawn run `direnv allow` for you; it fires only when this spawn actually wrote an `.envrc`. It is off by default because approving an `.envrc` lets direnv execute its shell on every `cd` — opting in says the file you are copying is one you already trust in the source repo.
 - **tmux split** — a non-sidebar pane in the originating window is split side by side; the agent you picked in the modal (`claude` / `codex` / `opencode`) launches in the new worktree with the selected permission `MODE`. Switching windows while creation runs does not redirect the split. Only one spawn can run per sidebar at a time; errors restore the input for retry unless another popup is already open.
 
-Defaults for the agent, branch prefix, and worktree directory live in tmux options — see [tmux options](/tmux-agent-sidebar/reference/tmux-options/) for the full list.
+Defaults for the agent, branch prefix, and worktree directory live in tmux options — see [tmux options](/herdmux/reference/tmux-options/) for the full list.
 
 ## Close pane modal
 

@@ -17,7 +17,7 @@ Most options must be set **before** loading the plugin in your `tmux.conf`. Colo
 | `@sidebar_auto_create`           | `on`    | Auto-create the sidebar on new windows (set `off` to disable)                           |
 | `@sidebar_auto_create_delay`     | `0`     | Seconds to defer auto-create after a window opens, so a declaratively-built window (e.g. tmuxinator's `select-layout`) finishes before the sidebar pane is injected; accepts fractional seconds. `0` keeps the create synchronous |
 | `@sidebar_notifications`         | `on`    | Master switch for desktop notifications                                                 |
-| `@sidebar_notifications_events`  | unset   | Restrict events — see [Notifications](/tmux-agent-sidebar/features/notifications/)       |
+| `@sidebar_notifications_events`  | unset   | Restrict events — see [Notifications](/herdmux/features/notifications/)       |
 | `@sidebar_pet`                  | `off`   | Show the animated pet in a 5-row band above the bottom panel                           |
 
 ## Worktree spawn defaults
@@ -128,5 +128,5 @@ set -g @sidebar_color_agent_opencode 39
 set -g @sidebar_icon_running '▶'
 set -g @sidebar_icon_error   '⚠'
 
-run-shell ~/.tmux/plugins/tmux-agent-sidebar/tmux-agent-sidebar.tmux
+run-shell ~/.tmux/plugins/herdmux/herdmux.tmux
 ```

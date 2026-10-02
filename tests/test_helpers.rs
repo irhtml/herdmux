@@ -122,6 +122,7 @@ pub fn make_pane(agent: AgentType, status: PaneStatus) -> PaneInfo {
         session_name: String::new(),
         pane_desc: String::new(),
         sidebar_spawned: false,
+        spawned_by: None,
         bg_shell_cmd: None,
     }
 }

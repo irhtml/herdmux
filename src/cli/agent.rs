@@ -33,7 +33,8 @@ Drive other coding agents running in tmux panes.
 
 commands:
   list [--json] [--all]
-      Agent panes with status, tag and cwd. `*` / \"self\": true marks the caller.
+      Agent panes with status, tag, spawning pane and cwd. `*` / \"self\": true
+      marks the caller.
   spawn [--agent A] [--mode M] [--cwd DIR | --worktree NAME] [--window]
         [--desc TAG] [--prompt TEXT [--wait] [--timeout S]] [-- AGENT_ARGS...]
       Start an agent in a new split (or window) without moving focus and

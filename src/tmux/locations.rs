@@ -10,8 +10,8 @@
 use super::commands::run_tmux;
 use super::options::{
     PANE_AGENT, PANE_CWD, PANE_DESC, PANE_PROMPT, PANE_PROMPT_AT, PANE_PROMPT_SOURCE,
-    PANE_RESUME_PENDING, PANE_ROLE, PANE_SESSION_ID, PANE_STATUS, PANE_WAIT_REASON,
-    PANE_WORKTREE_BRANCH, PANE_WORKTREE_NAME,
+    PANE_RESUME_PENDING, PANE_ROLE, PANE_SESSION_ID, PANE_SPAWNED_BY, PANE_STATUS,
+    PANE_WAIT_REASON, PANE_WORKTREE_BRANCH, PANE_WORKTREE_NAME,
 };
 use super::query::split_tmux_fields;
 
@@ -41,6 +41,8 @@ pub struct PaneLocation {
     pub prompt_source: String,
     pub prompt_at: Option<u64>,
     pub resume_pending: String,
+    /// Pane id of the pane that ran `agent spawn` for this one.
+    pub spawned_by: String,
 }
 
 impl PaneLocation {
@@ -85,6 +87,7 @@ const FIELDS: &[&str] = &[
     PANE_PROMPT_SOURCE,
     PANE_PROMPT_AT,
     PANE_RESUME_PENDING,
+    PANE_SPAWNED_BY,
 ];
 
 fn location_format() -> String {
@@ -141,6 +144,7 @@ fn parse_location_line(line: &str) -> Option<PaneLocation> {
         prompt_source: next(),
         prompt_at: next().parse().ok(),
         resume_pending: next(),
+        spawned_by: next(),
     })
 }
 
@@ -176,6 +180,7 @@ mod tests {
             "response",
             "1790000000123",
             "",
+            "%1",
         ]
     }
 
@@ -195,6 +200,7 @@ mod tests {
         assert_eq!(loc.worktree_branch, "feat/x");
         assert_eq!(loc.prompt, "fix the bug");
         assert_eq!(loc.prompt_at, Some(1790000000123));
+        assert_eq!(loc.spawned_by, "%1");
         assert!(!loc.is_sidebar());
     }
 

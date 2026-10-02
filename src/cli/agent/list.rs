@@ -83,8 +83,10 @@ fn truncate(text: &str, width: usize) -> String {
 }
 
 pub(super) fn render_table(rows: &[Row]) -> String {
-    let header = ["PANE", "ADDRESS", "AGENT", "STATE", "TAG", "CWD", "LAST"];
-    let mut table: Vec<[String; 7]> = vec![header.map(String::from)];
+    let header = [
+        "PANE", "ADDRESS", "AGENT", "STATE", "TAG", "FROM", "CWD", "LAST",
+    ];
+    let mut table: Vec<[String; 8]> = vec![header.map(String::from)];
     for row in rows {
         let loc = &row.loc;
         let pane = if row.is_self {
@@ -105,11 +107,12 @@ pub(super) fn render_table(rows: &[Row]) -> String {
             or_dash(&row.agent),
             state_label(loc, &row.agent).to_string(),
             or_dash(&loc.desc),
+            or_dash(&loc.spawned_by),
             tilde(loc.effective_cwd()),
             truncate(&loc.prompt, LAST_TEXT_WIDTH),
         ]);
     }
-    let widths: Vec<usize> = (0..7)
+    let widths: Vec<usize> = (0..8)
         .map(|col| {
             table
                 .iter()
@@ -144,6 +147,7 @@ pub(super) fn render_json(rows: &[Row]) -> serde_json::Value {
                 "status": loc.status,
                 "wait_reason": loc.wait_reason,
                 "desc": loc.desc,
+                "spawned_by": loc.spawned_by,
                 "cwd": loc.effective_cwd(),
                 "worktree": loc.worktree_name,
                 "branch": loc.worktree_branch,
@@ -221,7 +225,10 @@ mod tests {
                 prompt: "  looks good, merging  ".into(),
                 ..loc("%1", "claude", "idle", "")
             },
-            loc("%2", "codex", "waiting", "permission_prompt"),
+            PaneLocation {
+                spawned_by: "%1".into(),
+                ..loc("%2", "codex", "waiting", "permission_prompt")
+            },
             loc("%3", "", "", ""),
             PaneLocation {
                 current_command: "bun".into(),
@@ -255,10 +262,10 @@ mod tests {
     fn table_marks_self_and_labels_states() {
         let rows = rows(sample(), "%1", false, detect_bun);
         insta::assert_snapshot!(render_table(&rows), @r"
-        PANE  ADDRESS   AGENT   STATE    TAG       CWD        LAST
-        %1*   main:1.1  claude  idle     reviewer  /srv/repo  looks good, merging
-        %2    main:1.2  codex   blocked  -         /srv/repo
-        %4    main:1.4  codex   ready    -         /srv/repo
+        PANE  ADDRESS   AGENT   STATE    TAG       FROM  CWD        LAST
+        %1*   main:1.1  claude  idle     reviewer  -     /srv/repo  looks good, merging
+        %2    main:1.2  codex   blocked  -         %1    /srv/repo
+        %4    main:1.4  codex   ready    -         -     /srv/repo
         ");
     }
 
@@ -269,6 +276,8 @@ mod tests {
         assert_eq!(json[1]["state"], "blocked");
         assert_eq!(json[1]["wait_reason"], "permission_prompt");
         assert_eq!(json[1]["self"], true);
+        assert_eq!(json[1]["spawned_by"], "%1");
+        assert_eq!(json[0]["spawned_by"], "");
         assert_eq!(json[0]["self"], false);
         assert_eq!(json[2]["agent"], "codex");
         assert_eq!(json[2]["prompt_at_ms"], serde_json::Value::Null);

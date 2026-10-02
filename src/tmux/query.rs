@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use crate::process::{ProcessSnapshot, command_basename};
@@ -8,8 +8,8 @@ use super::options::{
     PANE_AGENT, PANE_ATTENTION, PANE_BG_CMD, PANE_CWD, PANE_DESC, PANE_NAME,
     PANE_PENDING_SESSION_END, PANE_PENDING_WORKTREE_REMOVE, PANE_PERMISSION_MODE, PANE_PROMPT,
     PANE_PROMPT_AT, PANE_PROMPT_SOURCE, PANE_RESUME_PENDING, PANE_ROLE, PANE_SESSION_ID,
-    PANE_STARTED_AT, PANE_STATUS, PANE_SUBAGENTS, PANE_WAIT_REASON, PANE_WORKTREE_BRANCH,
-    PANE_WORKTREE_NAME, unset_pane_option,
+    PANE_SPAWNED_BY, PANE_STARTED_AT, PANE_STATUS, PANE_SUBAGENTS, PANE_WAIT_REASON,
+    PANE_WORKTREE_BRANCH, PANE_WORKTREE_NAME, unset_pane_option,
 };
 use super::types::{
     AgentType, CODEX_AGENT, PaneInfo, PaneStatus, PermissionMode, SessionInfo, WindowInfo,
@@ -29,7 +29,7 @@ mod session_line_field {
     /// Index where the per-pane field suffix consumed by `parse_pane_line` begins.
     pub const PANE_LINE_OFFSET: usize = 6;
     /// Minimum number of fields a valid `pane_format()` line must contain.
-    pub const MIN_FIELDS: usize = 29;
+    pub const MIN_FIELDS: usize = 30;
 }
 
 // Indices into the pane-line suffix that `parse_pane_line` operates on.
@@ -59,9 +59,10 @@ pub(super) mod pane_line_field {
     pub const SIDEBAR_SPAWNED: usize = 20; // absolute 26 (@agent-sidebar-spawned)
     pub const BG_CMD: usize = 21; // absolute 27 (@pane_bg_cmd)
     pub const PANE_DESC: usize = 22; // absolute 28 (@pane_desc)
+    pub const SPAWNED_BY: usize = 23; // absolute 29 (@pane_spawned_by)
     /// Minimum number of fields the pane-line suffix must contain.
     /// Equals `session_line_field::MIN_FIELDS - PANE_LINE_OFFSET`.
-    pub const MIN_FIELDS: usize = 23;
+    pub const MIN_FIELDS: usize = 24;
 }
 
 /// Build the tmux `list-panes -F` format used by [`query_sessions`].
@@ -98,6 +99,7 @@ fn pane_format() -> String {
         q(SPAWNED_OPTION),
         q(PANE_BG_CMD),
         q(PANE_DESC),
+        q(PANE_SPAWNED_BY),
     ]
     .join("|")
 }
@@ -148,6 +150,8 @@ fn build_session_hierarchy(
     let mut sessions_map: SessionMap = indexmap::IndexMap::new();
     let mut codex_pids: Vec<CodexPidEntry> = Vec::new();
     let mut seen_pids: HashSet<u32> = HashSet::new();
+    // Tags of every pane, agent or not, to name the panes that spawned others.
+    let mut descs: HashMap<String, String> = HashMap::new();
 
     for line in all_panes_output.lines() {
         let parts = split_tmux_fields(line, '|');
@@ -162,6 +166,10 @@ fn build_session_hierarchy(
         // inside a pane field (cwd, prompt, branch) back into a field
         // separator and shift every downstream index.
         let pane_fields = &parts[session_line_field::PANE_LINE_OFFSET..];
+        let desc = &pane_fields[pane_line_field::PANE_DESC];
+        if !desc.is_empty() {
+            descs.insert(pane_fields[pane_line_field::PANE_ID].clone(), desc.clone());
+        }
 
         // Deduplicate panes shared across grouped sessions:
         // same pane_pid may appear in multiple sessions, keep only
@@ -193,6 +201,16 @@ fn build_session_hierarchy(
                 codex_pids.push((window_id.to_string(), window.panes.len(), pid));
             }
             window.panes.push(pane);
+        }
+    }
+
+    let panes = sessions_map
+        .values_mut()
+        .flat_map(|windows| windows.values_mut())
+        .flat_map(|window| window.panes.iter_mut());
+    for pane in panes {
+        if let Some(desc) = pane.spawned_by.as_ref().and_then(|id| descs.get(id)) {
+            pane.spawned_by = Some(desc.clone());
         }
     }
 
@@ -343,6 +361,9 @@ fn parse_pane_fields_with_processes(
         session_name: String::new(),
         pane_desc: parts[pane_line_field::PANE_DESC].to_string(),
         sidebar_spawned: parts[pane_line_field::SIDEBAR_SPAWNED] == "1",
+        spawned_by: Some(&parts[pane_line_field::SPAWNED_BY])
+            .filter(|id| !id.is_empty())
+            .cloned(),
         bg_shell_cmd: {
             let raw = &parts[pane_line_field::BG_CMD];
             if raw.is_empty() {
@@ -610,6 +631,7 @@ mod tests {
             session_name: String::new(),
             pane_desc: String::new(),
             sidebar_spawned: false,
+            spawned_by: None,
             bg_shell_cmd: None,
         }
     }
@@ -802,6 +824,7 @@ mod tests {
             "",                   // 20: @agent-sidebar-spawned
             "",                   // 21: @pane_bg_cmd
             "",                   // 22: @pane_desc
+            "",                   // 23: @pane_spawned_by
         ]
     }
 
@@ -816,7 +839,7 @@ mod tests {
     #[test]
     fn parse_pane_line_full_fields() {
         let line = make_pane_line(&full_fields());
-        let pane = parse_pane_line(&line).expect("should parse 23 fields");
+        let pane = parse_pane_line(&line).expect("should parse 24 fields");
         assert!(pane.pane_active);
         assert_eq!(pane.status, PaneStatus::Running);
         assert_eq!(pane.agent, AgentType::Claude);
@@ -1207,6 +1230,7 @@ mod tests {
                     session_name: String::new(),
                     pane_desc: String::new(),
                     sidebar_spawned: false,
+                    spawned_by: None,
                     bg_shell_cmd: None,
                 }],
             },
@@ -1269,9 +1293,9 @@ mod tests {
         // 20:@pane_subagents|21:@pane_cwd|22:@pane_permission_mode|
         // 23:@pane_worktree_name|24:@pane_worktree_branch|
         // 25:@pane_session_id|26:@agent-sidebar-spawned|27:@pane_bg_cmd|
-        // 28:@pane_desc
-        // 29 total fields (MIN_FIELDS = 29)
-        let mut fields: Vec<&str> = vec![""; 29];
+        // 28:@pane_desc|29:@pane_spawned_by
+        // 30 total fields (MIN_FIELDS = 30)
+        let mut fields: Vec<&str> = vec![""; 30];
         fields[0] = session_name;
         fields[1] = "@0"; // window_id
         fields[3] = "win"; // window_name
@@ -1283,6 +1307,45 @@ mod tests {
         let pid_str = pane_pid.to_string();
         fields[19] = &pid_str; // pane_pid
         fields.join("|")
+    }
+
+    #[test]
+    fn build_session_hierarchy_names_the_spawning_pane_by_its_tag() {
+        let pane = |id: &str, pid: u32, agent: &str, desc: &str, spawned_by: &str| {
+            let line = make_full_pane_line("main", pid);
+            let mut fields: Vec<&str> = line.split('|').collect();
+            fields[9] = agent;
+            fields[14] = id;
+            fields[28] = desc;
+            fields[29] = spawned_by;
+            fields.join("|")
+        };
+        let input = [
+            // A tagged shell (not an agent) that ran `agent spawn`.
+            pane("%1", 1, "", "lead", ""),
+            pane("%2", 2, "opencode", "", "%1"),
+            // Spawned by an untagged pane, and by one that has closed.
+            pane("%3", 3, "opencode", "", "%2"),
+            pane("%4", 4, "opencode", "", "%99"),
+            pane("%5", 5, "opencode", "", ""),
+        ]
+        .join("\n");
+        let (sessions_map, _) = build_session_hierarchy(&input, None);
+        let sessions = finalize_sessions(sessions_map);
+        let spawned_by: Vec<_> = sessions[0].windows[0]
+            .panes
+            .iter()
+            .map(|p| (p.pane_id.as_str(), p.spawned_by.as_deref()))
+            .collect();
+        assert_eq!(
+            spawned_by,
+            [
+                ("%2", Some("lead")),
+                ("%3", Some("%2")),
+                ("%4", Some("%99")),
+                ("%5", None),
+            ]
+        );
     }
 
     #[test]

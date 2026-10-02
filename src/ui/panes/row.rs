@@ -10,7 +10,7 @@ mod ctx;
 mod status;
 
 use body::{
-    background_hint_row, idle_hint_row, pane_desc_row, prompt_rows, subagent_rows,
+    background_hint_row, idle_hint_row, pane_desc_row, prompt_rows, spawned_by_row, subagent_rows,
     task_progress_row, wait_reason_row,
 };
 use branch::branch_ports_row;
@@ -80,6 +80,9 @@ pub(super) fn render_pane_lines_with_ports(
     if let Some(line) = pane_desc_row(&pane.pane_desc, ctx) {
         out.push(line);
     }
+    if let Some(line) = spawned_by_row(pane.spawned_by.as_deref(), ctx) {
+        out.push(line);
+    }
     if let Some(line) = task_progress_row(task_progress, ctx) {
         out.push(line);
     }
@@ -137,6 +140,7 @@ mod tests {
             session_name: String::new(),
             pane_desc: String::new(),
             sidebar_spawned: false,
+            spawned_by: None,
             bg_shell_cmd: None,
         }
     }
@@ -257,6 +261,44 @@ mod tests {
 
         let desc = line_text(&lines[1]);
         insta::assert_snapshot!(desc, @"    agent orchestrator research");
+    }
+
+    #[test]
+    fn render_pane_lines_shows_spawned_by_under_the_tag() {
+        let theme = ColorTheme::default();
+        let mut p = pane(
+            PermissionMode::Default,
+            PaneStatus::Running,
+            "review the diff",
+        );
+        p.pane_desc = "reviewer".into();
+        p.spawned_by = Some("auth refactor".into());
+        let lines = render_pane_lines_with_ports(
+            &p,
+            &PaneGitInfo::default(),
+            None,
+            None,
+            false,
+            false,
+            40,
+            &StatusIcons::default(),
+            &theme,
+            0,
+            0,
+        );
+
+        // Rows pad to the sidebar width; the padding is not under test.
+        let text = lines
+            .iter()
+            .map(|line| line_text(line).trim_end().to_string())
+            .collect::<Vec<_>>()
+            .join("\n");
+        insta::assert_snapshot!(text, @r"
+        ● codex
+          reviewer
+          spawned by auth refactor
+          review the diff
+        ");
     }
 
     #[test]

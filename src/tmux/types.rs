@@ -34,6 +34,9 @@ pub struct PaneInfo {
     /// pane status is `Background` (or `Running` with a backgrounded shell
     /// still alive) so the row body can surface the actual command.
     pub bg_shell_cmd: Option<String>,
+    /// The pane that started this one with `agent spawn`, shown by its
+    /// `@pane_desc` tag, or by its pane id when untagged or closed.
+    pub spawned_by: Option<String>,
 }
 
 #[derive(Debug, Clone, Default)]

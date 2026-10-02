@@ -71,6 +71,10 @@ pub const PANE_RESUME_PENDING: &str = "@pane_resume_pending";
 /// sidebar pane itself) so the TUI can exclude itself from the
 /// agent list.
 pub const PANE_ROLE: &str = "@pane_role";
+/// Pane id of the pane whose `agent spawn` created this pane. Owned by the
+/// pane like [`PANE_DESC`]: pane ids are never reused within a server, so
+/// it survives agent exit, `/clear` and resumes, and teardown leaves it.
+pub const PANE_SPAWNED_BY: &str = "@pane_spawned_by";
 /// Agent-provided session id, surfaced in the status line for
 /// quick reference.
 pub const PANE_SESSION_ID: &str = "@pane_session_id";

@@ -308,6 +308,7 @@ fn snapshot_two_agents_same_window_ui() {
         session_name: String::new(),
         pane_desc: String::new(),
         sidebar_spawned: false,
+        spawned_by: None,
         bg_shell_cmd: None,
     };
     let pane2 = PaneInfo {
@@ -330,6 +331,7 @@ fn snapshot_two_agents_same_window_ui() {
         session_name: String::new(),
         pane_desc: String::new(),
         sidebar_spawned: false,
+        spawned_by: None,
         bg_shell_cmd: None,
     };
 

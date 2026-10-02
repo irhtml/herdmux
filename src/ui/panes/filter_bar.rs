@@ -274,6 +274,7 @@ mod tests {
             session_name: String::new(),
             pane_desc: String::new(),
             sidebar_spawned: false,
+            spawned_by: None,
             bg_shell_cmd: None,
         };
         let pane2 = crate::tmux::PaneInfo {
@@ -296,6 +297,7 @@ mod tests {
             session_name: String::new(),
             pane_desc: String::new(),
             sidebar_spawned: false,
+            spawned_by: None,
             bg_shell_cmd: None,
         };
         let mut state = make_state_with_groups(vec![crate::group::RepoGroup {

@@ -73,7 +73,7 @@ The `agent` subcommand reads the same hook-maintained state the sidebar shows, s
 
 ```sh
 TAS="$(tmux show -gv @agent_sidebar_bin)"
-"$TAS" agent list                                   # panes, state (idle/running/blocked), tag, cwd
+"$TAS" agent list                                   # panes, state (idle/running/blocked), tag, spawning pane, cwd
 "$TAS" agent spawn --desc reviewer --wait \
   --prompt "Review the diff on this branch"          # new split, focus stays put; prints pane id, then the reply
 "$TAS" agent prompt %12 "Now fix the first finding"  # refuses busy or permission-blocked panes unless --force

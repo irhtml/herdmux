@@ -96,6 +96,20 @@ pub(super) fn pane_desc_row(desc: &str, ctx: &RowCtx) -> Option<Line<'static>> {
     ))
 }
 
+/// Which pane started this one with `agent spawn`.
+pub(super) fn spawned_by_row(spawned_by: Option<&str>, ctx: &RowCtx) -> Option<Line<'static>> {
+    let parent = spawned_by?;
+    let text = truncate_to_width(&format!("  spawned by {parent}"), ctx.inner_width);
+    let text_dw = display_width(&text);
+    Some(ctx.row_line(
+        vec![Span::styled(
+            text,
+            ctx.apply_bg(Style::default().fg(ctx.theme.text_muted)),
+        )],
+        text_dw,
+    ))
+}
+
 pub(super) fn wait_reason_row(
     wait_reason: &str,
     status: &PaneStatus,

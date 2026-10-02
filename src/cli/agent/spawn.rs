@@ -217,6 +217,7 @@ pub(super) fn run(raw: &[String]) -> i32 {
             return EXIT_ERROR;
         }
     };
+    tmux::set_pane_option(&pane, tmux::PANE_SPAWNED_BY, &origin);
     if let Some(desc) = &plan.desc {
         tmux::set_pane_option(&pane, tmux::PANE_DESC, desc);
     }

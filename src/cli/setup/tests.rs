@@ -160,12 +160,12 @@ fn snippet_claude_post_tool_use_maps_to_activity_log() {
 }
 
 #[test]
-fn snippet_codex_session_start_has_custom_matcher() {
+fn snippet_codex_session_start_has_empty_matcher() {
     let v = build_agent_snippet("codex", FAKE_HOOK).unwrap();
     let entry = v
         .pointer("/hooks/SessionStart/0")
         .expect("codex SessionStart entry");
-    assert_eq!(entry.get("matcher"), Some(&json!("startup|resume")));
+    assert_eq!(entry.get("matcher"), Some(&json!("")));
     assert_eq!(
         entry
             .pointer("/hooks/0/command")
@@ -220,19 +220,21 @@ fn missing_hooks_reports_removed_trigger() {
 #[test]
 fn missing_hooks_reports_matcher_mismatch() {
     let mut config = build_agent_snippet("codex", FAKE_HOOK).unwrap();
-    let hooks = config
-        .get_mut("hooks")
-        .and_then(Value::as_object_mut)
-        .expect("top-level hooks object");
-    let session_start = hooks
-        .get_mut("SessionStart")
-        .and_then(Value::as_array_mut)
-        .expect("SessionStart array");
-    let first = session_start[0]
-        .as_object_mut()
-        .expect("SessionStart entry object");
+    let mut set_matcher = |config: &mut Value, matcher: &str| {
+        config
+            .pointer_mut("/hooks/SessionStart/0")
+            .and_then(Value::as_object_mut)
+            .expect("SessionStart entry object")
+            .insert("matcher".to_string(), json!(matcher));
+    };
 
-    first.insert("matcher".to_string(), json!(""));
+    // The current empty matcher is not drift.
+    set_matcher(&mut config, "");
+    assert!(missing_hooks("codex", &config, FAKE_HOOK).is_empty());
+
+    // The old `startup|resume` matcher skips the `cli` start source, so a
+    // config that still has it must be reported missing.
+    set_matcher(&mut config, "startup|resume");
     assert_eq!(
         missing_hooks("codex", &config, FAKE_HOOK),
         vec!["SessionStart".to_string()]
@@ -506,7 +508,7 @@ fn full_output_normalized_entry_shape() {
 
     let codex_ss = full.pointer("/agents/codex/hooks/0").unwrap();
     assert_eq!(codex_ss.get("trigger"), Some(&json!("SessionStart")));
-    assert_eq!(codex_ss.get("matcher"), Some(&json!("startup|resume")));
+    assert_eq!(codex_ss.get("matcher"), Some(&Value::Null));
 }
 
 #[test]
@@ -836,7 +838,7 @@ const EXPECTED_FULL_OUTPUT: &str = r#"{
         {
           "command": "bash /fake/hook.sh codex session-start",
           "event": "session-start",
-          "matcher": "startup|resume",
+          "matcher": null,
           "trigger": "SessionStart"
         },
         {
@@ -930,7 +932,7 @@ const EXPECTED_FULL_OUTPUT: &str = r#"{
                   "type": "command"
                 }
               ],
-              "matcher": "startup|resume"
+              "matcher": ""
             }
           ],
           "Stop": [

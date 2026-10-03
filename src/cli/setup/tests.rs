@@ -508,7 +508,7 @@ fn full_output_normalized_entry_shape() {
 
     let codex_ss = full.pointer("/agents/codex/hooks/0").unwrap();
     assert_eq!(codex_ss.get("trigger"), Some(&json!("SessionStart")));
-    assert_eq!(codex_ss.get("matcher"), Some(&Value::Null));
+    assert_eq!(codex_ss.get("matcher"), Some(&json!("")));
 }
 
 #[test]
@@ -838,7 +838,7 @@ const EXPECTED_FULL_OUTPUT: &str = r#"{
         {
           "command": "bash /fake/hook.sh codex session-start",
           "event": "session-start",
-          "matcher": null,
+          "matcher": "",
           "trigger": "SessionStart"
         },
         {

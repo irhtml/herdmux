@@ -24,14 +24,14 @@ impl CodexAdapter {
     /// - `Interrupt` fires when the user aborts a turn (never for subagents)
     ///   and is the only signal that ends it: `Stop` does not follow. Its
     ///   output schema rejects unknown fields, so the hook prints nothing.
-    /// - `SessionStart` has an empty matcher so it runs for every start source,
+    /// - `SessionStart` has no matcher (empty) so it runs for every start source,
     ///   including `cli` (a fresh session), and the pane shows up at once.
     /// - `PreToolUse`, the compact events and the subagent lifecycle events
     ///   are supported by Codex but not yet wired.
     pub const HOOK_REGISTRATIONS: &'static [HookRegistration] = &[
         HookRegistration {
             trigger: "SessionStart",
-            matcher: Some(""),
+            matcher: None,
             kind: AgentEventKind::SessionStart,
         },
         HookRegistration {
@@ -143,6 +143,15 @@ mod tests {
     #[test]
     fn hook_registrations_match_parse_arms() {
         super::super::assert_table_drift_free("codex", CodexAdapter::HOOK_REGISTRATIONS);
+    }
+
+    #[test]
+    fn session_start_registers_with_no_matcher() {
+        let reg = CodexAdapter::HOOK_REGISTRATIONS
+            .iter()
+            .find(|r| r.trigger == "SessionStart")
+            .expect("SessionStart registration");
+        assert_eq!(reg.matcher, None);
     }
 
     #[test]

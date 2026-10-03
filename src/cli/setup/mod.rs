@@ -308,6 +308,11 @@ fn build_agent_entry(
                 "trigger": reg.trigger,
                 "matcher": match reg.matcher {
                     Some(m) => serde_json::Value::String(m.to_string()),
+                    // Codex SessionStart is reported as an explicit empty
+                    // matcher; every other unfiltered entry stays null.
+                    None if agent == "codex" && reg.trigger == "SessionStart" => {
+                        serde_json::Value::String(String::new())
+                    }
                     None => serde_json::Value::Null,
                 },
                 "event": reg.kind.external_name(),

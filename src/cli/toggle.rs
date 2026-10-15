@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use indexmap::IndexMap;
 
 use crate::tmux;
 
@@ -20,168 +20,263 @@ pub(crate) fn cmd_toggle(args: &[String]) -> i32 {
     };
     let pane_path = positional.get(1).copied().unwrap_or("~");
 
-    // Check sidebar width setting
-    let sidebar_width_setting = {
-        let s = tmux::display_message(window_id, &format!("#{{{}}}", tmux::SIDEBAR_WIDTH));
-        if s.is_empty() { "30".to_string() } else { s }
-    };
-
-    let sidebar_width = if sidebar_width_setting.ends_with('%') {
-        let window_width: u32 = tmux::display_message(window_id, "#{window_width}")
-            .parse()
-            .unwrap_or(0);
-        let pct: u32 = sidebar_width_setting
-            .trim_end_matches('%')
-            .parse()
-            .unwrap_or(15);
-        if window_width > 0 && pct > 0 {
-            let w = window_width * pct / 100;
-            if w < 1 {
-                "1".to_string()
-            } else {
-                w.to_string()
-            }
-        } else {
-            sidebar_width_setting
-        }
-    } else {
-        sidebar_width_setting
-    };
-
-    let sidebar_position = SidebarPosition::from_setting(&tmux::display_message(
-        window_id,
-        &format!("#{{{}}}", tmux::SIDEBAR_POSITION),
-    ));
-
-    // Check for existing sidebar
-    let pane_id_role_format = pane_id_role_format();
-    let panes_output = tmux::run_tmux(&["list-panes", "-t", window_id, "-F", &pane_id_role_format])
+    let layout = tmux::run_tmux(&["list-panes", "-t", window_id, "-F", &layout_format()])
         .unwrap_or_default();
 
-    let existing_sidebar = panes_output.lines().find_map(|line| {
-        let parts: Vec<&str> = line.splitn(2, '|').collect();
-        if parts.len() >= 2 && parts[1] == "sidebar" {
-            Some(parts[0].to_string())
-        } else {
-            None
+    if let Some(sidebar_pane) = sidebar_pane_ids(&layout).first() {
+        if !create_only {
+            let _ = tmux::run_tmux(&["kill-pane", "-t", sidebar_pane]);
         }
-    });
-
-    if let Some(sidebar_pane) = existing_sidebar {
-        if create_only {
-            return 0;
-        }
-        let _ = tmux::run_tmux(&["kill-pane", "-t", &sidebar_pane]);
         return 0;
     }
 
-    let pane_geometry_output = tmux::run_tmux(&[
-        "list-panes",
-        "-t",
+    open_sidebars(&plan_sidebar_splits(&layout, Some(pane_path)));
+    0
+}
+
+/// Close every sidebar when any is open, otherwise open one in every
+/// window. Both directions batch their tmux commands into a few client
+/// invocations: one per command per window took seconds with dozens of
+/// windows.
+pub(crate) fn cmd_toggle_all(_args: &[String]) -> i32 {
+    let list_all = || tmux::run_tmux(&["list-panes", "-a", "-F", &layout_format()]);
+    let layout = list_all().unwrap_or_default();
+    let mut sidebars = sidebar_pane_ids(&layout);
+
+    if sidebars.is_empty() {
+        open_sidebars(&plan_sidebar_splits(&layout, None));
+        return 0;
+    }
+
+    // A sidebar that closed after the listing fails its `kill-pane` and
+    // stops the batch, so re-list and retry while that makes progress.
+    loop {
+        let commands: Vec<Vec<&str>> = sidebars
+            .iter()
+            .map(|pane| vec!["kill-pane", "-t", pane.as_str()])
+            .collect();
+        if tmux::run_tmux_batch(&commands).0 {
+            break;
+        }
+        let remaining = list_all()
+            .map(|out| sidebar_pane_ids(&out))
+            .unwrap_or_default();
+        if remaining.is_empty() || remaining.len() >= sidebars.len() {
+            break;
+        }
+        sidebars = remaining;
+    }
+
+    0
+}
+
+/// `list-panes -F` format with everything needed to find and plan
+/// sidebars, one line per pane. The `@sidebar_*` options resolve per
+/// pane, so window and session overrides of the global value apply.
+fn layout_format() -> String {
+    [
+        "window_id",
+        "window_width",
+        "pane_left",
+        "pane_width",
+        "pane_id",
+        tmux::PANE_ROLE,
+        tmux::SIDEBAR_WIDTH,
+        tmux::SIDEBAR_POSITION,
+        "pane_current_path",
+    ]
+    .map(|field| format!("#{{q:{field}}}"))
+    .join("|")
+}
+
+/// One pane line of [`layout_format`].
+#[derive(Debug)]
+struct LayoutPane {
+    window_id: String,
+    window_width: u32,
+    geometry: PaneGeometry,
+    is_sidebar: bool,
+    width_setting: String,
+    position: SidebarPosition,
+    path: String,
+}
+
+/// Parse one [`layout_format`] line. Returns `None` for malformed lines so
+/// callers can simply skip them.
+fn parse_layout_line(line: &str) -> Option<LayoutPane> {
+    let fields = tmux::split_tmux_fields(line, '|');
+    let [
         window_id,
-        "-F",
-        "#{pane_left} #{pane_width} #{pane_id}",
-    ])
-    .unwrap_or_default();
+        window_width,
+        left,
+        width,
+        pane_id,
+        role,
+        width_setting,
+        position,
+        path,
+    ] = fields.as_slice()
+    else {
+        return None;
+    };
+    Some(LayoutPane {
+        window_id: window_id.clone(),
+        window_width: window_width.parse().unwrap_or(0),
+        geometry: PaneGeometry {
+            left: left.parse().ok()?,
+            width: width.parse().ok()?,
+            pane_id: pane_id.clone(),
+        },
+        is_sidebar: role == "sidebar",
+        width_setting: width_setting.clone(),
+        position: SidebarPosition::from_setting(position),
+        path: path.clone(),
+    })
+}
 
-    let target_pane = target_pane_for_position(&pane_geometry_output, sidebar_position)
-        .unwrap_or_else(|| window_id.to_string());
-    let split_flags = split_window_flags(sidebar_position);
+fn sidebar_pane_ids(layout: &str) -> Vec<String> {
+    layout
+        .lines()
+        .filter_map(parse_layout_line)
+        .filter(|pane| pane.is_sidebar)
+        .map(|pane| pane.geometry.pane_id)
+        .collect()
+}
 
-    // Remember active pane
-    let active_pane = tmux::display_message(window_id, "#{pane_id}");
+/// What `split-window` needs to open a sidebar in one window.
+#[derive(Debug, Eq, PartialEq)]
+struct SidebarSplit {
+    target_pane: String,
+    flags: &'static str,
+    width: String,
+    path: String,
+}
 
-    // Find our own binary path
-    let self_bin = std::env::current_exe()
+impl SidebarSplit {
+    /// `-d` keeps the window's active pane, so focus never moves and the
+    /// `after-select-pane` hook does not fire once per window.
+    fn command<'a>(&'a self, bin: &'a str) -> Vec<&'a str> {
+        vec![
+            "split-window",
+            "-d",
+            self.flags,
+            "-l",
+            &self.width,
+            "-t",
+            &self.target_pane,
+            "-c",
+            &self.path,
+            "-P",
+            "-F",
+            "#{pane_id}",
+            bin,
+        ]
+    }
+}
+
+/// Plan one split for each window in `layout` that has no sidebar yet, in
+/// listing order. `path` sets the sidebar's start directory; without it
+/// the window's first pane's directory is used.
+fn plan_sidebar_splits(layout: &str, path: Option<&str>) -> Vec<SidebarSplit> {
+    let mut windows: IndexMap<String, Vec<LayoutPane>> = IndexMap::new();
+    for pane in layout.lines().filter_map(parse_layout_line) {
+        windows
+            .entry(pane.window_id.clone())
+            .or_default()
+            .push(pane);
+    }
+
+    windows
+        .values()
+        .filter(|panes| !panes.iter().any(|pane| pane.is_sidebar))
+        .filter_map(|panes| {
+            let first = panes.first()?;
+            let target_pane =
+                target_pane_for_position(panes.iter().map(|pane| &pane.geometry), first.position)?;
+            Some(SidebarSplit {
+                target_pane,
+                flags: split_window_flags(first.position),
+                width: resolve_sidebar_width(&first.width_setting, first.window_width),
+                path: path.unwrap_or(&first.path).to_string(),
+            })
+        })
+        .collect()
+}
+
+/// Turn the `@sidebar_width` setting into a `split-window -l` value. A
+/// percentage becomes that share of `window_width` (at least one column);
+/// any other value passes through, and an unset one means 30 columns.
+fn resolve_sidebar_width(setting: &str, window_width: u32) -> String {
+    if setting.is_empty() {
+        return "30".to_string();
+    }
+    let Some(pct) = setting.strip_suffix('%') else {
+        return setting.to_string();
+    };
+    let pct: u32 = pct.parse().unwrap_or(15);
+    if window_width > 0 && pct > 0 {
+        (window_width * pct / 100).max(1).to_string()
+    } else {
+        setting.to_string()
+    }
+}
+
+/// Open the planned sidebars with one `split-window` batch and one
+/// `set-option` batch.
+fn open_sidebars(splits: &[SidebarSplit]) {
+    let bin = std::env::current_exe()
         .ok()
         .and_then(|p| p.to_str().map(|s| s.to_string()))
         .unwrap_or_else(|| "herdmux".to_string());
 
-    // Create sidebar pane
-    let sidebar_pane = tmux::run_tmux(&[
-        "split-window",
-        split_flags,
-        "-l",
-        &sidebar_width,
-        "-t",
-        &target_pane,
-        "-c",
-        pane_path,
-        "-P",
-        "-F",
-        "#{pane_id}",
-        &self_bin,
-    ])
-    .map(|s| s.trim().to_string())
-    .unwrap_or_default();
+    let created = split_all(splits, &bin, tmux::run_tmux_batch);
 
-    if !sidebar_pane.is_empty() {
-        tmux::set_pane_option(&sidebar_pane, tmux::PANE_ROLE, "sidebar");
-    }
-
-    // Restore focus
-    if !active_pane.is_empty() {
-        let _ = tmux::run_tmux(&["select-pane", "-t", &active_pane]);
-    } else {
-        let _ = tmux::run_tmux(&["select-pane", "-t", window_id, "-l"]);
-    }
-
-    0
+    // `-q` keeps a pane that already exited from stopping the batch.
+    let roles: Vec<Vec<&str>> = created
+        .iter()
+        .map(|pane| {
+            vec![
+                "set-option",
+                "-q",
+                "-p",
+                "-t",
+                pane,
+                tmux::PANE_ROLE,
+                "sidebar",
+            ]
+        })
+        .collect();
+    tmux::run_tmux_batch(&roles);
 }
 
-pub(crate) fn cmd_toggle_all(_args: &[String]) -> i32 {
-    let pane_id_role_format = pane_id_role_format();
-    let has_sidebar = tmux::run_tmux(&["list-panes", "-a", "-F", &pane_id_role_format])
-        .map(|output| any_sidebar_pane(&output))
-        .unwrap_or(false);
-
-    if has_sidebar {
-        let all_panes =
-            tmux::run_tmux(&["list-panes", "-a", "-F", &pane_id_role_format]).unwrap_or_default();
-        for line in all_panes.lines() {
-            let parts: Vec<&str> = line.splitn(2, '|').collect();
-            if parts.len() >= 2 && parts[1] == "sidebar" {
-                let _ = tmux::run_tmux(&["kill-pane", "-t", parts[0]]);
-            }
+/// Run `splits` through `run` as batches and return the created pane ids.
+/// tmux stops a batch at the first failing split (e.g. "no space for new
+/// pane"), and every split before it printed one pane id, so the line count
+/// locates the failure: skip that window and batch the rest.
+fn split_all(
+    splits: &[SidebarSplit],
+    bin: &str,
+    mut run: impl FnMut(&[Vec<&str>]) -> (bool, String),
+) -> Vec<String> {
+    let mut created = Vec::new();
+    let mut rest = splits;
+    while !rest.is_empty() {
+        let commands: Vec<Vec<&str>> = rest.iter().map(|split| split.command(bin)).collect();
+        let (ok, stdout) = run(&commands);
+        let before = created.len();
+        created.extend(
+            stdout
+                .lines()
+                .map(str::trim)
+                .filter(|line| !line.is_empty())
+                .map(String::from),
+        );
+        if ok {
+            break;
         }
-    } else {
-        let all_windows = tmux::run_tmux(&[
-            "list-panes",
-            "-a",
-            "-F",
-            "#{window_id}|#{pane_current_path}",
-        ])
-        .unwrap_or_default();
-        for (window_id, pane_path) in unique_window_paths(&all_windows) {
-            let args = vec!["--create-only".to_string(), window_id, pane_path];
-            cmd_toggle(&args);
-        }
+        rest = rest.get(created.len() - before + 1..).unwrap_or_default();
     }
-
-    0
-}
-
-fn any_sidebar_pane(output: &str) -> bool {
-    output.lines().any(|line| {
-        let parts: Vec<&str> = line.splitn(2, '|').collect();
-        parts.len() >= 2 && parts[1] == "sidebar"
-    })
-}
-
-fn unique_window_paths(output: &str) -> Vec<(String, String)> {
-    let mut seen = HashSet::new();
-    let mut windows = Vec::new();
-
-    for line in output.lines() {
-        let Some((window_id, pane_path)) = line.split_once('|') else {
-            continue;
-        };
-        if seen.insert(window_id.to_string()) {
-            windows.push((window_id.to_string(), pane_path.to_string()));
-        }
-    }
-
-    windows
+    created
 }
 
 /// Which side of the window the sidebar pane is created on, driven by
@@ -207,8 +302,7 @@ impl SidebarPosition {
     }
 }
 
-/// Horizontal placement of one pane, parsed from a
-/// `#{pane_left} #{pane_width} #{pane_id}` formatted `list-panes` line.
+/// Horizontal placement of one pane.
 #[derive(Debug, Eq, PartialEq)]
 struct PaneGeometry {
     left: u32,
@@ -216,31 +310,19 @@ struct PaneGeometry {
     pane_id: String,
 }
 
-/// Parse a single `list-panes` output line into a [`PaneGeometry`].
-/// Returns `None` for malformed lines so callers can simply skip them.
-fn parse_pane_geometry(line: &str) -> Option<PaneGeometry> {
-    let mut parts = line.split_whitespace();
-    let left = parts.next()?.parse().ok()?;
-    let width = parts.next()?.parse().ok()?;
-    let pane_id = parts.next()?.to_string();
-    Some(PaneGeometry {
-        left,
-        width,
-        pane_id,
-    })
-}
-
 /// Pick the pane the sidebar splits from: the leftmost pane for a left
 /// sidebar, or the pane with the largest right edge (`left + width`) for
 /// a right sidebar, so the new pane always lands at the window's outer
-/// edge. Returns `None` when no line of `output` parses as geometry.
-fn target_pane_for_position(output: &str, position: SidebarPosition) -> Option<String> {
-    let panes = output.lines().filter_map(parse_pane_geometry);
+/// edge. Returns `None` when `panes` is empty.
+fn target_pane_for_position<'a>(
+    panes: impl Iterator<Item = &'a PaneGeometry>,
+    position: SidebarPosition,
+) -> Option<String> {
     match position {
         SidebarPosition::Left => panes.min_by_key(|pane| pane.left),
         SidebarPosition::Right => panes.max_by_key(|pane| pane.left.saturating_add(pane.width)),
     }
-    .map(|pane| pane.pane_id)
+    .map(|pane| pane.pane_id.clone())
 }
 
 /// `split-window` flags for each placement: `-hfb` inserts the new pane
@@ -342,45 +424,153 @@ pub(crate) fn cmd_auto_close(args: &[String]) -> i32 {
     0
 }
 
-fn pane_id_role_format() -> String {
-    format!("#{{pane_id}}|#{{{}}}", tmux::PANE_ROLE)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn any_sidebar_pane_detects_sidebar_anywhere() {
-        let output = "%1|pane\n%2|sidebar\n%3|pane";
-        assert!(any_sidebar_pane(output));
+    // ─── layout parsing and planning ─────────────────────────────────
+
+    /// One [`layout_format`] line, with `path` already `#{q:}`-escaped.
+    fn line(window: &str, left: u32, width: u32, pane: &str, role: &str, path: &str) -> String {
+        format!("{window}|200|{left}|{width}|{pane}|{role}|15%|left|{path}")
     }
 
     #[test]
-    fn any_sidebar_pane_returns_false_without_sidebar() {
-        let output = "%1|pane\n%2|main";
-        assert!(!any_sidebar_pane(output));
+    fn sidebar_pane_ids_lists_sidebars_in_every_window() {
+        let layout = [
+            line("@1", 0, 30, "%1", "sidebar", "/tmp"),
+            line("@1", 31, 169, "%2", "", "/tmp"),
+            line("@2", 0, 200, "%3", "", "/tmp"),
+            line("@3", 0, 30, "%4", "sidebar", "/tmp"),
+        ]
+        .join("\n");
+        assert_eq!(sidebar_pane_ids(&layout), vec!["%1", "%4"]);
     }
 
     #[test]
-    fn unique_window_paths_deduplicates_windows_and_keeps_spaces() {
-        let output = "%1|/Users/me/My Project\n%1|/Users/me/My Project\n%2|/tmp/another project";
+    fn parse_layout_line_unescapes_path_and_skips_malformed_lines() {
+        let pane = parse_layout_line(&line("@1", 4, 80, "%2", "", "/Users/me/My\\ Project"))
+            .expect("valid line");
+        assert_eq!(pane.path, "/Users/me/My Project");
+        assert_eq!(pane.geometry.left, 4);
+        assert!(!pane.is_sidebar);
+
+        assert!(parse_layout_line("bad-line").is_none());
+        assert!(
+            parse_layout_line(&line("@1", 0, 80, "%2", "", "/tmp").replace("|80|", "|x|"))
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn plan_skips_windows_that_have_a_sidebar() {
+        let layout = [
+            line("@1", 0, 30, "%1", "sidebar", "/a"),
+            line("@1", 31, 169, "%2", "", "/a"),
+            line("@2", 100, 100, "%4", "", "/b/right"),
+            line("@2", 0, 99, "%3", "", "/b/left"),
+        ]
+        .join("\n");
+
         assert_eq!(
-            unique_window_paths(output),
+            plan_sidebar_splits(&layout, None),
+            vec![SidebarSplit {
+                target_pane: "%3".to_string(),
+                flags: "-hfb",
+                width: "30".to_string(),
+                path: "/b/right".to_string(),
+            }]
+        );
+    }
+
+    #[test]
+    fn plan_uses_path_override_and_window_position() {
+        let layout = [
+            "@1|100|0|50|%1||20|right|/a".to_string(),
+            "@1|100|51|49|%2||20|right|/a".to_string(),
+        ]
+        .join("\n");
+
+        assert_eq!(
+            plan_sidebar_splits(&layout, Some("/here")),
+            vec![SidebarSplit {
+                target_pane: "%2".to_string(),
+                flags: "-hf",
+                width: "20".to_string(),
+                path: "/here".to_string(),
+            }]
+        );
+    }
+
+    #[test]
+    fn resolve_sidebar_width_handles_percent_columns_and_unset() {
+        assert_eq!(resolve_sidebar_width("15%", 200), "30");
+        assert_eq!(resolve_sidebar_width("1%", 50), "1");
+        assert_eq!(resolve_sidebar_width("15%", 0), "15%");
+        assert_eq!(resolve_sidebar_width("40", 200), "40");
+        assert_eq!(resolve_sidebar_width("", 200), "30");
+    }
+
+    // ─── batched splits ──────────────────────────────────────────────
+
+    fn split(target: &str) -> SidebarSplit {
+        SidebarSplit {
+            target_pane: target.to_string(),
+            flags: "-hfb",
+            width: "30".to_string(),
+            path: "/tmp".to_string(),
+        }
+    }
+
+    #[test]
+    fn split_all_runs_every_split_in_one_batch() {
+        let splits = [split("%1"), split("%2")];
+        let mut batches = Vec::new();
+        let created = split_all(&splits, "herdmux", |commands| {
+            batches.push(commands.to_vec().concat().join(" "));
+            (true, "%10\n%11\n".to_string())
+        });
+
+        assert_eq!(created, vec!["%10", "%11"]);
+        assert_eq!(
+            batches,
             vec![
-                ("%1".to_string(), "/Users/me/My Project".to_string()),
-                ("%2".to_string(), "/tmp/another project".to_string()),
+                "split-window -d -hfb -l 30 -t %1 -c /tmp -P -F #{pane_id} herdmux \
+                 split-window -d -hfb -l 30 -t %2 -c /tmp -P -F #{pane_id} herdmux"
             ]
         );
     }
 
     #[test]
-    fn unique_window_paths_skips_malformed_lines() {
-        let output = "bad-line\n%1|/tmp";
-        assert_eq!(
-            unique_window_paths(output),
-            vec![("%1".to_string(), "/tmp".to_string())]
-        );
+    fn split_all_skips_a_failed_split_and_batches_the_rest() {
+        let splits = [split("%1"), split("%2"), split("%3"), split("%4")];
+        let mut targets = Vec::new();
+        let created = split_all(&splits, "herdmux", |commands| {
+            let batch: Vec<&str> = commands.iter().map(|c| c[6]).collect();
+            targets.push(batch.join(","));
+            // %2 has no room; tmux prints %1's new pane and stops.
+            if batch[0] == "%1" {
+                (false, "%10\n".to_string())
+            } else {
+                (true, "%12\n%13\n".to_string())
+            }
+        });
+
+        assert_eq!(created, vec!["%10", "%12", "%13"]);
+        assert_eq!(targets, vec!["%1,%2,%3,%4", "%3,%4"]);
+    }
+
+    #[test]
+    fn split_all_stops_when_the_last_split_fails() {
+        let splits = [split("%1")];
+        let mut calls = 0;
+        let created = split_all(&splits, "herdmux", |_| {
+            calls += 1;
+            (false, String::new())
+        });
+
+        assert!(created.is_empty());
+        assert_eq!(calls, 1);
     }
 
     // ─── sidebar placement ───────────────────────────────────────────
@@ -403,35 +593,48 @@ mod tests {
         );
     }
 
+    fn geometry(left: u32, width: u32, pane_id: &str) -> PaneGeometry {
+        PaneGeometry {
+            left,
+            width,
+            pane_id: pane_id.to_string(),
+        }
+    }
+
     #[test]
     fn target_pane_for_left_position_uses_leftmost_pane() {
-        let output = "40 80 %3\n0 20 %1\n20 20 %2";
+        let panes = [
+            geometry(40, 80, "%3"),
+            geometry(0, 20, "%1"),
+            geometry(20, 20, "%2"),
+        ];
 
         assert_eq!(
-            target_pane_for_position(output, SidebarPosition::Left),
+            target_pane_for_position(panes.iter(), SidebarPosition::Left),
             Some("%1".to_string())
         );
     }
 
     #[test]
     fn target_pane_for_right_position_uses_largest_right_edge() {
-        let output = "0 20 %1\n20 20 %2\n40 80 %3";
+        let panes = [
+            geometry(0, 20, "%1"),
+            geometry(20, 20, "%2"),
+            geometry(40, 80, "%3"),
+        ];
 
         assert_eq!(
-            target_pane_for_position(output, SidebarPosition::Right),
+            target_pane_for_position(panes.iter(), SidebarPosition::Right),
             Some("%3".to_string())
         );
     }
 
     #[test]
-    fn target_pane_for_position_skips_malformed_lines() {
-        let output = "bad-line\n0 nope %1\n12 30 %2";
-
+    fn target_pane_for_position_returns_none_without_panes() {
         assert_eq!(
-            target_pane_for_position(output, SidebarPosition::Left),
-            Some("%2".to_string())
+            target_pane_for_position([].iter(), SidebarPosition::Right),
+            None
         );
-        assert_eq!(target_pane_for_position("", SidebarPosition::Right), None);
     }
 
     #[test]

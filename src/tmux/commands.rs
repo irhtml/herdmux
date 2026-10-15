@@ -9,6 +9,30 @@ pub fn run_tmux(args: &[&str]) -> Option<String> {
     }
 }
 
+/// Run `commands` in one tmux client invocation, joined with `;`, so a batch
+/// costs one round trip instead of one per command. tmux stops at the first
+/// failing command; returns whether every command ran, plus the stdout
+/// produced up to that point.
+pub fn run_tmux_batch(commands: &[Vec<&str>]) -> (bool, String) {
+    // With no arguments tmux runs its default command, `new-session`.
+    if commands.is_empty() {
+        return (true, String::new());
+    }
+    match Command::new("tmux").args(batch_args(commands)).output() {
+        Ok(output) => (
+            output.status.success(),
+            String::from_utf8_lossy(&output.stdout).to_string(),
+        ),
+        Err(_) => (false, String::new()),
+    }
+}
+
+/// Join `commands` with standalone `;` arguments. No trailing `;`: tmux
+/// reads it as an empty final command and runs `new-session`.
+fn batch_args<'a>(commands: &[Vec<&'a str>]) -> Vec<&'a str> {
+    commands.join(&";")
+}
+
 /// Run a tmux command, returning trimmed stdout on success and stderr on failure.
 /// Used by the spawn/remove flow so the UI can surface a meaningful error message
 /// instead of a silent fallthrough.
@@ -263,7 +287,17 @@ pub fn select_pane(pane_id: &str, own_pane_id: &str) {
 
 #[cfg(test)]
 mod tests {
-    use super::{last_lines, most_recent_client, pick_worktree_split_target};
+    use super::{batch_args, last_lines, most_recent_client, pick_worktree_split_target};
+
+    #[test]
+    fn batch_args_separates_commands_without_trailing_separator() {
+        let commands = vec![vec!["kill-pane", "-t", "%1"], vec!["kill-pane", "-t", "%2"]];
+        assert_eq!(
+            batch_args(&commands),
+            vec!["kill-pane", "-t", "%1", ";", "kill-pane", "-t", "%2"]
+        );
+        assert_eq!(batch_args(&[vec!["list-panes"]]), vec!["list-panes"]);
+    }
 
     #[test]
     fn last_lines_drops_trailing_blank_rows() {

@@ -7,8 +7,9 @@ mod types;
 
 pub use commands::{
     cancel_pane_mode, capture_pane, display_message, kill_pane, kill_window, new_window,
-    pane_session_name, paste_text, run_tmux, run_tmux_capture, select_pane, send_command, send_key,
-    set_spawn_pane_option, set_window_option, split_worktree_pane, worktree_split_target,
+    pane_session_name, paste_text, run_tmux, run_tmux_batch, run_tmux_capture, select_pane,
+    send_command, send_key, set_spawn_pane_option, set_window_option, split_worktree_pane,
+    worktree_split_target,
 };
 pub use locations::{PaneLocation, query_pane_locations};
 pub use options::{

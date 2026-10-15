@@ -1,6 +1,9 @@
+use std::time::Instant;
+
 use crate::cli::plugin_state;
 use crate::session;
 use crate::state::AppState;
+use crate::tmux;
 use crate::ui;
 
 /// Construct and prime the initial [`AppState`] before the event loop starts.
@@ -12,12 +15,12 @@ use crate::ui;
 /// the first refresh pass.
 pub(super) fn init_state(tmux_pane: String) -> AppState {
     let mut state = AppState::new(tmux_pane);
-    state.theme = ui::colors::ColorTheme::from_tmux();
-    state.icons = ui::icons::StatusIcons::from_tmux();
-    state.bottom_panel_height = ui::bottom_panel_height_from_tmux();
-    state.pet_enabled = ui::pet_enabled_from_tmux();
-    state.global.load_from_tmux();
-    state.refresh();
+    let opts = tmux::get_all_global_options();
+    state.theme = ui::colors::ColorTheme::from_options(&opts);
+    state.icons = ui::icons::StatusIcons::from_options(&opts);
+    state.bottom_panel_height = ui::bottom_panel_height_from_options(&opts);
+    state.pet_enabled = ui::pet_enabled_from_options(&opts);
+    state.global.apply_all(&opts);
 
     // Resolve the installed Claude Code plugin status once at startup,
     // matching the version_notice pattern. Restart the sidebar after a
@@ -34,12 +37,20 @@ pub(super) fn init_state(tmux_pane: String) -> AppState {
     // also decouples the ⓘ badge from `focused_pane_id`, so killing
     // the last agent pane no longer drops outstanding setup warnings.
     state.refresh_notices();
-    // Populate session names synchronously before the first draw so
-    // `/rename`-assigned labels show up without waiting for the first
-    // background scan tick.
+    // Populate session names synchronously before the first refresh so
+    // `/rename`-assigned labels show up on the first frame without
+    // waiting for the first background scan tick.
     state.sessions.names = session::scan_session_names();
     state.sessions.dirty = true;
-    state.refresh();
+
+    // `toggle-all` starts one sidebar per window at once, and only the
+    // windows a client is viewing show theirs. The others skip the startup
+    // snapshot, so the tmux server answers the visible sidebars first.
+    if tmux::get_sidebar_pane_info(&state.tmux_pane).visible {
+        state.refresh();
+    } else {
+        state.defer_hidden_sync(Instant::now());
+    }
 
     state
 }

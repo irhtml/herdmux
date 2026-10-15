@@ -29,12 +29,6 @@ impl Default for StatusIcons {
 }
 
 impl StatusIcons {
-    /// Load status icons from tmux @sidebar_icon_* variables, falling back to defaults.
-    pub fn from_tmux() -> Self {
-        let all_opts = tmux::get_all_global_options();
-        Self::from_options(&all_opts)
-    }
-
     pub fn from_options(all_opts: &HashMap<String, String>) -> Self {
         let mut icons = Self::default();
 

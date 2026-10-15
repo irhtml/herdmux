@@ -43,6 +43,16 @@ pub(crate) fn full_sync_due(
         || last_full_sync.is_none_or(|last| now.duration_since(last) >= HIDDEN_SYNC_INTERVAL)
 }
 
+/// How far into [`HIDDEN_SYNC_INTERVAL`] a hidden sidebar's clock starts,
+/// derived from `seed` (the process id) so sidebars started together sync
+/// at different moments instead of all at once.
+pub(crate) fn hidden_sync_offset(seed: u32) -> Duration {
+    let interval_ms = HIDDEN_SYNC_INTERVAL.as_millis() as u64;
+    // Knuth's multiplicative hash: consecutive pids land far apart.
+    let spread = u64::from(seed.wrapping_mul(2_654_435_761));
+    Duration::from_millis(spread % interval_ms)
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum TaskProgressDecision {
     Clear,
@@ -84,6 +94,15 @@ pub(crate) fn classify_task_progress(
 impl AppState {
     pub(crate) fn refresh_now(&mut self) {
         self.now = crate::time::now_epoch_secs();
+    }
+
+    /// Skip the startup snapshot of a sidebar no client is viewing: start
+    /// its [`HIDDEN_SYNC_INTERVAL`] clock as if it had synced
+    /// [`hidden_sync_offset`] ago. Its first snapshot then runs within one
+    /// interval, or right away once a client views the window.
+    pub fn defer_hidden_sync(&mut self, now: Instant) {
+        let offset = hidden_sync_offset(std::process::id());
+        self.timers.last_full_sync = Some(now.checked_sub(offset).unwrap_or(now));
     }
 
     pub(crate) fn apply_session_snapshot(
@@ -1115,5 +1134,34 @@ mod cadence_tests {
         let now = Instant::now();
         let stale = now - HIDDEN_SYNC_INTERVAL;
         assert!(full_sync_due(false, false, Some(stale), now));
+    }
+
+    #[test]
+    fn hidden_sync_offset_stays_inside_interval_and_spreads_consecutive_pids() {
+        let offsets: Vec<Duration> = (40_000..40_034).map(hidden_sync_offset).collect();
+        assert!(offsets.iter().all(|offset| *offset < HIDDEN_SYNC_INTERVAL));
+
+        // 34 sidebars started together should not sync in the same second.
+        let mut seconds: Vec<u64> = offsets.iter().map(Duration::as_secs).collect();
+        seconds.sort_unstable();
+        seconds.dedup();
+        assert!(seconds.len() >= 8, "offsets cluster: {offsets:?}");
+    }
+
+    #[test]
+    fn deferred_hidden_sidebar_waits_for_its_offset_but_syncs_when_viewed() {
+        let mut state = AppState::new("%1".to_string());
+        let start = Instant::now();
+        state.defer_hidden_sync(start);
+        let last = state.timers.last_full_sync;
+
+        assert!(!full_sync_due(false, false, last, start));
+        assert!(full_sync_due(true, false, last, start));
+        assert!(full_sync_due(
+            false,
+            false,
+            last,
+            start + HIDDEN_SYNC_INTERVAL
+        ));
     }
 }

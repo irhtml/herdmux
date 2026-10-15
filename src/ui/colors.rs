@@ -91,14 +91,9 @@ impl Default for ColorTheme {
 }
 
 impl ColorTheme {
-    /// Load colors from tmux @sidebar_color_* variables, falling back to defaults.
-    /// Fetches all global options in a single tmux call to avoid N subprocess forks.
-    pub fn from_tmux() -> Self {
-        let all_opts = tmux::get_all_global_options();
-        Self::from_options(&all_opts)
-    }
-
-    fn from_options(all_opts: &std::collections::HashMap<String, String>) -> Self {
+    /// Load colors from the @sidebar_color_* entries of the tmux global
+    /// options, falling back to defaults.
+    pub fn from_options(all_opts: &std::collections::HashMap<String, String>) -> Self {
         let mut theme = Self::default();
 
         let read = |var: &str, fallback: Color| -> Color {

@@ -33,11 +33,6 @@ pub fn bottom_panel_height_from_options(opts: &HashMap<String, String>) -> u16 {
         .unwrap_or(BOTTOM_PANEL_HEIGHT)
 }
 
-pub fn bottom_panel_height_from_tmux() -> u16 {
-    let opts = tmux::get_all_global_options();
-    bottom_panel_height_from_options(&opts)
-}
-
 /// Read `@sidebar_pet` from tmux global options, defaulting to `false` (off).
 /// Accepts `on`/`off`, `true`/`false`, `1`/`0` (case-insensitive).
 pub fn pet_enabled_from_options(opts: &HashMap<String, String>) -> bool {
@@ -45,11 +40,6 @@ pub fn pet_enabled_from_options(opts: &HashMap<String, String>) -> bool {
         .map(|s| s.trim().to_ascii_lowercase())
         .map(|s| matches!(s.as_str(), "on" | "true" | "1" | "yes"))
         .unwrap_or(false)
-}
-
-pub fn pet_enabled_from_tmux() -> bool {
-    let opts = crate::tmux::get_all_global_options();
-    pet_enabled_from_options(&opts)
 }
 
 // ── public entry point ──────────────────────────────────────────────

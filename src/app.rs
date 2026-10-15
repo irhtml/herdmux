@@ -31,7 +31,6 @@ pub fn run(
     needs_refresh: &'static AtomicBool,
 ) -> io::Result<()> {
     let mut state = setup::init_state(tmux_pane);
-    let mut window_inactive_count: u32 = 0;
     // Whether a client is viewing this sidebar's window, as of the last
     // refresh tick. Hidden sidebars skip spinner redraws and git polling;
     // see `AppState::refresh_tick` for the tmux snapshot cadence.
@@ -101,15 +100,6 @@ pub fn run(
             window_visible = outcome.window_visible;
             if outcome.synced {
                 needs_redraw = true;
-            }
-            if window_visible {
-                if window_inactive_count >= 2 {
-                    state.global.load_from_tmux();
-                    state.rebuild_row_targets();
-                }
-                window_inactive_count = 0;
-            } else {
-                window_inactive_count = window_inactive_count.saturating_add(1);
             }
             // The git thread polls every 2s while set; a hidden sidebar's
             // git tab is not on screen, so let it rest until viewed again.

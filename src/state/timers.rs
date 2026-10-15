@@ -22,6 +22,10 @@ pub struct RefreshTimers {
     /// Timestamp of the last full tmux snapshot (`refresh_tick`). Gates
     /// the slow cadence of sidebars whose window no client is viewing.
     pub last_full_sync: Option<Instant>,
+    /// Consecutive refresh ticks on which no client was viewing the
+    /// sidebar's window. Gates the reload of the shared filters; see
+    /// `AppState::note_visibility`.
+    pub hidden_ticks: u32,
 }
 
 impl Default for RefreshTimers {
@@ -33,6 +37,7 @@ impl Default for RefreshTimers {
             port_scan_initialized: false,
             last_bg_shell_sweep: None,
             last_full_sync: None,
+            hidden_ticks: 0,
         }
     }
 }

@@ -7,14 +7,16 @@ Every piece of state belongs to one of three scopes: **Global** (shared across a
 ### Global State (synced via tmux global variables)
 
 Stored in `GlobalState`. Written to tmux on change, with the cursor save
-debounced briefly so selection changes do not block redraw/input handling;
-reloaded on SIGUSR1.
+debounced briefly so selection changes do not block redraw/input handling.
+Reloaded by `AppState::refresh_tick`, before the tmux snapshot, once the
+sidebar has been hidden for 2+ ticks (see [Refresh Cadence](#refresh-cadence)).
 
 | Field | Tmux Variable | Update Trigger | Description |
 |-------|--------------|----------------|-------------|
 | `status_filter` | `@sidebar_filter` | User input (left/right key) | Active status filter (All/Running/Background/Waiting/Idle/Error) |
 | `selected_pane_row` | `@sidebar_cursor` | User input (j/k key); tmux write flushed after a short debounce | Cursor position in agent list |
 | `repo_filter` | `@sidebar_repo_filter` | User input (repo popup) | Repository filter (All or specific repo) |
+| `session_scope` | `@sidebar_session_scope` | User input (`s` key) | When on, each sidebar lists only the agents of its own tmux session |
 
 Each field has a corresponding `last_saved_*` to prevent sync conflicts — only overwrites tmux if the local write succeeded.
 
@@ -155,7 +157,8 @@ Only `CLAUDE_CONFIG_DIR`, `CODEX_HOME` and `XDG_DATA_HOME` are ever read from an
 │  Every 2s (git background thread)                           │
 │  git (branch, diff, ahead/behind, PR)                       │
 ├─────────────────────────────────────────────────────────────┤
-│  On SIGUSR1 (tmux focus change)                             │
+│  On a snapshot after 2+ hidden ticks (hidden: every 10s;    │
+│  viewed again: at once)                                     │
 │  GlobalState reloaded from tmux variables                   │
 ├─────────────────────────────────────────────────────────────┤
 │  Event-driven (agent hooks)                                 │
@@ -187,6 +190,8 @@ Each 1s tick in `app::run` therefore starts with a cheap probe of the sidebar's 
 - the sidebar is hidden and `HIDDEN_SYNC_INTERVAL` (10s) has elapsed since its last snapshot.
 
 While hidden, a tick that does run the snapshot still skips the port scan (`lsof` plus a `ps` snapshot, the most expensive work a tick does; ports and per-pane commands are display-only, and the scan's own 10s gate is due by the first visible tick). The event loop also skips spinner-driven redraws (every pty write is another parse for the tmux server) and clears the git polling thread's active flag. A hidden sidebar is back on the 1s cadence within one probe of a client viewing it; the select-window hook makes that instant.
+
+A snapshot of a sidebar that has gone 2+ ticks without a viewer first reloads `GlobalState` from the tmux variables, because another instance may have changed the shared filters meanwhile. The reload comes before the snapshot since `session_scope` decides which sessions the snapshot keeps. It also runs on the hidden 10s snapshots, not only when the window is viewed again: tmux shows a pane's last frame the moment its window is selected, so a hidden sidebar that kept a stale filter would flash the wrong agent list until its first refresh finished. A single hidden tick does not trigger the reload, so a one-tick flicker of the probe cannot overwrite what the user just set.
 
 `SidebarPaneInfo::visible` falls back to `window_active` on tmux older than 3.1, which lacks `window_active_clients`, and to `true` when the probe cannot be parsed, so an unexpected tmux reply never slows down a sidebar someone is looking at.
 

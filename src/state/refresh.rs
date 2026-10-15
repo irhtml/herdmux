@@ -18,6 +18,11 @@ use super::AppState;
 /// from the select-window hook makes that instant.
 pub const HIDDEN_SYNC_INTERVAL: Duration = Duration::from_secs(10);
 
+/// Hidden ticks after which a sidebar re-reads the shared filters before
+/// its next snapshot. A single hidden tick is not enough: hook processing
+/// can make the probe flicker for one tick while the user is still there.
+const GLOBAL_RELOAD_HIDDEN_TICKS: u32 = 2;
+
 /// What a refresh tick did, so the event loop can skip the redraw and the
 /// focus-change git fetch when nothing was re-synced.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -103,6 +108,19 @@ impl AppState {
     pub fn defer_hidden_sync(&mut self, now: Instant) {
         let offset = hidden_sync_offset(std::process::id());
         self.timers.last_full_sync = Some(now.checked_sub(offset).unwrap_or(now));
+    }
+
+    /// Record this tick's visibility probe. Returns whether the sidebar had
+    /// already gone [`GLOBAL_RELOAD_HIDDEN_TICKS`] ticks without a viewer,
+    /// long enough for another sidebar to have changed the shared filters.
+    pub(crate) fn note_visibility(&mut self, visible: bool) -> bool {
+        let was_away = self.timers.hidden_ticks >= GLOBAL_RELOAD_HIDDEN_TICKS;
+        self.timers.hidden_ticks = if visible {
+            0
+        } else {
+            self.timers.hidden_ticks.saturating_add(1)
+        };
+        was_away
     }
 
     pub(crate) fn apply_session_snapshot(
@@ -226,6 +244,7 @@ impl AppState {
         self.refresh_now();
         let info = tmux::get_sidebar_pane_info(&self.tmux_pane);
         let now = Instant::now();
+        let was_away = self.note_visibility(info.visible);
         if !full_sync_due(info.visible, force, self.timers.last_full_sync, now) {
             return RefreshOutcome {
                 window_visible: info.visible,
@@ -233,6 +252,14 @@ impl AppState {
             };
         }
         self.timers.last_full_sync = Some(now);
+        // Another sidebar may have changed the shared filters while nobody
+        // viewed this one. Re-read them before the snapshot, because the
+        // session scope decides which sessions the snapshot keeps. A hidden
+        // sidebar does this too, so the frame tmux shows the moment its
+        // window is selected is already filtered.
+        if was_away {
+            self.global.load_from_tmux();
+        }
         if self.global.session_scope {
             self.own_session_name = tmux::pane_session_name(&self.tmux_pane);
         }
@@ -1134,6 +1161,28 @@ mod cadence_tests {
         let now = Instant::now();
         let stale = now - HIDDEN_SYNC_INTERVAL;
         assert!(full_sync_due(false, false, Some(stale), now));
+    }
+
+    #[test]
+    fn sidebar_hidden_long_enough_reloads_globals_while_hidden_and_when_viewed() {
+        let mut state = AppState::new("%1".to_string());
+        // The first hidden ticks have not been away long enough.
+        for _ in 0..GLOBAL_RELOAD_HIDDEN_TICKS {
+            assert!(!state.note_visibility(false));
+        }
+        // Still hidden: every later tick is due, so the 10s sync reloads.
+        assert!(state.note_visibility(false));
+        // The tick a client views it again is due as well, then it resets.
+        assert!(state.note_visibility(true));
+        assert!(!state.note_visibility(true));
+    }
+
+    #[test]
+    fn one_hidden_tick_does_not_reload_globals() {
+        let mut state = AppState::new("%1".to_string());
+        assert!(!state.note_visibility(false));
+        assert!(!state.note_visibility(true));
+        assert!(!state.note_visibility(true));
     }
 
     #[test]

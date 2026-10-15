@@ -781,10 +781,10 @@ fn full_sync_picks_up_cursor_from_another_instance() {
 }
 
 // ─── window activation sync tests ───────────────────────────────────
-// In the main loop, load_from_tmux() is called ONLY when the sidebar's
-// window becomes active after being inactive for ≥2 refresh cycles
-// (debounced to ignore hook-induced flicker). Periodic refresh within
-// the same active window does NOT sync global state.
+// `AppState::refresh_tick` calls load_from_tmux() ONLY for a sidebar that
+// has been hidden for ≥2 refresh cycles (debounced to ignore hook-induced
+// flicker): on its hidden snapshots and when its window is viewed again.
+// Periodic refresh within the same active window does NOT sync global state.
 
 #[test]
 fn global_state_stable_during_task_completion() {

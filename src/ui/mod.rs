@@ -56,6 +56,8 @@ pub fn pet_enabled_from_tmux() -> bool {
 
 pub fn draw(frame: &mut Frame, state: &mut AppState) {
     state.layout.hyperlink_overlays.clear();
+    state.layout.merge_request_targets.clear();
+    state.layout.bottom_tab_targets.clear();
     let area = frame.area();
     if matches!(state.popup, crate::state::PopupState::Keymap { .. }) {
         keymap::draw(frame, state, area);

@@ -33,7 +33,7 @@ fn snapshot_single_agent_idle_ui() {
     ⓘ                        — ▾
     ┃ ○ claude
         Waiting for prompt…
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
     ");
@@ -67,7 +67,7 @@ fn snapshot_secondary_header_without_notices() {
                              — ▾
     ┃ ○ claude
         Waiting for prompt…
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
     ");
@@ -97,7 +97,7 @@ fn snapshot_secondary_header_long_repo_filter_truncated() {
     ⓘ  very-long-repository-n… ▾
     ┃ ○ claude
         Waiting for prompt…
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
     ");
@@ -158,7 +158,7 @@ fn snapshot_single_agent_running_with_elapsed() {
     ⓘ                        — ▾
     dotfiles
     ┃ ● claude              2m5s
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
     ");
@@ -189,7 +189,7 @@ fn snapshot_long_session_name_truncated_keeps_elapsed_visible() {
     ⓘ                        — ▾
     dotfiles
     ┃ ● this-is-a-ridiculo… 2m5s
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
     ");
@@ -218,7 +218,7 @@ fn running_spinner_different_frame() {
     ⓘ                        — ▾
     project
     ┃ ● claude
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
     ");
@@ -248,7 +248,7 @@ fn snapshot_agent_with_prompt_ui() {
     ⓘ                        — ▾
     ┃ ○ claude
         fix the bug
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
     ");
@@ -280,7 +280,7 @@ fn snapshot_agent_with_japanese_prompt_ui() {
         こ れ っ て 今 1時 間 経 っ て い
         る け ど 、 起 動 し て 確 認 し て
         も 問 題 な い ？
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
     ");
@@ -354,7 +354,7 @@ fn snapshot_two_agents_same_window_ui() {
     ⓘ                        — ▾
     ┃ ● claude
         fix the bug
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
     ");
@@ -400,7 +400,7 @@ fn snapshot_two_windows_ui() {
     ⓘ                        — ▾
     project-a
     ┃ ● claude
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
     ");
@@ -449,7 +449,7 @@ fn snapshot_multi_session_ui() {
     ⓘ                        — ▾
     dotfiles
     ┃ ● claude
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
     ");
@@ -479,7 +479,7 @@ fn snapshot_wait_reason_ui() {
     ⓘ                        — ▾
     ┃ ◐ claude
         permission required
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
     ");
@@ -509,7 +509,7 @@ fn snapshot_auto_rename_window_title_ui() {
     ⓘ                        — ▾
     ┃ ○ claude
         Waiting for prompt…
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
     ");
@@ -555,7 +555,7 @@ fn snapshot_activity_log_ui() {
     ⓘ                        — ▾
     project
     ┃ ● claude
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │10:32                 Edit│
     │  src/main.rs             │
     │10:31                 Bash│
@@ -594,7 +594,7 @@ fn snapshot_activity_log_long_label_ui() {
     ⓘ                        — ▾
     project
     ┃ ● claude
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │10:32                 Read│
     │  config/tmux-agent-sideba│
     │  r-rs/src/very-long-filen│
@@ -631,7 +631,7 @@ fn snapshot_prompt_wrapping_ui() {
         Please fix the
         authentication bug in
         the login flow that cau…
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
     ");
@@ -661,7 +661,7 @@ fn snapshot_selected_unfocused_ui() {
     project
     ┃ ○ claude
         Waiting for prompt…
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
     ");
@@ -691,7 +691,7 @@ fn snapshot_error_state_ui() {
     ⓘ                        — ▾
     ┃ ✕ claude
         something broke
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
     ");
@@ -721,7 +721,7 @@ fn snapshot_narrow_width_ui() {
     ⓘ              — ▾
     ┃ ○ claude
         hello world
-    ╭ Activity │ Git ╮
+    ╭ Act│Git│MRs ───╮
     │ No activity yet│
     ╰────────────────╯
     ");
@@ -770,7 +770,7 @@ fn snapshot_worktree_branch_ui() {
     ┃ ● claude
     ┃   + feature/sidebar
         fix bug
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
     ");
@@ -797,7 +797,7 @@ fn snapshot_worktree_long_branch_truncated_ui() {
     ⓘ                        — ▾
     ┃   + feature/very-long-bra…
         Waiting for prompt…
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
     ");
@@ -824,7 +824,7 @@ fn snapshot_long_branch_with_ports_ui() {
      ≡1  ●1  ◎0  ◐0  ○0  ✕0
     ⓘ                                    — ▾
     ┃   feature/sidebar/really…  :3000, 5173
-    ╭ Activity │ Git ──────────────────────╮
+    ╭ Activity │ Git │ MRs ────────────────╮
     │            No activity yet           │
     ╰──────────────────────────────────────╯
     ");
@@ -854,7 +854,7 @@ fn snapshot_task_progress_partial_ui() {
     ⓘ                        — ▾
         ✔◼◻ 1/3
         working
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
     ");
@@ -880,7 +880,7 @@ fn snapshot_task_progress_all_completed_ui() {
     ⓘ                        — ▾
     ┃ ● claude
         ✔✔ 2/2
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
     ");
@@ -907,7 +907,7 @@ fn snapshot_task_progress_all_pending_ui() {
     ⓘ                        — ▾
     ┃ ● claude
         ◻◻◻ 0/3
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
     ");
@@ -957,7 +957,7 @@ fn snapshot_all_elements_combined_ui() {
         └ Plan #2
         permission required
         fixing the bug
-    ╭ Activity │ Git ────────────╮
+    ╭ Activity │ Git │ MRs ──────╮
     │       No activity yet      │
     ╰────────────────────────────╯
     ");
@@ -980,7 +980,7 @@ fn snapshot_response_japanese_ui() {
     ┃ ○ claude
       ▷ 修 正 が 完 了 し ま し た 。 テ ス ト
         も 全 て 通 っ て い ま す 。
-    ╭ Activity │ Git ────────────╮
+    ╭ Activity │ Git │ MRs ──────╮
     │       No activity yet      │
     ╰────────────────────────────╯
     ");
@@ -1019,7 +1019,7 @@ fn snapshot_three_groups_middle_focused_ui() {
     repo-c
       ○ claude
         Waiting for prompt…
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
     ");
@@ -1040,7 +1040,7 @@ fn snapshot_bypass_all_badge_ui() {
     ⓘ                        — ▾
     project
     ┃ ● claude !
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
     ");
@@ -1059,7 +1059,7 @@ fn snapshot_full_auto_badge_ui() {
     ⓘ                        — ▾
     project
     ┃ ● claude auto
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
     ");
@@ -1078,7 +1078,7 @@ fn snapshot_plan_badge_ui() {
     ⓘ                        — ▾
     project
     ┃ ● claude plan
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
     ");
@@ -1097,7 +1097,7 @@ fn snapshot_accept_edits_badge_ui() {
     ⓘ                        — ▾
     project
     ┃ ● claude edit
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
     ");
@@ -1128,7 +1128,7 @@ fn snapshot_response_with_branch_ui() {
     ┃ ○ claude
     ┃   feature/ui-v2
       ▷ Done. All tests are green.
-    ╭ Activity │ Git ────────────────╮
+    ╭ Activity │ Git │ MRs ──────────╮
     │         No activity yet        │
     ╰────────────────────────────────╯
     ");
@@ -1149,7 +1149,7 @@ fn snapshot_wait_reason_elicitation_ui() {
     ⓘ                        — ▾
     ┃ ◐ claude
         waiting for selection
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
     ");
@@ -1168,7 +1168,7 @@ fn snapshot_wait_reason_unknown_ui() {
     ⓘ                        — ▾
     ┃ ◐ claude
         some_future_reason
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
     ");
@@ -1189,7 +1189,7 @@ fn snapshot_wait_reason_permission_denied_ui() {
     ⓘ                        — ▾
     ┃ ◐ claude
         permission denied
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
     ");
@@ -1218,7 +1218,7 @@ fn snapshot_worktree_with_name_ui() {
     ⓘ                        — ▾
     ┃ ● claude
     ┃   + auth-wt: feat/auth
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
     ");
@@ -1245,7 +1245,7 @@ fn snapshot_worktree_name_same_as_branch_ui() {
     ⓘ                        — ▾
     ┃ ● claude
     ┃   + feat/auth
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
     ");
@@ -1302,7 +1302,7 @@ fn snapshot_activity_all_tool_types_ui() {
     ⓘ                        — ▾
     project
     ┃ ● claude
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │10:07                Agent│
     │  Explore codebase        │
     │10:06                Skill│
@@ -1341,7 +1341,7 @@ fn snapshot_focus_activity_log_ui() {
     ⓘ                        — ▾
     project
     ┃ ● claude
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │10:00                 Read│
     │  file.rs                 │
     ╰──────────────────────────╯
@@ -1367,7 +1367,7 @@ fn right_border_narrow_width_with_badge() {
     ⓘ                  — ▾
     ┃ ● claude !    2h0m0s
         fix the issue
-    ╭ Activity │ Git ────╮
+    ╭ Act │ Git │ MRs ───╮
     │   No activity yet  │
     ╰────────────────────╯
     ");
@@ -1416,7 +1416,7 @@ fn right_border_all_permission_modes_and_agents() {
     ⓘ                        — ▾
     project
     ┃ ● claude          1h30m32s
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
 
@@ -1425,7 +1425,7 @@ fn right_border_all_permission_modes_and_agents() {
     ⓘ                        — ▾
     project
     ┃ ● claude auto     1h30m32s
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
 
@@ -1434,7 +1434,7 @@ fn right_border_all_permission_modes_and_agents() {
     ⓘ                        — ▾
     project
     ┃ ● claude dontAsk  1h30m32s
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
 
@@ -1443,7 +1443,7 @@ fn right_border_all_permission_modes_and_agents() {
     ⓘ                        — ▾
     project
     ┃ ● claude plan     1h30m32s
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
 
@@ -1452,7 +1452,7 @@ fn right_border_all_permission_modes_and_agents() {
     ⓘ                        — ▾
     project
     ┃ ● claude edit     1h30m32s
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
 
@@ -1461,7 +1461,7 @@ fn right_border_all_permission_modes_and_agents() {
     ⓘ                        — ▾
     project
     ┃ ● claude !        1h30m32s
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
 
@@ -1470,7 +1470,7 @@ fn right_border_all_permission_modes_and_agents() {
     ⓘ                        — ▾
     project
     ┃ ● codex           1h30m32s
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
 
@@ -1479,7 +1479,7 @@ fn right_border_all_permission_modes_and_agents() {
     ⓘ                        — ▾
     project
     ┃ ● codex auto      1h30m32s
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
 
@@ -1488,7 +1488,7 @@ fn right_border_all_permission_modes_and_agents() {
     ⓘ                        — ▾
     project
     ┃ ● codex dontAsk   1h30m32s
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
 
@@ -1497,7 +1497,7 @@ fn right_border_all_permission_modes_and_agents() {
     ⓘ                        — ▾
     project
     ┃ ● codex plan      1h30m32s
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
 
@@ -1506,7 +1506,7 @@ fn right_border_all_permission_modes_and_agents() {
     ⓘ                        — ▾
     project
     ┃ ● codex edit      1h30m32s
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
 
@@ -1515,7 +1515,7 @@ fn right_border_all_permission_modes_and_agents() {
     ⓘ                        — ▾
     project
     ┃ ● codex !         1h30m32s
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
     ");
@@ -1541,7 +1541,7 @@ fn snapshot_filter_bar_shows_counts() {
     ⓘ                          — ▾
     project
     ┃ ● claude
-    ╭ Activity │ Git ────────────╮
+    ╭ Activity │ Git │ MRs ──────╮
     │       No activity yet      │
     ╰────────────────────────────╯
     ");
@@ -1566,7 +1566,7 @@ fn snapshot_filter_running_hides_idle() {
     ⓘ                          — ▾
     project
     ┃ ● claude
-    ╭ Activity │ Git ────────────╮
+    ╭ Activity │ Git │ MRs ──────╮
     │       No activity yet      │
     ╰────────────────────────────╯
     ");
@@ -1591,7 +1591,7 @@ fn snapshot_filter_idle_hides_running() {
     ⓘ                          — ▾
       ○ codex
         Waiting for prompt…
-    ╭ Activity │ Git ────────────╮
+    ╭ Activity │ Git │ MRs ──────╮
     │       No activity yet      │
     ╰────────────────────────────╯
     ");
@@ -1619,7 +1619,7 @@ fn snapshot_filter_hides_empty_groups() {
     ⓘ                          — ▾
     repo-a
     ┃ ● claude
-    ╭ Activity │ Git ────────────╮
+    ╭ Activity │ Git │ MRs ──────╮
     │       No activity yet      │
     ╰────────────────────────────╯
     ");
@@ -1646,7 +1646,7 @@ fn snapshot_filter_all_shows_everything() {
     ┃ ● claude
       ○ codex
         Waiting for prompt…
-    ╭ Activity │ Git ────────────╮
+    ╭ Activity │ Git │ MRs ──────╮
     │       No activity yet      │
     ╰────────────────────────────╯
     ");
@@ -1686,7 +1686,7 @@ fn snapshot_filter_bar_stays_fixed_on_scroll() {
     let output = render_to_string(&mut state, 30, 15);
     insta::assert_snapshot!(output, @r"
      ≡6  ●6  ◎0  ◐0  ○0  ✕0
-    ╭ Activity │ Git ────────────╮
+    ╭ Activity │ Git │ MRs ──────╮
     │       No activity yet      │
     ╰────────────────────────────╯
     ");
@@ -1732,7 +1732,7 @@ fn snapshot_filter_error_shows_agents() {
     ⓘ                          — ▾
     ┃ ✕ claude
         something broke
-    ╭ Activity │ Git ────────────╮
+    ╭ Activity │ Git │ MRs ──────╮
     │       No activity yet      │
     ╰────────────────────────────╯
     ");
@@ -1758,7 +1758,7 @@ fn snapshot_filter_waiting_shows_only_waiting() {
     ⓘ                          — ▾
     ┃ ◐ claude
         permission required
-    ╭ Activity │ Git ────────────╮
+    ╭ Activity │ Git │ MRs ──────╮
     │       No activity yet      │
     ╰────────────────────────────╯
     ");
@@ -1807,7 +1807,7 @@ fn snapshot_repo_header_shows_spawn_plus_button() {
     ┃ ○ claude
     ┃   main
         Waiting for prompt…
-    ╭ Activity │ Git ────────────╮
+    ╭ Activity │ Git │ MRs ──────╮
     │       No activity yet      │
     ╰────────────────────────────╯
     ");
@@ -1830,7 +1830,7 @@ fn snapshot_spawn_modal_default_state() {
      │ MODE                         │
      │ default                      │
      ╰──────────────────────────────╯
-    ╭ Activity │ Git ────────────────╮
+    ╭ Activity │ Git │ MRs ──────────╮
     │         No activity yet        │
     ╰────────────────────────────────╯
     ");
@@ -1859,7 +1859,7 @@ fn snapshot_spawn_modal_anchors_directly_below_repo_header() {
     │ MODE                         │
     │ default                      │
     ╰──────────────────────────────╯
-    ╭ Activity │ Git ────────────────╮
+    ╭ Activity │ Git │ MRs ──────────╮
     │         No activity yet        │
     ╰────────────────────────────────╯
     ");
@@ -1889,7 +1889,7 @@ fn snapshot_spawn_modal_advance_fields_cycles_agent_and_mode() {
      │ MODE                         │
      │ bypassPermissions            │
      ╰──────────────────────────────╯
-    ╭ Activity │ Git ────────────────╮
+    ╭ Activity │ Git │ MRs ──────────╮
     │         No activity yet        │
     ╰────────────────────────────────╯
     ");
@@ -1915,7 +1915,7 @@ fn snapshot_spawn_modal_tail_fits_long_task_name() {
      │ MODE                         │
      │ default                      │
      ╰──────────────────────────────╯
-    ╭ Activity │ Git ────────────────╮
+    ╭ Activity │ Git │ MRs ──────────╮
     │         No activity yet        │
     ╰────────────────────────────────╯
     ");
@@ -1940,7 +1940,7 @@ fn snapshot_spawn_modal_narrow_width_still_fits() {
     │ MODE           │
     │ default        │
     ╰────────────────╯
-    ╭ Activity │ Git ╮
+    ╭ Act│Git│MRs ───╮
     │ No activity yet│
     ╰────────────────╯
     ");
@@ -1967,7 +1967,7 @@ fn snapshot_spawn_modal_compact_layout_in_short_agent_area() {
     ┃   │ claude                       │
         │ default                      │
         ╰──────────────────────────────╯
-    ╭ Activity │ Git ──────────────────────╮
+    ╭ Activity │ Git │ MRs ────────────────╮
     │            No activity yet           │
     ╰──────────────────────────────────────╯
     ");
@@ -1988,7 +1988,7 @@ fn snapshot_spawn_modal_compact_layout_shows_inline_error() {
     ┃   │ default                      │
         │ name is empty                │
         ╰──────────────────────────────╯
-    ╭ Activity │ Git ──────────────────────╮
+    ╭ Activity │ Git │ MRs ────────────────╮
     │            No activity yet           │
     ╰──────────────────────────────────────╯
     ");
@@ -2039,7 +2039,7 @@ fn snapshot_sidebar_spawned_pane_appends_trailing_remove_marker() {
       ○ claude
         + feat/x                 ×
         Waiting for prompt…
-    ╭ Activity │ Git ────────────╮
+    ╭ Activity │ Git │ MRs ──────╮
     │       No activity yet      │
     ╰────────────────────────────╯
     ");
@@ -2176,7 +2176,7 @@ fn snapshot_sidebar_spawned_long_branch_truncates_and_keeps_x() {
       ○ claude
         + feature/really-l…×
         Waiting for prompt…
-    ╭ Activity │ Git ──────╮
+    ╭ Activity │ Git │ MRs ╮
     │    No activity yet   │
     ╰──────────────────────╯
     ");
@@ -2219,7 +2219,7 @@ fn snapshot_sidebar_spawned_coexists_with_port_display() {
       ○ claude
         + feat/srv         :3000 ×
         Waiting for prompt…
-    ╭ Activity │ Git ────────────╮
+    ╭ Activity │ Git │ MRs ──────╮
     │       No activity yet      │
     ╰────────────────────────────╯
     ");
@@ -2246,7 +2246,7 @@ fn snapshot_remove_confirm_modal_shows_three_options() {
                │[c] close only            │
                │[n] cancel                │
                ╰──────────────────────────╯
-    ╭ Activity │ Git ────────────────────────────────╮
+    ╭ Activity │ Git │ MRs ──────────────────────────╮
     │                 No activity yet                │
     ╰────────────────────────────────────────────────╯
     ");
@@ -2274,7 +2274,7 @@ fn snapshot_spawn_modal_shows_inline_error_when_task_empty() {
      │ default                      │
      │ name is empty                │
      ╰──────────────────────────────╯
-    ╭ Activity │ Git ────────────────╮
+    ╭ Activity │ Git │ MRs ──────────╮
     │         No activity yet        │
     ╰────────────────────────────────╯
     ");
@@ -2318,7 +2318,7 @@ fn snapshot_remove_confirm_modal_shows_inline_error() {
                │[n] cancel                │
                │git: worktree has uncommi…│
                ╰──────────────────────────╯
-    ╭ Activity │ Git ────────────────────────────────╮
+    ╭ Activity │ Git │ MRs ──────────────────────────╮
     │                 No activity yet                │
     ╰────────────────────────────────────────────────╯
     ");
@@ -2348,7 +2348,7 @@ fn snapshot_background_status_shows_bg_command_row() {
     ⓘ                            — ▾
     ┃ ◎ claude
         $ npm run dev
-    ╭ Activity │ Git ──────────────╮
+    ╭ Activity │ Git │ MRs ────────╮
     │        No activity yet       │
     ╰──────────────────────────────╯
     ");
@@ -2379,7 +2379,7 @@ fn snapshot_running_pane_still_shows_live_bg_command() {
     ⓘ                            — ▾
     ┃ ● claude                   10s
         $ cargo watch
-    ╭ Activity │ Git ──────────────╮
+    ╭ Activity │ Git │ MRs ────────╮
     │        No activity yet       │
     ╰──────────────────────────────╯
     ");
@@ -2409,7 +2409,7 @@ fn snapshot_background_long_command_truncates_with_ellipsis() {
     ⓘ                        — ▾
     ┃ ◎ claude
         $ cargo run --bin very-…
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
     ");

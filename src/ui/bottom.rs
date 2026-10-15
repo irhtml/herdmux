@@ -1,5 +1,6 @@
 mod activity;
 mod git;
+mod merge_requests;
 
 use ratatui::{
     Frame,
@@ -9,7 +10,7 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph},
 };
 
-use crate::state::{AppState, BottomTab, Focus};
+use crate::state::{AppState, BottomTab, BottomTabTarget, Focus};
 
 use super::text::display_width;
 
@@ -33,7 +34,17 @@ pub fn draw_bottom(frame: &mut Frame, state: &mut AppState, area: Rect) {
         theme.border_inactive
     };
 
-    let tab_title = build_tab_title(state);
+    let (tab_title, tab_ranges) = build_tab_title(state, area.width);
+    // Title text starts after "╭ ".
+    let title_x = area.x + 2;
+    state.layout.bottom_tab_targets = tab_ranges
+        .into_iter()
+        .map(|(start, end, tab)| BottomTabTarget {
+            start: title_x + start,
+            end: title_x + end,
+            tab,
+        })
+        .collect();
 
     let block = Block::default()
         .borders(Borders::ALL)
@@ -73,35 +84,103 @@ pub fn draw_bottom(frame: &mut Frame, state: &mut AppState, area: Rect) {
     match state.bottom_tab {
         BottomTab::Activity => activity::draw_activity_content(frame, state, inner),
         BottomTab::GitStatus => git::draw_git_content(frame, state, inner),
+        BottomTab::MergeRequests => {
+            merge_requests::draw_merge_requests_content(frame, state, inner)
+        }
     }
 }
 
-fn build_tab_title(state: &AppState) -> Line<'static> {
+/// Tab label sets from widest to narrowest, with the separator between
+/// labels. The first set whose title fits the panel is drawn, so a narrow
+/// sidebar keeps every tab and the top-right corner visible.
+const TAB_TITLE_VARIANTS: [([&str; 3], &str); 3] = [
+    (["Activity", "Git", "MRs"], " \u{2502} "),
+    (["Act", "Git", "MRs"], " \u{2502} "),
+    (["Act", "Git", "MRs"], "\u{2502}"),
+];
+
+const TABS: [BottomTab; 3] = [
+    BottomTab::Activity,
+    BottomTab::GitStatus,
+    BottomTab::MergeRequests,
+];
+
+/// Build the tab header title for a panel `width` columns wide. Also
+/// returns each tab's clickable column range relative to the title start;
+/// with spaced separators a range includes the space on either side.
+fn build_tab_title(state: &AppState, width: u16) -> (Line<'static>, Vec<(u16, u16, BottomTab)>) {
     let theme = &state.theme;
-    let activity_style = if state.bottom_tab == BottomTab::Activity {
-        Style::default().fg(theme.accent)
-    } else {
-        Style::default().fg(theme.text_muted)
-    };
-
-    let git_style = if state.bottom_tab == BottomTab::GitStatus {
-        Style::default().fg(theme.accent)
-    } else {
-        Style::default().fg(theme.text_muted)
-    };
-
+    // "╭ " + title + " ╮"
+    let available = (width as usize).saturating_sub(4);
+    let (labels, separator) = TAB_TITLE_VARIANTS
+        .iter()
+        .find(|(labels, sep)| {
+            labels.iter().map(|l| display_width(l)).sum::<usize>()
+                + display_width(sep) * (labels.len() - 1)
+                <= available
+        })
+        .unwrap_or(&TAB_TITLE_VARIANTS[TAB_TITLE_VARIANTS.len() - 1]);
+    let pad = u16::from(separator.starts_with(' '));
     let sep_style = Style::default().fg(theme.border_inactive);
 
-    Line::from(vec![
-        Span::styled("Activity", activity_style),
-        Span::styled(" \u{2502} ", sep_style),
-        Span::styled("Git", git_style),
-    ])
+    let mut spans = Vec::new();
+    let mut ranges = Vec::new();
+    let mut x: u16 = 0;
+    for (i, (label, tab)) in labels.iter().zip(TABS).enumerate() {
+        if i > 0 {
+            spans.push(Span::styled(*separator, sep_style));
+            x += display_width(separator) as u16;
+        }
+        let style = if state.bottom_tab == tab {
+            Style::default().fg(theme.accent)
+        } else {
+            Style::default().fg(theme.text_muted)
+        };
+        let w = display_width(label) as u16;
+        spans.push(Span::styled(*label, style));
+        ranges.push((x.saturating_sub(pad), x + w + pad, tab));
+        x += w;
+    }
+    (Line::from(spans), ranges)
 }
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::ui::text::truncate_to_width;
+
+    fn title_text(width: u16) -> (String, Vec<(u16, u16, BottomTab)>) {
+        let state = AppState::new("%99".into());
+        let (line, ranges) = build_tab_title(&state, width);
+        let text = line.spans.iter().map(|s| s.content.as_ref()).collect();
+        (text, ranges)
+    }
+
+    #[test]
+    fn tab_title_shortens_to_fit_narrow_panels() {
+        assert_eq!(title_text(24).0, "Activity │ Git │ MRs");
+        assert_eq!(title_text(23).0, "Act │ Git │ MRs");
+        assert_eq!(title_text(18).0, "Act│Git│MRs");
+        // Narrower than every variant: the tightest one is used.
+        assert_eq!(title_text(10).0, "Act│Git│MRs");
+    }
+
+    #[test]
+    fn tab_click_ranges_follow_the_drawn_labels() {
+        use BottomTab::*;
+        assert_eq!(
+            title_text(30).1,
+            vec![
+                (0, 9, Activity),
+                (10, 15, GitStatus),
+                (16, 21, MergeRequests)
+            ]
+        );
+        assert_eq!(
+            title_text(18).1,
+            vec![(0, 3, Activity), (4, 7, GitStatus), (8, 11, MergeRequests)]
+        );
+    }
 
     #[test]
     fn truncate_to_width_short() {

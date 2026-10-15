@@ -8,6 +8,7 @@ mod filter;
 mod focus;
 mod global;
 mod layout;
+mod merge_requests;
 mod notices;
 mod pane_runtime;
 mod pet;
@@ -22,7 +23,10 @@ pub use activity::ActivityState;
 pub use filter::{RepoFilter, StatusFilter};
 pub use focus::{Focus, FocusState};
 pub use global::GlobalState;
-pub use layout::{FrameLayout, HyperlinkOverlay, RepoSpawnTarget, RowTarget, SpawnRemoveTarget};
+pub use layout::{
+    BottomTabTarget, FrameLayout, HyperlinkOverlay, RepoSpawnTarget, RowTarget, SpawnRemoveTarget,
+};
+pub use merge_requests::{MergeRequestTarget, MergeRequestsState};
 pub(crate) use notices::debug_forced_display;
 pub use notices::{ClaudePluginNotice, NoticesCopyTarget, NoticesMissingHookGroup, NoticesState};
 pub use pane_runtime::{PaneRuntimeMap, PaneRuntimeState};
@@ -37,6 +41,7 @@ pub use timers::RefreshTimers;
 pub enum BottomTab {
     Activity,
     GitStatus,
+    MergeRequests,
 }
 
 pub struct AppState {
@@ -67,6 +72,8 @@ pub struct AppState {
     pub icons: StatusIcons,
     pub bottom_tab: BottomTab,
     pub git: crate::git::GitData,
+    /// Open MRs for the branches checked out in the sidebar's session.
+    pub merge_requests: MergeRequestsState,
     pub pane_states: PaneRuntimeMap,
     /// Periodic-refresh clocks (port scan, session-name scan, filter
     /// debounce, port-scan first-run flag).
@@ -84,6 +91,9 @@ pub struct AppState {
     /// forward it to the upstream terminal's clipboard — covering the
     /// SSH case where `arboard` would only reach the remote machine.
     pub pending_osc52_copy: Option<String>,
+    /// URL a click asked to open. The main loop hands it to the system
+    /// opener after the event, so handlers never spawn processes.
+    pub pending_open_url: Option<String>,
     pub pet_state: crate::ui::pet::PetState,
     /// Pet animation X position (character offset from left of bottom panel).
     pub pet_x: u16,
@@ -158,12 +168,14 @@ impl AppState {
             icons: StatusIcons::default(),
             bottom_tab: BottomTab::Activity,
             git: crate::git::GitData::default(),
+            merge_requests: MergeRequestsState::new(),
             pane_states: PaneRuntimeMap::new(),
             timers: RefreshTimers::default(),
             popup: PopupState::None,
             spawn_job: None,
             notices: NoticesState::default(),
             pending_osc52_copy: None,
+            pending_open_url: None,
             pet_state: crate::ui::pet::PetState::Idle,
             pet_x: crate::ui::pet::PET_HOME_X,
             pet_frame: 0,
@@ -962,11 +974,13 @@ mod tests {
     // ─── next_bottom_tab / scroll_bottom tests ──────────────────────
 
     #[test]
-    fn next_bottom_tab_toggles() {
+    fn next_bottom_tab_cycles() {
         let mut state = AppState::new("%99".into());
         assert_eq!(state.bottom_tab, BottomTab::Activity);
         state.next_bottom_tab();
         assert_eq!(state.bottom_tab, BottomTab::GitStatus);
+        state.next_bottom_tab();
+        assert_eq!(state.bottom_tab, BottomTab::MergeRequests);
         state.next_bottom_tab();
         assert_eq!(state.bottom_tab, BottomTab::Activity);
     }

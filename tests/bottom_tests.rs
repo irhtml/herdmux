@@ -15,6 +15,8 @@ fn test_next_bottom_tab() {
     state.next_bottom_tab();
     assert_eq!(state.bottom_tab, BottomTab::GitStatus);
     state.next_bottom_tab();
+    assert_eq!(state.bottom_tab, BottomTab::MergeRequests);
+    state.next_bottom_tab();
     assert_eq!(state.bottom_tab, BottomTab::Activity);
 }
 
@@ -117,7 +119,7 @@ fn snapshot_git_status_tab_ui() {
      ≡1  ●1  ◎0  ◐0  ○0  ✕0
     ⓘ                        — ▾
     project
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │feature/sidebar       ↑2↓1│
     │+42/-15            3 files│
     │──────────────────────────│
@@ -156,7 +158,7 @@ fn snapshot_git_clean_ui() {
      ≡1  ●1  ◎0  ◐0  ○0  ✕0
     ⓘ                        — ▾
     project
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │    Working tree clean    │
     ╰──────────────────────────╯
     ");
@@ -192,7 +194,7 @@ fn snapshot_activity_tab_active_ui() {
      ≡1  ●1  ◎0  ◐0  ○0  ✕0
     ⓘ                        — ▾
     project
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │10:32                 Edit│
     │  src/main.rs             │
     ╰──────────────────────────╯
@@ -231,7 +233,7 @@ fn activity_tab_leaves_one_blank_row_above_entries() {
      ≡1  ●1  ◎0  ◐0  ○0  ✕0
     ⓘ                        — ▾
     project
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │10:32                 Edit│
     │  src/main.rs             │
     ╰──────────────────────────╯
@@ -270,7 +272,7 @@ fn snapshot_activity_long_tool_keeps_one_space_gap() {
     let output = render_to_string(&mut state, 28, 14);
     insta::assert_snapshot!(output, @r"
      ≡1  ●1  ◎0  ◐0  ○0  ✕0
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │10:32 mcp__context7__query│
     │  rust                    │
     ╰──────────────────────────╯
@@ -302,7 +304,7 @@ fn snapshot_tab_bar_renders_both_labels() {
     let output = render_to_string(&mut state, 28, 14);
     insta::assert_snapshot!(output, @r"
      ≡1  ●0  ◎0  ◐0  ○1  ✕0
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │10:32                 Edit│
     │  test                    │
     ╰──────────────────────────╯
@@ -357,7 +359,7 @@ fn snapshot_git_full_info_ui() {
      ≡1  ●1  ◎0  ◐0  ○0  ✕0
     ⓘ                        — ▾
     project
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │main                      │
     │+120/-30           3 files│
     │──────────────────────────│
@@ -395,7 +397,7 @@ fn snapshot_git_diff_summary_tight_ui() {
     let plain = render_to_string(&mut state, 28, 14);
     insta::assert_snapshot!(plain, @r"
      ≡1  ●1  ◎0  ◐0  ○0  ✕0
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │main                      │
     │+10/-3             0 files│
     │──────────────────────────│
@@ -436,7 +438,7 @@ fn snapshot_git_staged_file_diff_right_ui() {
     let plain = render_to_string(&mut state, 28, 18);
     insta::assert_snapshot!(plain, @r"
      ≡1  ●1  ◎0  ◐0  ○0  ✕0
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │main                      │
     │+10/-2             1 files│
     │──────────────────────────│
@@ -478,7 +480,7 @@ fn snapshot_git_unstaged_long_name_diff_right_ui() {
     let plain = render_to_string(&mut state, 28, 18);
     insta::assert_snapshot!(plain, @r"
      ≡1  ●1  ◎0  ◐0  ○0  ✕0
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │main                      │
     │+150/-50           1 files│
     │──────────────────────────│
@@ -531,7 +533,7 @@ fn snapshot_git_long_filename_truncated_ui() {
      ≡1  ●1  ◎0  ◐0  ○0  ✕0
     ⓘ                        — ▾
     project
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │main                      │
     │                   2 files│
     │──────────────────────────│
@@ -621,7 +623,7 @@ fn snapshot_git_more_than_5_files() {
     ⓘ                        — ▾
     project
     ┃ ● claude
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │main                      │
     │                   7 files│
     │──────────────────────────│
@@ -648,7 +650,7 @@ fn snapshot_git_more_than_5_files() {
     ⓘ                        — ▾
     project
     ┃ ● claude
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │main                      │
     │                   7 files│
     │──────────────────────────│
@@ -689,7 +691,7 @@ fn snapshot_git_branch_only_no_changes() {
     let plain = render_to_string(&mut state, 38, 20);
     insta::assert_snapshot!(plain, @r"
      ≡1  ●1  ◎0  ◐0  ○0  ✕0
-    ╭ Activity │ Git ────────────────────╮
+    ╭ Activity │ Git │ MRs ──────────────╮
     │feature/long-branch-name          ↑5│
     │────────────────────────────────────│
     │         Working tree clean         │
@@ -724,7 +726,7 @@ fn snapshot_git_pr_number_ui() {
     let plain = render_to_string(&mut state, 28, 14);
     insta::assert_snapshot!(plain, @r"
      ≡1  ●1  ◎0  ◐0  ○0  ✕0
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │feature/fix            #42│
     │+10/-3             0 files│
     │──────────────────────────│
@@ -736,7 +738,7 @@ fn snapshot_git_pr_number_ui() {
     insta::assert_snapshot!(render_to_styled_string(&mut state, 28, 14), @r"
      ≡[fg:111]1[fg:255]  ●[fg:245]1[fg:255]  ◎[fg:245]0[fg:245]  ◐[fg:245]0[fg:245]  ○[fg:245]0[fg:245]  ✕[fg:245]0[fg:245]
 
-    ╭[fg:153] [fg:153]A[fg:252]c[fg:252]t[fg:252]i[fg:252]v[fg:252]i[fg:252]t[fg:252]y[fg:252] [fg:240]│[fg:240] [fg:240]G[fg:153]i[fg:153]t[fg:153] [fg:153]─[fg:153]─[fg:153]─[fg:153]─[fg:153]─[fg:153]─[fg:153]─[fg:153]─[fg:153]─[fg:153]─[fg:153]╮[fg:153]
+    ╭[fg:153] [fg:153]A[fg:252]c[fg:252]t[fg:252]i[fg:252]v[fg:252]i[fg:252]t[fg:252]y[fg:252] [fg:240]│[fg:240] [fg:240]G[fg:153]i[fg:153]t[fg:153] [fg:240]│[fg:240] [fg:240]M[fg:252]R[fg:252]s[fg:252] [fg:153]─[fg:153]─[fg:153]─[fg:153]─[fg:153]╮[fg:153]
     │[fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153]│[fg:153]
     │[fg:153]f[fg:255]e[fg:255]a[fg:255]t[fg:255]u[fg:255]r[fg:255]e[fg:255]/[fg:255]f[fg:255]i[fg:255]x[fg:255] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153]#[fg:117,underline]4[fg:117,underline]2[fg:117,underline]│[fg:153]
     │[fg:153]+[fg:114]1[fg:114]0[fg:114]/[fg:252]-[fg:174]3[fg:174] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153]0[fg:252] [fg:252]f[fg:252]i[fg:252]l[fg:252]e[fg:252]s[fg:252]│[fg:153]
@@ -786,7 +788,7 @@ fn snapshot_git_pr_with_diff_ui() {
     let plain = render_to_string(&mut state, 28, 14);
     insta::assert_snapshot!(plain, @r"
      ≡1  ●1  ◎0  ◐0  ○0  ✕0
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │main                  #123│
     │+55/-20            0 files│
     │──────────────────────────│
@@ -822,7 +824,7 @@ fn snapshot_subagents_tree_ui() {
         ├ Explore #1
         ├ Plan #2
         └ Explore #2
-    ╭ Activity │ Git ──────────────────────╮
+    ╭ Activity │ Git │ MRs ────────────────╮
     │            No activity yet           │
     ╰──────────────────────────────────────╯
     ");
@@ -858,7 +860,7 @@ fn snapshot_subagent_long_name_truncated_ui() {
     ┃ ● claude
         ├ superpowers:code-revi…
         └ claude-code-guide #2
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
     ");
@@ -893,7 +895,7 @@ fn snapshot_activity_empty_centered_ui() {
     project
     ┃ ○ claude
         Waiting for prompt…
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
     ");
@@ -924,7 +926,7 @@ fn snapshot_git_clean_centered_ui() {
     project
     ┃ ○ claude
         Waiting for prompt…
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │    Working tree clean    │
     ╰──────────────────────────╯
     ");
@@ -962,7 +964,7 @@ fn snapshot_git_branch_loaded_no_changes_shows_inline_clean() {
      ≡1  ●1  ◎0  ◐0  ○0  ✕0
     ⓘ                        — ▾
     project
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │main                      │
     │──────────────────────────│
     │    Working tree clean    │
@@ -997,7 +999,7 @@ fn snapshot_git_no_data_shows_centered_clean() {
      ≡1  ●1  ◎0  ◐0  ○0  ✕0
     ⓘ                        — ▾
     project
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │    Working tree clean    │
     ╰──────────────────────────╯
     ");
@@ -1030,7 +1032,7 @@ fn test_git_behind_only() {
     let plain = render_to_string(&mut state, 28, 14);
     insta::assert_snapshot!(plain, @r"
      ≡1  ●1  ◎0  ◐0  ○0  ✕0
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │main                    ↓3│
     │──────────────────────────│
     │    Working tree clean    │
@@ -1063,7 +1065,7 @@ fn test_git_ahead_and_behind() {
     let plain = render_to_string(&mut state, 38, 14);
     insta::assert_snapshot!(plain, @r"
      ≡1  ●1  ◎0  ◐0  ○0  ✕0
-    ╭ Activity │ Git ────────────────────╮
+    ╭ Activity │ Git │ MRs ──────────────╮
     │main                            ↑2↓3│
     │────────────────────────────────────│
     │         Working tree clean         │
@@ -1098,7 +1100,7 @@ fn test_git_diff_insertions_only() {
     let plain = render_to_string(&mut state, 28, 14);
     insta::assert_snapshot!(plain, @r"
      ≡1  ●1  ◎0  ◐0  ○0  ✕0
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │main                      │
     │+25/-0             0 files│
     │──────────────────────────│
@@ -1132,7 +1134,7 @@ fn test_git_diff_deletions_only() {
     let plain = render_to_string(&mut state, 28, 14);
     insta::assert_snapshot!(plain, @r"
      ≡1  ●1  ◎0  ◐0  ○0  ✕0
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │main                      │
     │+0/-15             0 files│
     │──────────────────────────│
@@ -1177,7 +1179,7 @@ fn snapshot_branch_truncated_ui() {
     dotfiles                   +
     ┃ ● claude
     ┃   feature/tmux-sidebar-da…
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
     ");
@@ -1236,7 +1238,7 @@ fn snapshot_git_staged_unstaged_untracked_ui() {
     ⓘ                        — ▾
     project
     ┃ ● claude
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │main                    #5│
     │+12/-3             4 files│
     │──────────────────────────│
@@ -1286,7 +1288,7 @@ fn snapshot_git_long_branch_with_pr_ui() {
      ≡1  ●1  ◎0  ◐0  ○0  ✕0
     ⓘ                        — ▾
     project
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │feature/very-long-br… #123│
     │+5/-2              1 files│
     │──────────────────────────│
@@ -1331,7 +1333,7 @@ fn snapshot_git_staged_only_ui() {
      ≡1  ●1  ◎0  ◐0  ○0  ✕0
     ⓘ                        — ▾
     project
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │main                      │
     │+20/-0             1 files│
     │──────────────────────────│
@@ -1377,7 +1379,7 @@ fn snapshot_git_many_files_more_indicator_ui() {
     ⓘ                        — ▾
     project
     ┃ ● claude
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │dev                       │
     │                   7 files│
     │──────────────────────────│
@@ -1430,7 +1432,7 @@ fn snapshot_git_more_than_10_files_ui() {
     ⓘ                        — ▾
     project
     ┃ ● claude
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │dev                       │
     │                  12 files│
     │──────────────────────────│
@@ -1497,7 +1499,7 @@ fn snapshot_focused_group_active_border_styled() {
        [fg:244] [fg:244]W[fg:244]a[fg:244]i[fg:244]t[fg:244]i[fg:244]n[fg:244]g[fg:244] [fg:244]f[fg:244]o[fg:244]r[fg:244] [fg:244]p[fg:244]r[fg:244]o[fg:244]m[fg:244]p[fg:244]t[fg:244]…[fg:244]
 
 
-    ╭[fg:240] [fg:240]A[fg:153]c[fg:153]t[fg:153]i[fg:153]v[fg:153]i[fg:153]t[fg:153]y[fg:153] [fg:240]│[fg:240] [fg:240]G[fg:252]i[fg:252]t[fg:252] [fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]╮[fg:240]
+    ╭[fg:240] [fg:240]A[fg:153]c[fg:153]t[fg:153]i[fg:153]v[fg:153]i[fg:153]t[fg:153]y[fg:153] [fg:240]│[fg:240] [fg:240]G[fg:252]i[fg:252]t[fg:252] [fg:240]│[fg:240] [fg:240]M[fg:252]R[fg:252]s[fg:252] [fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]╮[fg:240]
     │[fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240]│[fg:240]
     │[fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240]│[fg:240]
     │[fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240]│[fg:240]
@@ -1547,7 +1549,7 @@ fn test_pet_enabled_preserves_bottom_panel_border() {
       ▄ ▄
      ▄▀▀▀▄                             ████
       ▀ ▀                           ██ █  █
-    ╭ Activity │ Git ──────────────────────╮
+    ╭ Activity │ Git │ MRs ────────────────╮
     │            No activity yet           │
     ╰──────────────────────────────────────╯
     ");

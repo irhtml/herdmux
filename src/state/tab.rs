@@ -128,22 +128,21 @@ impl AppState {
     pub fn next_bottom_tab(&mut self) {
         self.bottom_tab = match self.bottom_tab {
             BottomTab::Activity => BottomTab::GitStatus,
-            BottomTab::GitStatus => BottomTab::Activity,
+            BottomTab::GitStatus => BottomTab::MergeRequests,
+            BottomTab::MergeRequests => BottomTab::Activity,
         };
     }
 
-    /// Handle mouse click on the bottom panel tab header.
-    /// Tab title layout: "╭ Activity │ Git ╮" — col is relative to the terminal.
-    /// The block border starts at col 0, so the title text starts at col 1.
-    /// " Activity " spans cols 1..11, "│" at col 11, " Git " spans cols 12..17.
+    /// Handle mouse click on the bottom panel tab header, using the label
+    /// ranges recorded when the header was last drawn.
     pub fn handle_bottom_tab_click(&mut self, col: u16) {
-        // Offset by 1 for the left border character
-        let x = col.saturating_sub(1) as usize;
-        // " Activity " = 10 chars (0..10), "│" = 1 char (10), " Git " = 5 chars (11..16)
-        if x < 10 {
-            self.bottom_tab = BottomTab::Activity;
-        } else if (11..16).contains(&x) {
-            self.bottom_tab = BottomTab::GitStatus;
+        if let Some(target) = self
+            .layout
+            .bottom_tab_targets
+            .iter()
+            .find(|t| (t.start..t.end).contains(&col))
+        {
+            self.bottom_tab = target.tab.clone();
         }
     }
 
@@ -151,6 +150,7 @@ impl AppState {
         match self.bottom_tab {
             BottomTab::Activity => self.activity.scroll.scroll(delta),
             BottomTab::GitStatus => self.scrolls.git.scroll(delta),
+            BottomTab::MergeRequests => self.scrolls.merge_requests.scroll(delta),
         }
     }
 }
@@ -417,7 +417,7 @@ mod tests {
         assert_eq!(state.bottom_tab, BottomTab::GitStatus);
 
         state.next_bottom_tab();
-        assert_eq!(state.bottom_tab, BottomTab::Activity);
+        assert_eq!(state.bottom_tab, BottomTab::MergeRequests);
 
         // New agent appears in a different pane, but focus stays on the shell.
         let mut group = agent_group("%1");
@@ -427,7 +427,7 @@ mod tests {
 
         assert_eq!(
             state.bottom_tab,
-            BottomTab::Activity,
+            BottomTab::MergeRequests,
             "new agent elsewhere should not force a tab change"
         );
     }

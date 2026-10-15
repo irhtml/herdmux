@@ -17,6 +17,7 @@ impl ScrollState {
 pub struct ScrollStates {
     pub panes: ScrollState,
     pub git: ScrollState,
+    pub merge_requests: ScrollState,
 }
 
 #[cfg(test)]

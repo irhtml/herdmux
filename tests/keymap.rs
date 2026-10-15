@@ -22,7 +22,7 @@ fn keymap_wide() {
     │h/l or Left/Right: Change status (filter focused)                             │
     │r: Choose repository (filter focused)                                         │
     │s: Toggle current/all sessions                                                │
-    │Shift+Tab: Switch Activity/Git                                                │
+    │Shift+Tab: Switch Activity/Git/MRs                                            │
     │Agent list                                                                    │
     │n: Spawn worktree and agent                                                   │
     │x: Remove spawned pane/worktree                                               │

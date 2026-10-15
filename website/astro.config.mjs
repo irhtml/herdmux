@@ -103,6 +103,7 @@ export default defineConfig({
             { slug: 'features/resume' },
             { slug: 'features/activity-log' },
             { slug: 'features/git-status' },
+            { slug: 'features/merge-requests' },
             { slug: 'features/notifications' },
             { slug: 'features/pet' },
           ],

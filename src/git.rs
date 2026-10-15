@@ -84,42 +84,51 @@ pub fn fetch_git_data(path: &str) -> GitData {
 /// times out. Bounded by a 5s deadline so a hung `gh` cannot stall the git
 /// polling thread.
 pub fn fetch_pr_number(path: &str) -> Option<String> {
-    let mut child = Command::new("gh")
-        .env("GIT_OPTIONAL_LOCKS", "0")
+    let mut cmd = Command::new("gh");
+    cmd.env("GIT_OPTIONAL_LOCKS", "0")
         .args(["pr", "view", "--json", "number", "-q", ".number"])
-        .current_dir(path)
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::null())
-        .stdin(std::process::Stdio::null())
+        .current_dir(path);
+    let num = run_with_timeout(&mut cmd, Duration::from_secs(5))?
+        .trim()
+        .to_string();
+    (!num.is_empty()).then_some(num)
+}
+
+/// Run `cmd` and return its stdout when it exits successfully within
+/// `timeout`; otherwise kill it and return `None`. Stdout is drained on a
+/// separate thread so output larger than the pipe buffer cannot block the
+/// child until the deadline.
+pub(crate) fn run_with_timeout(cmd: &mut Command, timeout: Duration) -> Option<String> {
+    use std::io::Read;
+    use std::process::Stdio;
+
+    let mut child = cmd
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .stdin(Stdio::null())
         .spawn()
         .ok()?;
-    let deadline = Instant::now() + Duration::from_secs(5);
+    let mut stdout = child.stdout.take()?;
+    let reader = std::thread::spawn(move || {
+        let mut buf = String::new();
+        let _ = stdout.read_to_string(&mut buf);
+        buf
+    });
+    let deadline = Instant::now() + timeout;
     loop {
         match child.try_wait() {
             Ok(Some(status)) => {
-                if status.success()
-                    && let Some(stdout) = child.stdout.take()
-                {
-                    use std::io::Read;
-                    let mut buf = String::new();
-                    let mut reader = stdout;
-                    let _ = reader.read_to_string(&mut buf);
-                    let num = buf.trim().to_string();
-                    if !num.is_empty() {
-                        return Some(num);
-                    }
-                }
+                let out = reader.join().ok()?;
+                return status.success().then_some(out);
+            }
+            Ok(None) if Instant::now() < deadline => {
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            _ => {
+                let _ = child.kill();
+                let _ = child.wait();
                 return None;
             }
-            Ok(None) => {
-                if Instant::now() >= deadline {
-                    let _ = child.kill();
-                    let _ = child.wait();
-                    return None;
-                }
-                std::thread::sleep(Duration::from_millis(100));
-            }
-            Err(_) => return None,
         }
     }
 }

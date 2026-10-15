@@ -474,6 +474,8 @@ fn test_next_bottom_tab_full_cycle() {
     state.next_bottom_tab();
     assert_eq!(state.bottom_tab, BottomTab::GitStatus);
     state.next_bottom_tab();
+    assert_eq!(state.bottom_tab, BottomTab::MergeRequests);
+    state.next_bottom_tab();
     assert_eq!(state.bottom_tab, BottomTab::Activity);
 }
 
@@ -499,6 +501,9 @@ fn test_git_tab_active_after_tab_switch() {
 
     state.next_bottom_tab();
     assert_eq!(state.bottom_tab, BottomTab::GitStatus);
+
+    state.next_bottom_tab();
+    assert_eq!(state.bottom_tab, BottomTab::MergeRequests);
 
     state.next_bottom_tab();
     assert_eq!(state.bottom_tab, BottomTab::Activity);

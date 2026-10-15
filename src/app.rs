@@ -43,6 +43,9 @@ pub fn run(
         session_rx,
         version_rx,
         git_tab_active,
+        mr_rx,
+        mr_wake,
+        mr_tab_active,
     } = workers;
     let mut git_generation = 0;
     let mut git_pane = state.focus_state.focused_pane_id.clone();
@@ -125,6 +128,23 @@ pub fn run(
 
         while let Ok(snapshot) = git_rx.try_recv() {
             needs_redraw |= workers::apply_git_snapshot(&mut state, git_generation, snapshot);
+        }
+
+        // The MR thread runs only while its tab is on screen, and wakes
+        // the moment it comes into view rather than on its next tick.
+        let mr_active = state.bottom_tab == BottomTab::MergeRequests && window_visible;
+        if mr_active != mr_tab_active.load(Ordering::Relaxed) {
+            mr_tab_active.store(mr_active, Ordering::Relaxed);
+            if mr_active {
+                let _ = mr_wake.send(());
+            }
+        }
+        while let Ok(snapshot) = mr_rx.try_recv() {
+            state.apply_merge_requests(snapshot.list, snapshot.pending);
+            needs_redraw = true;
+        }
+        if let Some(url) = state.pending_open_url.take() {
+            crate::merge_request::open_url(&url);
         }
 
         if state.poll_spawn_result() {

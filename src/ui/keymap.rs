@@ -19,7 +19,7 @@ Tab: Cycle status filter\n\
 h/l or Left/Right: Change status (filter focused)\n\
 r: Choose repository (filter focused)\n\
 s: Toggle current/all sessions\n\
-Shift+Tab: Switch Activity/Git\n\
+Shift+Tab: Switch Activity/Git/MRs\n\
 \n\
 Agent list\n\
 n: Spawn worktree and agent\n\

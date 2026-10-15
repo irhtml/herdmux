@@ -88,6 +88,12 @@ Only `CLAUDE_CONFIG_DIR`, `CODEX_HOME` and `XDG_DATA_HOME` are ever read from an
 
 `resume restore` acts only within 10 minutes of the tmux server's start and on the same socket (unless `--force`), and only types into a pane that is a shell with no `@pane_agent`, sits at the saved location, has the saved window pane count, and is in the saved directory. A save during that window does not replace a snapshot taken before the server started until a restore has run (`restored_at`).
 
+### Merge Request Cache (shared by all sidebars)
+
+| File | Update Trigger | Read Frequency | Description |
+|------|---------------|----------------|-------------|
+| `${XDG_CACHE_HOME:-~/.cache}/herdmux/merge-requests.json` | After an MR pass fetched stale branches | Each MR pass (MRs tab on screen) | Mode 0600, replaced atomically. Maps `origin` URL → branch → `{fetched_at, mrs: [{number, title, url, draft}]}`. An entry is fresh for `MR_CACHE_TTL_SECS` (300s); entries older than 7 days are pruned on write. A failed lookup leaves the old entry and its timestamp untouched. The file is re-read before each write, so concurrent sidebars lose at most one fetch to the race |
+
 ### Local State (single sidebar process only)
 
 "Every 1s" below means every refresh tick while the sidebar's window is visible; a hidden sidebar re-syncs every 10s (see [Refresh Cadence](#refresh-cadence)).
@@ -102,16 +108,19 @@ Only `CLAUDE_CONFIG_DIR`, `CODEX_HOME` and `XDG_DATA_HOME` are ever read from an
 | `now` | Every 1s | Current Unix epoch |
 | `scrolls.panes` | On user input / render | Agent list scroll position |
 | `scrolls.git` | On user input / render | Git status scroll position |
+| `scrolls.merge_requests` | On user input / render | MRs tab scroll position |
 | `activity.scroll` | On user input / render | Activity log scroll position |
 | `activity.entries` | Every 1s | Focused pane's activity entries (max 50) |
 | `activity.max_entries` | Once at startup | Max activity log entries to display |
 | `activity.log_cache` | Every 1s | `(focused_pane_id, mtime)` of the last-rendered activity log; skips re-reads when unchanged |
 | `git` | On focus change / every 2s while visible (bg thread) | Branch, diff stats, ahead/behind, PR number. Focus requests wake the worker immediately; generation tags reject stale results. Local status arrives before PR lookups. |
+| `merge_requests` | On MR pass (bg thread) | `MergeRequestsState`: open MRs for every branch checked out in the sidebar's tmux session, plus `pending` while lookups run. The MR thread polls only while the MRs tab is on screen: immediately when it comes into view, then every 60s. Each pass runs one `list-panes -s` and two git calls per unique pane path, publishes the cached results, then calls `glab mr list` (GitLab) or `gh pr list` (GitHub) for stale branches only, at most 6 at a time |
+| `pending_open_url` | On MR row click / main loop | URL queued by a click; the main loop hands it to `xdg-open` (`open` on macOS), so input handlers never spawn processes |
 | `spawn_job` | On spawn confirmation / worker completion | One background checkout + split job, saved input for retry, and persistent progress banner. The input loop polls completion without blocking. |
 | `bottom_tab` | On user input / auto-switch | Current bottom panel tab |
 | `theme` | Once at startup | Color theme from tmux `@sidebar_color_*` variables |
 | `popup` | On user input / render | `PopupState` enum: `None` / `Repo { selected, area }` / `Notices { area }`. Enforces "at most one popup open" via the type system |
-| `layout` | Every frame (render) | `FrameLayout` sub-struct bundling the ephemeral fields the UI rewrites every frame for click hit-testing: `pane_row_targets`, `line_to_row`, `repo_button_col`, `repo_spawn_targets`, `spawn_remove_targets`, `hyperlink_overlays` |
+| `layout` | Every frame (render) | `FrameLayout` sub-struct bundling the ephemeral fields the UI rewrites every frame for click hit-testing: `pane_row_targets`, `line_to_row`, `repo_button_col`, `repo_spawn_targets`, `spawn_remove_targets`, `hyperlink_overlays`, `merge_request_targets`, `bottom_tab_targets` |
 | `notices` | Once at startup / on copy | `NoticesState` sub-struct: `button_col`, `missing_hook_groups`, `claude_plugin_status`, `claude_settings_has_residual_hooks`, `claude_plugin_notice`, `copy_targets`, `copied_at` |
 | `timers` | Refresh cycle / on user input | `RefreshTimers` sub-struct gating periodic work: `last_filter_click` (debounce), `last_port_refresh`, `port_scan_initialized` |
 | `pending_osc52_copy` | On successful copy / frame flush | OSC 52 clipboard payload queued for terminal forwarding |
@@ -157,6 +166,9 @@ Only `CLAUDE_CONFIG_DIR`, `CODEX_HOME` and `XDG_DATA_HOME` are ever read from an
 │  Every 2s (git background thread)                           │
 │  git (branch, diff, ahead/behind, PR)                       │
 ├─────────────────────────────────────────────────────────────┤
+│  Every 60s while the MRs tab is on screen (MR thread)       │
+│  merge_requests (glab / gh only for stale cache entries)    │
+├─────────────────────────────────────────────────────────────┤
 │  On a snapshot after 2+ hidden ticks (hidden: every 10s;    │
 │  viewed again: at once)                                     │
 │  GlobalState reloaded from tmux variables                   │
@@ -173,7 +185,8 @@ Only `CLAUDE_CONFIG_DIR`, `CODEX_HOME` and `XDG_DATA_HOME` are ever read from an
 │  Every frame (render)                                       │
 │  layout.line_to_row, popup.area (Repo/Notices variants),    │
 │  notices.button_col, notices.copy_targets,                  │
-│  layout.hyperlink_overlays                                  │
+│  layout.hyperlink_overlays, layout.merge_request_targets,   │
+│  layout.bottom_tab_targets                                  │
 └─────────────────────────────────────────────────────────────┘
 ```
 

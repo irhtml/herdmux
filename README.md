@@ -20,6 +20,7 @@ herdmux started as a fork of [hiroppy/tmux-agent-sidebar](https://github.com/hir
 - **Desktop notifications**: native alerts when an agent finishes, needs permission, or errors out
 - **Agents driving agents**: `agent list|spawn|prompt|wait|read` lets one agent start, prompt and collect replies from the others
 - **Resume after reboot**: with tmux-resurrect, restored panes relaunch their agents with the conversation resumed
+- **Open MRs per session**: the MRs tab lists open GitLab merge requests and GitHub pull requests for every branch checked out in the session; click one to open it in the browser
 
 OpenCode uses a small local plugin bridge instead of per-event hook config. The plugin lives at `.opencode/plugins/herdmux.js` and can be symlinked as a single file into `~/.config/opencode/plugins/` so it coexists with any existing plugins.
 
@@ -27,7 +28,8 @@ OpenCode uses a small local plugin bridge instead of per-event hook config. The 
 
 - tmux 3.0+
 - [TPM](https://github.com/tmux-plugins/tpm) (or the manual install in [Installation](https://irhtml.github.io/herdmux/getting-started/installation/))
-- [GitHub CLI](https://cli.github.com/) (optional, required only for PR numbers in the Git tab)
+- [GitHub CLI](https://cli.github.com/) (optional, for PR numbers in the Git tab and GitHub PRs in the MRs tab)
+- [GitLab CLI](https://gitlab.com/gitlab-org/cli) (optional, for GitLab merge requests in the MRs tab)
 
 ## Quick Start
 

@@ -1,10 +1,12 @@
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::time::Duration;
 
 use crate::git::{self, GitData};
+use crate::merge_request::{self, BranchRef, MergeRequest, MrCache, MrSummary};
 use crate::session;
 use crate::state::{AppState, BottomTab};
 use crate::tmux;
@@ -18,6 +20,16 @@ pub(super) struct Workers {
     pub session_rx: Receiver<HashMap<String, String>>,
     pub version_rx: Receiver<UpdateNotice>,
     pub git_tab_active: Arc<AtomicBool>,
+    pub mr_rx: Receiver<MrSnapshot>,
+    pub mr_wake: Sender<()>,
+    pub mr_tab_active: Arc<AtomicBool>,
+}
+
+/// One publish of the MR poll thread.
+pub(super) struct MrSnapshot {
+    pub list: Vec<MergeRequest>,
+    /// Lookups for some branches are still running.
+    pub pending: bool,
 }
 
 #[derive(Clone)]
@@ -63,6 +75,14 @@ pub(super) fn spawn(state: &AppState) -> Workers {
     std::thread::spawn(move || {
         session_poll_loop(&session_tx);
     });
+    let (mr_tx, mr_rx) = mpsc::channel::<MrSnapshot>();
+    let (mr_wake, mr_wake_rx) = mpsc::channel::<()>();
+    let mr_tab_active = Arc::new(AtomicBool::new(false));
+    let mr_tab_flag = Arc::clone(&mr_tab_active);
+    let sidebar_pane = state.tmux_pane.clone();
+    std::thread::spawn(move || {
+        mr_poll_loop(&sidebar_pane, &mr_wake_rx, &mr_tx, &mr_tab_flag);
+    });
     std::thread::spawn(move || {
         if let Some(notice) = version::fetch_update_notice() {
             let _ = version_tx.send(notice);
@@ -75,7 +95,100 @@ pub(super) fn spawn(state: &AppState) -> Workers {
         session_rx,
         version_rx,
         git_tab_active,
+        mr_rx,
+        mr_wake,
+        mr_tab_active,
     }
+}
+
+/// How often the MRs tab re-reads the session's branches while on screen.
+/// A pass only calls `glab` / `gh` for branches whose shared-cache entry
+/// has expired, so most passes cost one tmux and a few git calls.
+const MR_POLL_INTERVAL: Duration = Duration::from_secs(60);
+
+/// Merge-request polling thread. Runs a pass when woken (the MRs tab came
+/// on screen) and every [`MR_POLL_INTERVAL`] while it stays there; does
+/// nothing while the tab is hidden.
+pub(super) fn mr_poll_loop(
+    sidebar_pane: &str,
+    wake: &Receiver<()>,
+    mr_tx: &Sender<MrSnapshot>,
+    active: &AtomicBool,
+) {
+    let cache_path = MrCache::default_path();
+    loop {
+        match wake.recv_timeout(MR_POLL_INTERVAL) {
+            Ok(()) => while wake.try_recv().is_ok() {},
+            Err(RecvTimeoutError::Timeout) => {}
+            Err(RecvTimeoutError::Disconnected) => return,
+        }
+        if !active.load(Ordering::Relaxed) {
+            continue;
+        }
+        let branches = merge_request::resolve_branches(
+            &merge_request::session_pane_paths(sidebar_pane),
+            merge_request::git_remote_and_branch,
+        );
+        let published = mr_pass(
+            &branches,
+            cache_path.as_deref(),
+            crate::time::now_epoch_secs(),
+            mr_tx,
+            merge_request::fetch_open_mrs,
+        );
+        if !published {
+            return;
+        }
+    }
+}
+
+/// Publish what the cache already holds for `branches`, fetch the stale
+/// ones, store the results, and publish again. Returns `false` once the
+/// receiver is gone.
+fn mr_pass<F>(
+    branches: &[BranchRef],
+    cache_path: Option<&Path>,
+    now: u64,
+    mr_tx: &Sender<MrSnapshot>,
+    fetch: F,
+) -> bool
+where
+    F: Fn(&BranchRef) -> Option<Vec<MrSummary>> + Sync,
+{
+    let cache = cache_path.map(MrCache::load).unwrap_or_default();
+    let stale: Vec<BranchRef> = branches
+        .iter()
+        .filter(|b| !cache.is_fresh(b, now))
+        .cloned()
+        .collect();
+    let first = MrSnapshot {
+        list: cache.merge_requests(branches),
+        pending: !stale.is_empty(),
+    };
+    if mr_tx.send(first).is_err() {
+        return false;
+    }
+    if stale.is_empty() {
+        return true;
+    }
+    let results = merge_request::fetch_all(&stale, fetch);
+    // Re-read so entries other sidebars wrote during the fetch survive.
+    let mut cache = cache_path.map(MrCache::load).unwrap_or(cache);
+    for (branch, result) in stale.iter().zip(results) {
+        if let Some(mrs) = result {
+            cache.insert(branch, now, mrs);
+        }
+    }
+    cache.prune(now);
+    if let Some(path) = cache_path {
+        let _ = cache.save(path);
+    }
+    mr_tx
+        .send(MrSnapshot {
+            list: cache.merge_requests(branches),
+            pending: false,
+        })
+        .is_ok()
 }
 
 /// Session name polling thread. Scans `~/.claude/sessions/*.json` every 10
@@ -187,6 +300,125 @@ fn git_poll_loop_with<FPath, FGit, FPr>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn mr_branch(name: &str) -> BranchRef {
+        BranchRef {
+            repo: "storefront".into(),
+            branch: name.into(),
+            remote: "git@gitlab.com:g/storefront.git".into(),
+            forge: merge_request::Forge::GitLab,
+        }
+    }
+
+    fn mr_summary(number: u64) -> MrSummary {
+        MrSummary {
+            number,
+            title: format!("MR {number}"),
+            url: format!("https://gitlab.com/g/storefront/-/merge_requests/{number}"),
+            draft: false,
+        }
+    }
+
+    fn numbers(snapshot: &MrSnapshot) -> Vec<u64> {
+        snapshot.list.iter().map(|mr| mr.number).collect()
+    }
+
+    #[test]
+    fn mr_pass_with_fresh_cache_publishes_once_without_fetching() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("mrs.json");
+        let fresh = mr_branch("feature/a");
+        let mut cache = MrCache::default();
+        cache.insert(&fresh, 1_000, vec![mr_summary(7)]);
+        cache.save(&path).unwrap();
+
+        let (tx, rx) = mpsc::channel();
+        assert!(mr_pass(&[fresh], Some(&path), 1_010, &tx, |_| {
+            panic!("fresh entries must not refetch")
+        }));
+        let snapshot = rx.try_recv().unwrap();
+        assert_eq!(numbers(&snapshot), vec![7]);
+        assert!(!snapshot.pending);
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn mr_pass_publishes_cached_then_fetched_and_stores_results() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("mrs.json");
+        let stale = mr_branch("feature/a");
+        let fresh = mr_branch("feature/b");
+        let mut cache = MrCache::default();
+        cache.insert(&stale, 0, vec![mr_summary(1)]);
+        cache.insert(&fresh, 9_990, vec![mr_summary(2)]);
+        cache.save(&path).unwrap();
+
+        let (tx, rx) = mpsc::channel();
+        let fetched = std::sync::Mutex::new(Vec::new());
+        assert!(mr_pass(
+            &[stale.clone(), fresh.clone()],
+            Some(&path),
+            10_000,
+            &tx,
+            |b| {
+                fetched.lock().unwrap().push(b.branch.clone());
+                Some(vec![mr_summary(3)])
+            },
+        ));
+        assert_eq!(*fetched.lock().unwrap(), vec!["feature/a".to_string()]);
+
+        let first = rx.try_recv().unwrap();
+        assert_eq!(numbers(&first), vec![1, 2]);
+        assert!(first.pending);
+        let second = rx.try_recv().unwrap();
+        assert_eq!(numbers(&second), vec![3, 2]);
+        assert!(!second.pending);
+
+        let stored = MrCache::load(&path);
+        assert!(stored.is_fresh(&stale, 10_000));
+        assert_eq!(
+            numbers(&MrSnapshot {
+                list: stored.merge_requests(&[stale, fresh]),
+                pending: false,
+            }),
+            vec![3, 2]
+        );
+    }
+
+    #[test]
+    fn mr_pass_keeps_old_result_when_fetch_fails() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("mrs.json");
+        let stale = mr_branch("feature/a");
+        let mut cache = MrCache::default();
+        cache.insert(&stale, 0, vec![mr_summary(1)]);
+        cache.save(&path).unwrap();
+
+        let (tx, rx) = mpsc::channel();
+        assert!(mr_pass(
+            std::slice::from_ref(&stale),
+            Some(&path),
+            10_000,
+            &tx,
+            |_| None
+        ));
+        let _first = rx.try_recv().unwrap();
+        let second = rx.try_recv().unwrap();
+        assert_eq!(numbers(&second), vec![1]);
+        assert!(
+            !MrCache::load(&path).is_fresh(&stale, 10_000),
+            "failure must not refresh the TTL"
+        );
+    }
+
+    #[test]
+    fn mr_pass_stops_when_receiver_is_gone() {
+        let (tx, rx) = mpsc::channel();
+        drop(rx);
+        assert!(!mr_pass(&[mr_branch("feature/a")], None, 0, &tx, |_| {
+            panic!("no fetch after the receiver is gone")
+        }));
+    }
 
     #[test]
     fn git_focus_requests_coalesce_and_fetch_even_with_tab_inactive() {

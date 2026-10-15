@@ -24,6 +24,14 @@ pub struct SpawnRemoveTarget {
     pub pane_id: String,
 }
 
+/// Clickable column range of one tab in the bottom panel header.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BottomTabTarget {
+    pub start: u16,
+    pub end: u16,
+    pub tab: super::BottomTab,
+}
+
 /// Screen-positioned hyperlink overlay for OSC 8 terminal hyperlinks.
 #[derive(Debug, Clone)]
 pub struct HyperlinkOverlay {
@@ -61,6 +69,12 @@ pub struct FrameLayout {
     /// OSC 8 hyperlink overlays the main loop writes after each frame so
     /// terminals can recognise PR numbers as clickable links.
     pub hyperlink_overlays: Vec<HyperlinkOverlay>,
+    /// One entry per visible line of the MRs tab, mapping the screen row
+    /// to the MR it belongs to. Empty when another tab is shown.
+    pub merge_request_targets: Vec<super::MergeRequestTarget>,
+    /// Column ranges of the bottom panel's tab labels, as last drawn. The
+    /// labels shorten on narrow sidebars, so clicks map through these.
+    pub bottom_tab_targets: Vec<BottomTabTarget>,
 }
 
 pub(super) fn point_in_rect(row: u16, col: u16, rect: ratatui::layout::Rect) -> bool {

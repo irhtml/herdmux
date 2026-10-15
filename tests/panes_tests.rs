@@ -123,7 +123,7 @@ fn test_running_icon_blink_off() {
     ⓘ                        — ▾
     project
     ┃ ● claude
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
     ");
@@ -152,7 +152,7 @@ fn test_running_spinner_frame_advances() {
     ⓘ                        — ▾
     project
     ┃ ● claude
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
     ");
@@ -180,7 +180,7 @@ fn test_waiting_icon() {
     ⓘ                        — ▾
     project
     ┃ ◐ claude
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
     ");
@@ -208,7 +208,7 @@ fn test_error_icon() {
     ⓘ                        — ▾
     project
     ┃ ✕ claude
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
     ");
@@ -301,7 +301,7 @@ fn test_agents_auto_scroll_up_shows_group_header() {
     project
       ○ claude
         Waiting for prompt…
-    ╭ Activity │ Git ──────────╮
+    ╭ Activity │ Git │ MRs ────╮
     │      No activity yet     │
     ╰──────────────────────────╯
     ");
@@ -344,7 +344,7 @@ fn repo_popup_renders_repo_names_when_open() {
     backend                     └──────────┘
     ┃ ○ claude
         Waiting for prompt…
-    ╭ Activity │ Git ──────────────────────╮
+    ╭ Activity │ Git │ MRs ────────────────╮
     │            No activity yet           │
     ╰──────────────────────────────────────╯
     ");
@@ -393,7 +393,7 @@ fn repo_popup_highlights_selected_entry_with_background() {
     ┃[fg:153] ○[fg:110] [fg:174]c[fg:174]l[fg:174]a[fg:174]u[fg:174]d[fg:174]e[fg:174]
        [fg:255] [fg:255]W[fg:255]a[fg:255]i[fg:255]t[fg:255]i[fg:255]n[fg:255]g[fg:255] [fg:255]f[fg:255]o[fg:255]r[fg:255] [fg:255]p[fg:255]r[fg:255]o[fg:255]m[fg:255]p[fg:255]t[fg:255]…[fg:255]
 
-    ╭[fg:240] [fg:240]A[fg:153]c[fg:153]t[fg:153]i[fg:153]v[fg:153]i[fg:153]t[fg:153]y[fg:153] [fg:240]│[fg:240] [fg:240]G[fg:252]i[fg:252]t[fg:252] [fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]╮[fg:240]
+    ╭[fg:240] [fg:240]A[fg:153]c[fg:153]t[fg:153]i[fg:153]v[fg:153]i[fg:153]t[fg:153]y[fg:153] [fg:240]│[fg:240] [fg:240]G[fg:252]i[fg:252]t[fg:252] [fg:240]│[fg:240] [fg:240]M[fg:252]R[fg:252]s[fg:252] [fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]╮[fg:240]
     │[fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240]│[fg:240]
     │[fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240]│[fg:240]
     │[fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240]│[fg:240]

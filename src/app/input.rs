@@ -44,6 +44,8 @@ pub(super) fn handle_event(
                         // next refresh tick and the tab renders stale data.
                         git_tab_active
                             .store(state.bottom_tab == BottomTab::GitStatus, Ordering::Relaxed);
+                    } else {
+                        state.handle_bottom_body_click(mouse.row);
                     }
                 }
                 MouseEventKind::ScrollDown => {
@@ -227,6 +229,7 @@ fn pane_nav_up(state: &mut AppState) {
             let at_top = match state.bottom_tab {
                 BottomTab::Activity => state.activity.scroll.offset == 0,
                 BottomTab::GitStatus => state.scrolls.git.offset == 0,
+                BottomTab::MergeRequests => state.scrolls.merge_requests.offset == 0,
             };
             if at_top {
                 state.focus_state.focus = Focus::Panes;

@@ -29,6 +29,15 @@ const CLI_TIMEOUT: Duration = Duration::from_secs(10);
 /// Lookups that run at the same time during one poll pass.
 const MAX_PARALLEL_FETCHES: usize = 6;
 
+/// Environment variables glab sends as the API token to whatever host it
+/// is pointed at. Its stored per-host logins only go to their own host.
+const GLAB_ENV_TOKENS: [&str; 4] = [
+    "GITLAB_TOKEN",
+    "GITLAB_ACCESS_TOKEN",
+    "OAUTH_TOKEN",
+    "CI_JOB_TOKEN",
+];
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Forge {
     GitHub,
@@ -196,9 +205,17 @@ fn repo_name(remote: &str) -> String {
 /// missing, fails, or times out, so the caller keeps any older result
 /// instead of caching an empty list.
 pub fn fetch_open_mrs(branch: &BranchRef) -> Option<Vec<MrSummary>> {
-    match branch.forge {
+    let host = remote_host(&branch.remote)?;
+    let mrs = match branch.forge {
         Forge::GitLab => {
             let mut cmd = Command::new("glab");
+            // Any host whose name contains `gitlab` gets a lookup, so keep
+            // the env tokens for the host they are meant for.
+            if !env_token_allowed(&host, std::env::var("GITLAB_HOST").ok().as_deref()) {
+                for var in GLAB_ENV_TOKENS {
+                    cmd.env_remove(var);
+                }
+            }
             cmd.args([
                 "mr",
                 "list",
@@ -209,7 +226,7 @@ pub fn fetch_open_mrs(branch: &BranchRef) -> Option<Vec<MrSummary>> {
                 "-F",
                 "json",
             ]);
-            parse_glab_json(&run_with_timeout(&mut cmd, CLI_TIMEOUT)?)
+            parse_glab_json(&run_with_timeout(&mut cmd, CLI_TIMEOUT)?)?
         }
         Forge::GitHub => {
             let slug = normalize_git_url(&branch.remote);
@@ -227,9 +244,68 @@ pub fn fetch_open_mrs(branch: &BranchRef) -> Option<Vec<MrSummary>> {
                 "--json",
                 "number,title,url,isDraft",
             ]);
-            parse_gh_json(&run_with_timeout(&mut cmd, CLI_TIMEOUT)?)
+            parse_gh_json(&run_with_timeout(&mut cmd, CLI_TIMEOUT)?)?
         }
-    }
+    };
+    // A click opens the link, so it may only lead to the repo's own forge.
+    Some(
+        mrs.into_iter()
+            .filter(|mr| url_on_host(&mr.url, &host))
+            .collect(),
+    )
+}
+
+/// Whether glab's env tokens may go to `host`. They are meant for
+/// `GITLAB_HOST`, which defaults to gitlab.com.
+fn env_token_allowed(host: &str, gitlab_host: Option<&str>) -> bool {
+    let intended = gitlab_host
+        .filter(|value| !value.is_empty())
+        .and_then(|value| {
+            if value.contains("://") {
+                remote_host(value)
+            } else {
+                remote_host(&format!("https://{value}"))
+            }
+        })
+        .unwrap_or_else(|| "gitlab.com".to_string());
+    host == intended
+}
+
+/// Whether `url` is an http(s) link to `host` or to a parent domain of it,
+/// so an SSH remote like `altssh.gitlab.com` still matches `gitlab.com`.
+fn url_on_host(url: &str, host: &str) -> bool {
+    let Some(rest) = url
+        .strip_prefix("https://")
+        .or_else(|| url.strip_prefix("http://"))
+    else {
+        return false;
+    };
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or_default();
+    let Some(url_host) = authority
+        .rsplit('@')
+        .next()
+        .and_then(|a| a.split(':').next())
+    else {
+        return false;
+    };
+    let url_host = url_host.to_ascii_lowercase();
+    !url_host.is_empty()
+        && (url_host == host
+            || host
+                .strip_suffix(url_host.as_str())
+                .is_some_and(|prefix| prefix.ends_with('.')))
+}
+
+/// Drop control and bidi formatting characters from a title that came
+/// from the forge, so it cannot reorder or restyle the row it is shown in.
+fn clean_title(title: &str) -> String {
+    title
+        .chars()
+        .filter(|c| {
+            !c.is_control()
+                && !matches!(c, '\u{061C}' | '\u{200E}' | '\u{200F}' | '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}')
+        })
+        .collect()
 }
 
 /// Parse `glab mr list -F json`. GitLab keeps the `Draft:` prefix in the
@@ -241,13 +317,13 @@ pub(crate) fn parse_glab_json(text: &str) -> Option<Vec<MrSummary>> {
             .iter()
             .filter_map(|item| {
                 let draft = item["draft"].as_bool().unwrap_or(false);
-                let title = item["title"].as_str()?;
+                let title = clean_title(item["title"].as_str()?);
                 Some(MrSummary {
                     number: item["iid"].as_u64()?,
                     title: if draft {
-                        strip_draft_prefix(title)
+                        strip_draft_prefix(&title)
                     } else {
-                        title.to_string()
+                        title
                     },
                     url: item["web_url"].as_str()?.to_string(),
                     draft,
@@ -266,7 +342,7 @@ pub(crate) fn parse_gh_json(text: &str) -> Option<Vec<MrSummary>> {
             .filter_map(|item| {
                 Some(MrSummary {
                     number: item["number"].as_u64()?,
-                    title: item["title"].as_str()?.to_string(),
+                    title: clean_title(item["title"].as_str()?),
                     url: item["url"].as_str()?.to_string(),
                     draft: item["isDraft"].as_bool().unwrap_or(false),
                 })
@@ -619,6 +695,50 @@ mod tests {
     fn parse_rejects_non_json_output() {
         assert!(parse_glab_json("not json").is_none());
         assert!(parse_gh_json("").is_none());
+    }
+
+    #[test]
+    fn parse_drops_control_and_bidi_characters_from_titles() {
+        let text = "[{\"number\": 5, \"title\": \"Fix\\u001b[31m \\u202eevil\\u2066 bug\\n\", \"url\": \"https://github.com/o/r/pull/5\"}]";
+        assert_eq!(parse_gh_json(text).unwrap()[0].title, "Fix[31m evil bug");
+        let text = "[{\"iid\": 6, \"title\": \"\\u200fDraft: Tidy\", \"web_url\": \"https://gitlab.com/g/r/-/merge_requests/6\", \"draft\": true}]";
+        assert_eq!(parse_glab_json(text).unwrap()[0].title, "Tidy");
+    }
+
+    #[test]
+    fn env_tokens_go_only_to_the_gitlab_host_they_are_meant_for() {
+        assert!(env_token_allowed("gitlab.com", None));
+        assert!(env_token_allowed("gitlab.com", Some("")));
+        assert!(!env_token_allowed("gitlab.evil.example", None));
+        assert!(env_token_allowed(
+            "git.example.com",
+            Some("https://git.example.com")
+        ));
+        assert!(env_token_allowed(
+            "git.example.com",
+            Some("git.example.com")
+        ));
+        assert!(!env_token_allowed("gitlab.com", Some("git.example.com")));
+    }
+
+    #[test]
+    fn mr_links_must_point_at_the_remote_host() {
+        let url = "https://gitlab.com/g/r/-/merge_requests/1";
+        assert!(url_on_host(url, "gitlab.com"));
+        assert!(url_on_host(url, "altssh.gitlab.com"));
+        assert!(url_on_host(
+            "http://gitlab.example.com:8080/g/r",
+            "gitlab.example.com"
+        ));
+        assert!(!url_on_host(url, "gitlab.evil.example"));
+        assert!(!url_on_host(
+            "https://gitlab.com.evil.example/x",
+            "gitlab.com"
+        ));
+        assert!(!url_on_host("https://evilgitlab.com/x", "gitlab.com"));
+        assert!(!url_on_host("https://user@evil.example/x", "gitlab.com"));
+        assert!(!url_on_host("file:///etc/passwd", "gitlab.com"));
+        assert!(!url_on_host("javascript:alert(1)", "gitlab.com"));
     }
 
     #[test]

@@ -179,16 +179,40 @@ pub fn git_remote_and_branch(path: &str) -> Option<(String, String)> {
     Some((remote, branch))
 }
 
-/// Lowercase host of an `https://`, `ssh://` or scp-style (`git@host:path`)
-/// remote, without user or port.
-fn remote_host(remote: &str) -> Option<String> {
+/// Lowercase host and repo path of an `https://`, `ssh://` or scp-style
+/// (`git@host:path`) remote, without user, port or `.git`. `None` when
+/// either part holds characters outside the plain set forges use. The CLIs
+/// get a URL rebuilt from these parts, never the raw remote, so the host
+/// checked here is the host they contact.
+fn parse_remote(remote: &str) -> Option<(String, String)> {
     let normalized = normalize_git_url(remote);
     let rest = ["https://", "http://", "ssh://"]
         .iter()
         .find_map(|scheme| normalized.strip_prefix(scheme))?;
-    let authority = rest.split('/').next()?;
-    let host = authority.rsplit('@').next()?.split(':').next()?;
-    (!host.is_empty()).then(|| host.to_ascii_lowercase())
+    let (authority, path) = rest.split_once('/').unwrap_or((rest, ""));
+    let host = authority
+        .rsplit_once('@')
+        .map_or(authority, |(_, host)| host);
+    let host = host.split_once(':').map_or(host, |(host, _)| host);
+    let path = path.trim_end_matches('/');
+    let path = path.strip_suffix(".git").unwrap_or(path);
+
+    let host_ok = !host.is_empty()
+        && host
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-');
+    let path_ok = path.is_empty()
+        || path.split('/').all(|segment| {
+            !matches!(segment, "" | "." | "..")
+                && segment
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
+        });
+    (host_ok && path_ok).then(|| (host.to_ascii_lowercase(), path.to_string()))
+}
+
+fn remote_host(remote: &str) -> Option<String> {
+    parse_remote(remote).map(|(host, _)| host)
 }
 
 fn repo_name(remote: &str) -> String {
@@ -205,7 +229,10 @@ fn repo_name(remote: &str) -> String {
 /// missing, fails, or times out, so the caller keeps any older result
 /// instead of caching an empty list.
 pub fn fetch_open_mrs(branch: &BranchRef) -> Option<Vec<MrSummary>> {
-    let host = remote_host(&branch.remote)?;
+    let (host, path) = parse_remote(&branch.remote)?;
+    if path.is_empty() {
+        return None;
+    }
     let mrs = match branch.forge {
         Forge::GitLab => {
             let mut cmd = Command::new("glab");
@@ -220,7 +247,7 @@ pub fn fetch_open_mrs(branch: &BranchRef) -> Option<Vec<MrSummary>> {
                 "mr",
                 "list",
                 "-R",
-                &branch.remote,
+                &format!("https://{host}/{path}"),
                 "--source-branch",
                 &branch.branch,
                 "-F",
@@ -229,14 +256,12 @@ pub fn fetch_open_mrs(branch: &BranchRef) -> Option<Vec<MrSummary>> {
             parse_glab_json(&run_with_timeout(&mut cmd, CLI_TIMEOUT)?)?
         }
         Forge::GitHub => {
-            let slug = normalize_git_url(&branch.remote);
-            let slug = slug.strip_prefix("https://").unwrap_or(&slug);
             let mut cmd = Command::new("gh");
             cmd.args([
                 "pr",
                 "list",
                 "-R",
-                slug,
+                &format!("{host}/{path}"),
                 "--head",
                 &branch.branch,
                 "--state",
@@ -607,6 +632,39 @@ mod tests {
             None
         );
         assert_eq!(Forge::from_remote("/srv/git/local.git"), None);
+    }
+
+    #[test]
+    fn parse_remote_rebuilds_host_and_path_and_rejects_odd_characters() {
+        let parsed = |remote: &str| parse_remote(remote);
+        let pair = |host: &str, path: &str| Some((host.to_string(), path.to_string()));
+        assert_eq!(
+            parsed("git@gitlab.com:acme/web/storefront.git"),
+            pair("gitlab.com", "acme/web/storefront")
+        );
+        assert_eq!(
+            parsed("ssh://git@GitLab.Example.com:2222/team/app.git"),
+            pair("gitlab.example.com", "team/app")
+        );
+        assert_eq!(
+            parsed("https://token@github.com/o/r/"),
+            pair("github.com", "o/r")
+        );
+        // The CLI gets `https://gitlab.com/g/r`, so whatever sits in the
+        // userinfo cannot redirect it.
+        assert_eq!(
+            parsed("https://evil.example#@gitlab.com/g/r"),
+            pair("gitlab.com", "g/r")
+        );
+        assert_eq!(parsed("https://gitlab.com/g/r?x=1"), None);
+        assert_eq!(parsed("https://gitlab.com/g/r#frag"), None);
+        assert_eq!(parsed("https://gitlab.com/g/../r"), None);
+        assert_eq!(parsed("https://gitlab.com/g//r"), None);
+        assert_eq!(
+            parsed("https://gitlab.com\\@evil.example/g/r"),
+            pair("evil.example", "g/r")
+        );
+        assert_eq!(parsed("git@evil.example:x@gitlab.com:g/r"), None);
     }
 
     #[test]

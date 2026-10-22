@@ -3,7 +3,7 @@ use crate::desktop_notification;
 use crate::desktop_notification::DesktopNotificationKind;
 use crate::tmux;
 
-use super::super::context::{AgentContext, set_agent_meta};
+use super::super::context::{AgentContext, set_agent_meta, touch_activity};
 use super::super::notifications::{
     NotifyLabels, NotifyPayload, notification_body, notification_fingerprint, notify_lifecycle,
 };
@@ -31,6 +31,7 @@ pub(in crate::cli::hook) fn on_notification(
     } else {
         tmux::set_pane_option(pane, tmux::PANE_WAIT_REASON, wait_reason);
     }
+    touch_activity(pane);
     let _ = notify_lifecycle(
         pane,
         NotifyLabels::FromCtx(ctx),

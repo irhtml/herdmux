@@ -29,15 +29,17 @@ pub(crate) struct Entry {
     pub(crate) saved_at: u64,
 }
 
-/// A `@pane_desc` tag. tmux-resurrect drops pane options, so tags are
-/// carried here for every pane, agent or not.
+/// A `@pane_desc` tag and the `@pane_pinned` flag. tmux-resurrect drops
+/// pane options, so they are carried here for every pane, agent or not.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct Tag {
     pub(crate) session: String,
     pub(crate) window_index: u32,
     pub(crate) pane_index: u32,
     pub(crate) window_panes: u32,
+    /// Empty when only the pin is carried.
     pub(crate) desc: String,
+    pub(crate) pinned: bool,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -109,6 +111,7 @@ impl ResumeState {
                 "pane_index": t.pane_index,
                 "window_panes": t.window_panes,
                 "desc": t.desc,
+                "pinned": t.pinned,
             })).collect::<Vec<_>>(),
         })
     }
@@ -214,6 +217,7 @@ fn tag_from_json(v: &Value) -> Option<Tag> {
         pane_index: u32_field(v, "pane_index")?,
         window_panes: u32_field(v, "window_panes")?,
         desc: v.get("desc")?.as_str()?.to_string(),
+        pinned: bool_field(v, "pinned"),
     })
 }
 
@@ -267,6 +271,7 @@ mod tests {
                 pane_index: 0,
                 window_panes: 3,
                 desc: "review | bookmarks".into(),
+                pinned: true,
             }],
         };
         assert_eq!(ResumeState::from_json(&state.to_json()), Some(state));

@@ -19,6 +19,11 @@ Most options must be set **before** loading the plugin in your `tmux.conf`. Colo
 | `@sidebar_notifications`         | `on`    | Master switch for desktop notifications                                                 |
 | `@sidebar_notifications_events`  | unset   | Restrict events — see [Notifications](/herdmux/features/notifications/)       |
 | `@sidebar_pet`                  | `off`   | Show the animated pet in a 5-row band above the bottom panel                           |
+| `@sidebar_session_scope`         | `off`   | Each sidebar lists only the agents of its own tmux session. Toggled with `s`; search always covers every session |
+| `@sidebar_view`                  | `full`  | Agent rows: `full` shows every detail, `compact` shows one line per agent and opens only the selected one (or the focused one while the sidebar does not have the keyboard). Toggled with `v` |
+| `@sidebar_sort`                  | `repo`  | Agent order: `repo` groups agents under repository headers, `recent` lists the most recently active agent first. Toggled with `o` |
+| `@sidebar_stale_hours`           | `4`     | Dim agents that have been idle this many hours. Fractions are allowed; `0` turns dimming off. Pinned agents are never dimmed. Read when the sidebar starts |
+| `@sidebar_key_find`              | `a`     | Prefix-triggered keybinding for the agent finder popup (`herdmux pick`). The default `a` is bound only while prefix + `a` is free; set `off` to bind nothing |
 
 ## Worktree spawn defaults
 
@@ -68,6 +73,8 @@ Most options must be set **before** loading the plugin in your `tmux.conf`. Colo
 | `@sidebar_color_port`          | `246`&nbsp;(light gray) | Port numbers                                                                                   |
 | `@sidebar_color_wait_reason`   | `221`&nbsp;(yellow)   | Wait reason text                                                                                 |
 | `@sidebar_color_response_arrow`| `81`&nbsp;(bright cyan) | Response arrow                                                                                 |
+| `@sidebar_color_pane_desc`     | `5`&nbsp;(magenta)    | `@pane_desc` tag row, matching a `#[fg=magenta]` tag on the tmux pane border                     |
+| `@sidebar_color_stale`         | `243`&nbsp;(gray)     | Name, tag and prompt text of agents idle past `@sidebar_stale_hours`                             |
 
 ## Task and sub-agent colors
 

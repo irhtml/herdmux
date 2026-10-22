@@ -2,7 +2,7 @@ use std::time::Instant;
 
 use crate::cli::plugin_state;
 use crate::session;
-use crate::state::AppState;
+use crate::state::{AppMode, AppState};
 use crate::tmux;
 use crate::ui;
 
@@ -13,14 +13,27 @@ use crate::ui;
 /// the Claude plugin install version once at startup, seeds session names
 /// synchronously so `/rename` labels render on the first frame, and performs
 /// the first refresh pass.
-pub(super) fn init_state(tmux_pane: String) -> AppState {
+pub(super) fn init_state(tmux_pane: String, mode: AppMode) -> AppState {
     let mut state = AppState::new(tmux_pane);
+    state.mode = mode;
     let opts = tmux::get_all_global_options();
     state.theme = ui::colors::ColorTheme::from_options(&opts);
     state.icons = ui::icons::StatusIcons::from_options(&opts);
     state.bottom_panel_height = ui::bottom_panel_height_from_options(&opts);
     state.pet_enabled = ui::pet_enabled_from_options(&opts);
+    state.stale_after_secs = crate::state::stale_after_from_options(&opts);
     state.global.apply_all(&opts);
+    // Populate session names synchronously before the first refresh so
+    // `/rename`-assigned labels show up on the first frame (and are
+    // searchable in the picker) without waiting for the background scan.
+    state.sessions.names = session::scan_session_names();
+    if mode == AppMode::Picker {
+        // The picker is the search line and the list, nothing else.
+        state.bottom_panel_height = 0;
+        state.pet_enabled = false;
+        state.open_search();
+        return state;
+    }
 
     // Resolve the installed Claude Code plugin status once at startup,
     // matching the version_notice pattern. Restart the sidebar after a
@@ -37,11 +50,6 @@ pub(super) fn init_state(tmux_pane: String) -> AppState {
     // also decouples the ⓘ badge from `focused_pane_id`, so killing
     // the last agent pane no longer drops outstanding setup warnings.
     state.refresh_notices();
-    // Populate session names synchronously before the first refresh so
-    // `/rename`-assigned labels show up on the first frame without
-    // waiting for the first background scan tick.
-    state.sessions.names = session::scan_session_names();
-    state.sessions.dirty = true;
 
     // `toggle-all` starts one sidebar per window at once, and only the
     // windows a client is viewing show theirs. The others skip the startup

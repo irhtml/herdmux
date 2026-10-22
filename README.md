@@ -16,6 +16,7 @@ herdmux started as a fork of [hiroppy/tmux-agent-sidebar](https://github.com/hir
 
 - **Every pane, one view**: tracks Claude Code, Codex, and OpenCode panes across all tmux sessions and windows
 - **Live metadata**: prompts, tool calls, response previews, background shell state, wait reasons, task progress, and subagent trees refresh as the agents work
+- **Find the right agent**: `/` searches every session by tag, title, repo, branch and every prompt you sent; `prefix + a` opens the same search in a popup; pin the important ones, switch to one-line compact rows, or order by last activity
 - **Worktrees, included**: spawn a fresh worktree + agent in a split of the current window and tear it down (pane, worktree, and branch) in one keystroke
 - **Desktop notifications**: native alerts when an agent finishes, needs permission, or errors out
 - **Agents driving agents**: `agent list|spawn|prompt|wait|read` lets one agent start, prompt and collect replies from the others

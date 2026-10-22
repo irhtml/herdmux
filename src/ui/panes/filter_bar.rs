@@ -64,10 +64,57 @@ pub(super) fn render_filter_bar<'a>(state: &AppState) -> Line<'a> {
     Line::from(spans)
 }
 
+/// The open search line: `/ query█` and the number of matches.
+fn render_search_line<'a>(state: &AppState, width: u16) -> Line<'a> {
+    let theme = &state.theme;
+    let count = state.layout.pane_row_targets.len();
+    let right = if count == 0 && !state.search.query.trim().is_empty() {
+        "no match".to_string()
+    } else {
+        count.to_string()
+    };
+    let right_w = display_width(&right);
+    // "/ " + query + cursor + gap + count
+    let room = (width as usize).saturating_sub(2 + 1 + 1 + right_w);
+    let query = tail_fit(&state.search.query, room);
+    let used = 2 + display_width(&query) + 1;
+    let gap = (width as usize).saturating_sub(used + right_w);
+    Line::from(vec![
+        Span::styled("/ ", Style::default().fg(theme.accent)),
+        Span::styled(query, Style::default().fg(theme.text_active)),
+        Span::styled("█", Style::default().fg(theme.accent)),
+        Span::raw(" ".repeat(gap)),
+        Span::styled(right, Style::default().fg(theme.text_muted)),
+    ])
+}
+
+/// Keep the end of `text` within `max_width` columns, so the cursor end of
+/// a long query stays visible.
+fn tail_fit(text: &str, max_width: usize) -> String {
+    if display_width(text) <= max_width {
+        return text.to_string();
+    }
+    let mut out: Vec<char> = Vec::new();
+    let mut used = 1; // leading "…"
+    for ch in text.chars().rev() {
+        let w = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(0);
+        if used + w > max_width {
+            break;
+        }
+        used += w;
+        out.push(ch);
+    }
+    out.reverse();
+    format!("…{}", out.into_iter().collect::<String>())
+}
+
 pub(super) fn render_secondary_header<'a>(
     state: &AppState,
     width: u16,
 ) -> (Line<'a>, Option<u16>, Option<u16>) {
+    if state.search.open {
+        return (render_search_line(state, width), None, None);
+    }
     let theme = &state.theme;
     let repo_icon = "▾";
 
@@ -275,6 +322,10 @@ mod tests {
             pane_desc: String::new(),
             sidebar_spawned: false,
             spawned_by: None,
+            pinned: false,
+            activity_at: None,
+            window_name: String::new(),
+            tmux_session: String::new(),
             bg_shell_cmd: None,
         };
         let pane2 = crate::tmux::PaneInfo {
@@ -298,6 +349,10 @@ mod tests {
             pane_desc: String::new(),
             sidebar_spawned: false,
             spawned_by: None,
+            pinned: false,
+            activity_at: None,
+            window_name: String::new(),
+            tmux_session: String::new(),
             bg_shell_cmd: None,
         };
         let mut state = make_state_with_groups(vec![crate::group::RepoGroup {

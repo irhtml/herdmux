@@ -51,7 +51,7 @@ pub struct HyperlinkOverlay {
 #[derive(Debug, Clone, Default)]
 pub struct FrameLayout {
     /// Filtered pane list, in the order the UI rendered them. Index
-    /// matches `GlobalState::selected_pane_row`.
+    /// matches `AppState::cursor`.
     pub pane_row_targets: Vec<RowTarget>,
     /// Maps each rendered text line in the agents panel back to a row in
     /// `pane_row_targets`. `None` for header/blank lines that should not
@@ -93,23 +93,37 @@ impl AppState {
             self.global.save_repo_filter();
         }
 
-        self.layout.pane_row_targets.clear();
-        for group in &self.repo_groups {
-            if !self.global.repo_filter.matches_group(&group.name) {
-                continue;
-            }
-            for (pane, _) in &group.panes {
-                if self.global.status_filter.matches(&pane.status) {
-                    self.layout.pane_row_targets.push(RowTarget {
-                        pane_id: pane.pane_id.clone(),
-                    });
-                }
-            }
+        if self.search.open {
+            self.rebuild_search_hits();
         }
-        if self.global.selected_pane_row >= self.layout.pane_row_targets.len()
-            && !self.layout.pane_row_targets.is_empty()
-        {
-            self.global.selected_pane_row = self.layout.pane_row_targets.len() - 1;
+        // Rows can reorder (most recent first, pins, search ranking), so keep
+        // the cursor on the agent it was on rather than on the same row
+        // number.
+        let selected = self
+            .layout
+            .pane_row_targets
+            .get(self.cursor())
+            .map(|t| t.pane_id.clone());
+        self.layout.pane_row_targets = self
+            .listed_pane_ids()
+            .into_iter()
+            .map(|pane_id| RowTarget { pane_id })
+            .collect();
+        let len = self.layout.pane_row_targets.len();
+        let moved_to = selected.and_then(|id| self.row_of(&id));
+        if self.search.open {
+            let row = moved_to.unwrap_or(self.search.selected);
+            self.search.selected = row.min(len.saturating_sub(1));
+            return;
+        }
+        // Local only, like the clamp: a reorder is not a user move, and
+        // saving it would make every hidden sidebar write the shared cursor.
+        match moved_to {
+            Some(row) => self.global.selected_pane_row = row,
+            None if self.global.selected_pane_row >= len && len > 0 => {
+                self.global.selected_pane_row = len - 1;
+            }
+            None => {}
         }
     }
 
@@ -176,6 +190,9 @@ impl AppState {
     /// Handle mouse click on the secondary header row (row 1).
     /// The repo filter button lives on the far right of this row.
     pub fn handle_secondary_header_click(&mut self, col: u16) {
+        if self.search.open {
+            return;
+        }
         if self
             .notices
             .button_col
@@ -250,7 +267,10 @@ impl AppState {
         }
 
         if row == 0 {
-            self.handle_filter_click(col);
+            // The status filter does not apply to search results.
+            if !self.search.open {
+                self.handle_filter_click(col);
+            }
             return;
         }
         if row == 1 {
@@ -285,9 +305,12 @@ impl AppState {
 
         let line_index = (row as usize - 2) + self.scrolls.panes.offset;
         if let Some(Some(agent_row)) = self.layout.line_to_row.get(line_index) {
-            self.global.selected_pane_row = *agent_row;
-            self.global.queue_cursor_save();
-            self.activate_selected_pane();
+            self.set_cursor(*agent_row);
+            if self.search.open {
+                self.confirm_search();
+            } else {
+                self.activate_selected_pane();
+            }
         }
     }
 }

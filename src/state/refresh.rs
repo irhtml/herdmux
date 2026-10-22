@@ -128,42 +128,22 @@ impl AppState {
         sidebar_focused: bool,
         sessions: Vec<SessionInfo>,
     ) {
-        self.focus_state.sidebar_focused = sidebar_focused;
+        // The picker owns the keyboard for as long as it runs.
+        self.focus_state.sidebar_focused = sidebar_focused || self.mode == super::AppMode::Picker;
+        // Search and the picker look across every session.
         let sessions = if self.global.session_scope
+            && !self.search.open
             && let Some(own) = &self.own_session_name
         {
             Self::scope_sessions_to(sessions, own)
         } else {
             sessions
         };
-        // Capture the prior `pane_id → session_id` map so we can detect
-        // anything that should re-trigger `refresh_session_names`:
-        //   - a brand-new pane_id (first appearance)
-        //   - an existing pane whose session_id changed (e.g. /clear or
-        //     a Codex session swap reuses the same pane_id but binds a
-        //     new session label)
-        let prev_session_ids: HashMap<String, Option<String>> = self
-            .repo_groups
-            .iter()
-            .flat_map(|g| {
-                g.panes
-                    .iter()
-                    .map(|(p, _)| (p.pane_id.clone(), p.session_id.clone()))
-            })
-            .collect();
         self.repo_groups = crate::group::group_panes_by_repo(&sessions);
-        if !self.sessions.dirty
-            && self
-                .repo_groups
-                .iter()
-                .flat_map(|g| g.panes.iter())
-                .any(|(p, _)| match prev_session_ids.get(&p.pane_id) {
-                    None => true,
-                    Some(prev_sid) => *prev_sid != p.session_id,
-                })
-        {
-            self.sessions.dirty = true;
-        }
+        self.snapshot_gen = self.snapshot_gen.wrapping_add(1);
+        // The snapshot rebuilds every pane, so the `/rename` names go back
+        // on each time, before the rows and search hits are built.
+        self.refresh_session_names();
         self.prune_pane_states_to_current_panes();
         self.rebuild_row_targets();
         self.find_focused_pane();
@@ -185,6 +165,7 @@ impl AppState {
             tmux::PANE_WAIT_REASON,
             tmux::PANE_SESSION_ID,
             tmux::PANE_BG_CMD,
+            tmux::PANE_ACTIVITY_AT,
         ] {
             tmux::unset_pane_option(pane_id, key);
         }
@@ -215,12 +196,24 @@ impl AppState {
         out
     }
 
-    /// Keep only the tmux session named `own` — the session-scope filter.
+    /// The session-scope filter: keep the tmux session named `own`, plus
+    /// pinned agents from other sessions, since a pin means "keep this in
+    /// sight".
     fn scope_sessions_to(sessions: Vec<SessionInfo>, own: &str) -> Vec<SessionInfo> {
-        sessions
-            .into_iter()
-            .filter(|session| session.session_name == own)
-            .collect()
+        let mut out = Vec::new();
+        for mut session in sessions {
+            if session.session_name != own {
+                for window in &mut session.windows {
+                    window.panes.retain(|pane| pane.pinned);
+                }
+                session.windows.retain(|window| !window.panes.is_empty());
+                if session.windows.is_empty() {
+                    continue;
+                }
+            }
+            out.push(session);
+        }
+        out
     }
 
     fn refresh_activity_data(&mut self) {
@@ -252,6 +245,16 @@ impl AppState {
             };
         }
         self.timers.last_full_sync = Some(now);
+        // Search is a passing mode: once the user leaves the sidebar it ends,
+        // so this snapshot is scoped again.
+        let search_ended_on = if self.search.open
+            && self.mode == super::AppMode::Sidebar
+            && (!info.focused || !info.visible)
+        {
+            self.end_search()
+        } else {
+            None
+        };
         // Another sidebar may have changed the shared filters while nobody
         // viewed this one. Re-read them before the snapshot, because the
         // session scope decides which sessions the snapshot keeps. A hidden
@@ -284,9 +287,9 @@ impl AppState {
         } else {
             self.apply_session_snapshot(focused, sessions);
         }
-        if self.sessions.dirty {
-            self.refresh_session_names();
-            self.sessions.dirty = false;
+        // Local only: nobody is looking, so this is not a user move.
+        if let Some(row) = search_ended_on.and_then(|id| self.row_of(&id)) {
+            self.global.selected_pane_row = row;
         }
         self.refresh_activity_data();
         RefreshOutcome {
@@ -295,10 +298,17 @@ impl AppState {
         }
     }
 
+    /// Take a fresh `session_id → name` map from the background scan.
+    pub fn set_session_names(&mut self, names: HashMap<String, String>) {
+        self.sessions.names = names;
+        self.refresh_session_names();
+        self.rebuild_row_targets();
+    }
+
     /// Apply the current `session_id → name` map to each pane so the
     /// sidebar can render `/rename`-assigned labels. The map itself is
-    /// refreshed off-thread by `session_poll_loop` in `main.rs`; this
-    /// function only consumes the cached snapshot.
+    /// refreshed off-thread by `session_poll_loop` in `app/workers.rs`;
+    /// this function only consumes the cached snapshot.
     fn refresh_session_names(&mut self) {
         for group in &mut self.repo_groups {
             for (pane, _) in &mut group.panes {
@@ -607,6 +617,10 @@ mod tests {
             pane_desc: String::new(),
             sidebar_spawned: false,
             spawned_by: None,
+            pinned: false,
+            activity_at: None,
+            window_name: String::new(),
+            tmux_session: String::new(),
             bg_shell_cmd: None,
         }
     }
@@ -1014,39 +1028,59 @@ mod tests {
         );
     }
 
-    #[test]
-    fn apply_session_snapshot_marks_dirty_when_existing_pane_swaps_session_id() {
-        // Pane %1 keeps the same pane_id across snapshots but its
-        // session_id changes (e.g. the agent restarted with a new
-        // Claude session). Without dirty propagation,
-        // refresh_session_names would be skipped and the UI would
-        // keep showing the old session label forever.
-        let mut state = state_with_panes(vec![pane_with_session("%1", "sess-old")]);
-        state.sessions.dirty = false;
-
-        let next_sessions = test_session(vec![pane_with_session("%1", "sess-new")]);
-        state.apply_session_snapshot(false, next_sessions);
-
-        assert!(
-            state.sessions.dirty,
-            "session_names_dirty must be set when an existing pane's session_id changes"
-        );
+    fn session_name_of(state: &AppState) -> &str {
+        state.repo_groups[0].panes[0].0.session_name.as_str()
     }
 
     #[test]
-    fn apply_session_snapshot_does_not_mark_dirty_when_session_ids_unchanged() {
-        // Same pane, same session_id across snapshots — no need to
-        // re-walk every pane, dirty flag should stay clear.
-        let mut state = state_with_panes(vec![pane_with_session("%1", "sess-a")]);
-        state.sessions.dirty = false;
+    fn rename_label_survives_every_snapshot() {
+        // Each snapshot rebuilds the panes from tmux, which knows nothing
+        // of `/rename` names. They must go back on every time, not only
+        // when a pane or session id is new, or search and the rows lose
+        // them on the next tick.
+        let mut state = state_with_panes(vec![]);
+        state
+            .sessions
+            .names
+            .insert("sess-a".into(), "incident-fix".into());
 
-        let next_sessions = test_session(vec![pane_with_session("%1", "sess-a")]);
-        state.apply_session_snapshot(false, next_sessions);
+        state.apply_session_snapshot(false, test_session(vec![pane_with_session("%1", "sess-a")]));
+        assert_eq!(session_name_of(&state), "incident-fix");
+        state.apply_session_snapshot(false, test_session(vec![pane_with_session("%1", "sess-a")]));
+        assert_eq!(session_name_of(&state), "incident-fix");
+    }
 
-        assert!(
-            !state.sessions.dirty,
-            "session_names_dirty must remain clear when nothing changed"
+    #[test]
+    fn rename_label_follows_a_session_id_swap() {
+        // Same pane, new Claude session (e.g. after /clear): the label of
+        // the new session replaces the old one.
+        let mut state = state_with_panes(vec![]);
+        state.sessions.names.insert("sess-old".into(), "old".into());
+        state.sessions.names.insert("sess-new".into(), "new".into());
+
+        state.apply_session_snapshot(
+            false,
+            test_session(vec![pane_with_session("%1", "sess-old")]),
         );
+        state.apply_session_snapshot(
+            false,
+            test_session(vec![pane_with_session("%1", "sess-new")]),
+        );
+        assert_eq!(session_name_of(&state), "new");
+    }
+
+    #[test]
+    fn new_session_names_reach_the_panes_and_search() {
+        let mut state = state_with_panes(vec![]);
+        state.apply_session_snapshot(false, test_session(vec![pane_with_session("%1", "sess-a")]));
+        state.search.open = true;
+        state.search.query = "incident".into();
+        state.rebuild_row_targets();
+        assert!(state.search.hits.is_empty());
+
+        state.set_session_names(HashMap::from([("sess-a".into(), "incident-fix".into())]));
+        assert_eq!(session_name_of(&state), "incident-fix");
+        assert_eq!(state.search.hits.len(), 1);
     }
 
     #[test]
@@ -1087,6 +1121,38 @@ mod tests {
         let scoped = AppState::scope_sessions_to(sessions, "work");
         assert_eq!(scoped.len(), 1);
         assert_eq!(scoped[0].session_name, "work");
+    }
+
+    #[test]
+    fn scope_sessions_to_keeps_pinned_agents_of_other_sessions() {
+        let mut private = named_session("private", "%2");
+        private.windows[0].panes.push(test_pane("%3"));
+        private.windows[0].panes[1].pinned = true;
+        let scoped = AppState::scope_sessions_to(
+            vec![
+                named_session("work", "%1"),
+                private,
+                named_session("old", "%4"),
+            ],
+            "work",
+        );
+        let ids: Vec<_> = scoped
+            .iter()
+            .flat_map(|s| s.windows.iter().flat_map(|w| &w.panes))
+            .map(|p| p.pane_id.as_str())
+            .collect();
+        assert_eq!(ids, ["%1", "%3"]);
+    }
+
+    #[test]
+    fn apply_session_snapshot_ignores_scope_while_searching() {
+        let mut state = AppState::new("%99".into());
+        state.global.session_scope = true;
+        state.own_session_name = Some("work".into());
+        state.search.open = true;
+        let sessions = vec![named_session("work", "%1"), named_session("private", "%2")];
+        state.apply_session_snapshot(false, sessions);
+        assert_eq!(state.layout.pane_row_targets.len(), 2);
     }
 
     #[test]

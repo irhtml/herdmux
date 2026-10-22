@@ -52,6 +52,8 @@ pub(crate) struct Plan {
     pub(crate) actions: Vec<Action>,
     /// `(pane_id, desc)` tags to put back.
     pub(crate) tags: Vec<(String, String)>,
+    /// Panes to pin again.
+    pub(crate) pins: Vec<String>,
 }
 
 impl Plan {
@@ -146,11 +148,16 @@ pub(crate) fn plan(
     }
 
     for tag in &state.tags {
-        if let Some(loc) = find(live, &tag.session, tag.window_index, tag.pane_index)
-            && loc.window_panes == tag.window_panes
-            && loc.desc.is_empty()
-        {
+        let Some(loc) = find(live, &tag.session, tag.window_index, tag.pane_index)
+            .filter(|loc| loc.window_panes == tag.window_panes)
+        else {
+            continue;
+        };
+        if !tag.desc.is_empty() && loc.desc.is_empty() {
             plan.tags.push((loc.pane_id.clone(), tag.desc.clone()));
+        }
+        if tag.pinned && !loc.pinned {
+            plan.pins.push(loc.pane_id.clone());
         }
     }
     Ok(plan)
@@ -161,6 +168,9 @@ pub(crate) fn execute(plan: &Plan, now: u64) -> Vec<String> {
     let mut log = Vec::new();
     for (pane, desc) in &plan.tags {
         tmux::set_pane_option(pane, tmux::PANE_DESC, desc);
+    }
+    for pane in &plan.pins {
+        tmux::set_pane_option(pane, tmux::PANE_PINNED, "1");
     }
     for action in &plan.actions {
         match action {
@@ -345,6 +355,7 @@ mod tests {
             pane_index: pane,
             window_panes: panes,
             desc: format!("tag-{pane}"),
+            pinned: false,
         };
         let s = ResumeState {
             tags: vec![tag(1, 3), tag(2, 3), tag(0, 4)],
@@ -352,5 +363,28 @@ mod tests {
         };
         let plan = plan(&s, &live, &server(), 1_010, false).unwrap();
         assert_eq!(plan.tags, vec![("%11".to_string(), "tag-1".to_string())]);
+        assert!(plan.pins.is_empty());
+    }
+
+    #[test]
+    fn restores_pins_even_without_a_tag() {
+        let mut pinned = restored(2);
+        pinned.pinned = true;
+        let live = vec![restored(1), pinned, restored(0)];
+        let pin = |pane| Tag {
+            session: "main".into(),
+            window_index: 1,
+            pane_index: pane,
+            window_panes: 3,
+            desc: String::new(),
+            pinned: true,
+        };
+        let s = ResumeState {
+            tags: vec![pin(1), pin(2)],
+            ..state(vec![])
+        };
+        let plan = plan(&s, &live, &server(), 1_010, false).unwrap();
+        assert!(plan.tags.is_empty(), "an empty desc is not restored");
+        assert_eq!(plan.pins, vec!["%11".to_string()]);
     }
 }

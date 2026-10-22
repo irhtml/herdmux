@@ -1,6 +1,6 @@
 ---
 title: Keybindings
-description: Every shortcut in the sidebar, the worktree spawn modal, and the close-pane modal.
+description: Every shortcut in the sidebar, the agent search, the worktree spawn modal, and the close-pane modal.
 ---
 
 ## Sidebar
@@ -9,16 +9,36 @@ description: Every shortcut in the sidebar, the worktree spawn modal, and the cl
 | -------------- | ------------------------------------------------------------- |
 | `prefix + e`   | Toggle sidebar                                                |
 | `prefix + E`   | Toggle sidebar in all windows                                 |
+| `prefix + a`   | Open the agent finder popup (see `@sidebar_key_find`)         |
 | `j` / `Down`   | Move selection down                                           |
 | `k` / `Up`     | Move selection up                                             |
 | `h` / `Left`   | Previous status filter                                        |
 | `l` / `Right`  | Next status filter                                            |
 | `r`            | Open repo filter popup                                        |
+| `s`            | Toggle between this session's agents and every session's      |
+| `/`            | Search agents in every session                                |
+| `v`            | Toggle compact and full rows                                  |
+| `o`            | Toggle repository groups and most-recent-first order          |
+| `p`            | Pin or unpin the selected agent                               |
 | `Enter`        | Jump to the selected pane                                     |
 | `Tab`          | Cycle status filter                                           |
-| `Shift+Tab`    | Switch bottom panel tab (Activity ⇄ Git)                      |
+| `Shift+Tab`    | Switch bottom panel tab (Activity, Git, MRs)                  |
 | `Esc`          | Return focus or close the popup                               |
 | `?`            | Show keymap (`?` or `Esc` to close; arrows or mouse wheel to scroll) |
+
+## Agent search
+
+Opened with `/` in the sidebar. The agent finder popup (`prefix + a`) opens straight into it.
+
+| Key                          | Action                                         |
+| ---------------------------- | ---------------------------------------------- |
+| Text keys                    | Type the query                                 |
+| `Up` / `Down` / `Ctrl+p` / `Ctrl+n` | Move through the matches                |
+| `Enter`                      | Jump to the selected agent and close the search |
+| `Backspace`                  | Delete a character                             |
+| `Ctrl+w`                     | Delete the last word                           |
+| `Ctrl+u`                     | Clear the query                                |
+| `Esc` / `Ctrl+c`             | Close the search (the popup closes too)        |
 
 ## Repo filter popup
 

@@ -183,8 +183,9 @@ fn print_save_report(report: &resume::SaveReport) {
         println!("skip {address}: {reason}");
     }
     for tag in &report.state.tags {
+        let pin = if tag.pinned { " (pinned)" } else { "" };
         println!(
-            "tag  {}:{}.{} {}",
+            "tag  {}:{}.{} {}{pin}",
             tag.session, tag.window_index, tag.pane_index, tag.desc
         );
     }
@@ -277,6 +278,9 @@ fn restore(raw: &[String]) -> i32 {
         }
         for (pane, desc) in &plan.tags {
             println!("tag    {pane}: {desc}");
+        }
+        for pane in &plan.pins {
+            println!("pin    {pane}");
         }
         return 0;
     }

@@ -7,6 +7,7 @@ use crate::time::{now_epoch_millis, now_epoch_secs};
 
 use super::super::context::{
     AgentContext, clear_run_state, is_system_message, mark_task_reset, set_agent_meta,
+    touch_activity,
 };
 use super::super::notifications::{
     NotifyLabels, NotifyPayload, notification_run_id, notify_lifecycle, set_notification_run_id,
@@ -32,6 +33,7 @@ pub(in crate::cli::hook) fn on_user_prompt_submit(
     tmux::set_pane_option(pane, tmux::PANE_STARTED_AT, &now_epoch_secs().to_string());
     tmux::set_pane_option(pane, tmux::PANE_PROMPT_AT, &now_epoch_millis().to_string());
     tmux::unset_pane_option(pane, tmux::PANE_WAIT_REASON);
+    touch_activity(pane);
     0
 }
 
@@ -110,6 +112,7 @@ fn end_turn(pane: &str, ctx: &AgentContext<'_>, last_message: &str) -> bool {
         clear_run_state(pane);
     }
     mark_task_reset(pane);
+    touch_activity(pane);
     set_status(pane, resolve_stop_status(bg_shell_live));
     bg_shell_live
 }
@@ -146,6 +149,7 @@ pub(in crate::cli::hook) fn on_stop_failure(
     if !error.is_empty() {
         tmux::set_pane_option(pane, tmux::PANE_WAIT_REASON, error);
     }
+    touch_activity(pane);
     set_status(pane, "error");
     let _ = notify_lifecycle(
         pane,
@@ -187,6 +191,29 @@ pub(in crate::cli::hook) fn on_task_completed(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn turn_boundaries_stamp_activity() {
+        let _guard = tmux::test_mock::install();
+        let ctx = AgentContext {
+            agent: "claude",
+            cwd: "/repo",
+            permission_mode: "default",
+            worktree: &None,
+            session_id: &None,
+        };
+        on_user_prompt_submit("%TURN", &ctx, "fix the bug");
+        let started = tmux::test_mock::get("%TURN", tmux::PANE_ACTIVITY_AT).unwrap();
+        assert!(started.parse::<u64>().is_ok_and(|t| t > 0));
+
+        tmux::test_mock::set("%TURN", tmux::PANE_ACTIVITY_AT, "1");
+        on_interrupt("%TURN", &ctx);
+        assert_ne!(
+            tmux::test_mock::get("%TURN", tmux::PANE_ACTIVITY_AT).as_deref(),
+            Some("1"),
+            "ending the turn moves the stamp"
+        );
+    }
 
     #[test]
     fn on_user_prompt_submit_sets_running_and_stores_prompt() {

@@ -11,7 +11,7 @@ use crossterm::event::{self};
 use ratatui::{Terminal, backend::CrosstermBackend};
 
 use crate::SPINNER_PULSE;
-use crate::state::BottomTab;
+use crate::state::{AppMode, BottomTab};
 
 mod input;
 mod render;
@@ -29,8 +29,9 @@ pub fn run(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     tmux_pane: String,
     needs_refresh: &'static AtomicBool,
+    mode: AppMode,
 ) -> io::Result<()> {
-    let mut state = setup::init_state(tmux_pane);
+    let mut state = setup::init_state(tmux_pane, mode);
     // Whether a client is viewing this sidebar's window, as of the last
     // refresh tick. Hidden sidebars skip spinner redraws and git polling;
     // see `AppState::refresh_tick` for the tmux snapshot cadence.
@@ -46,7 +47,14 @@ pub fn run(
         mr_rx,
         mr_wake,
         mr_tab_active,
+        transcript_sessions,
+        digest_rx,
+        transcripts_active,
     } = workers;
+    // Last session list sent to the transcript thread, and the snapshot
+    // it was computed from.
+    let mut sent_sessions: Option<Vec<(String, String)>> = None;
+    let mut sessions_gen: Option<u64> = None;
     let mut git_generation = 0;
     let mut git_pane = state.focus_state.focused_pane_id.clone();
 
@@ -57,6 +65,9 @@ pub fn run(
     let mut needs_redraw = true;
 
     loop {
+        if state.quit {
+            return Ok(());
+        }
         if needs_redraw {
             render::render_frame(terminal, &mut state)?;
             needs_redraw = false;
@@ -152,9 +163,22 @@ pub fn run(
             needs_refresh.store(true, Ordering::Relaxed);
         }
 
+        // Transcripts are read only while someone sees the result.
+        transcripts_active.store(window_visible, Ordering::Relaxed);
+        if sessions_gen != Some(state.snapshot_gen) {
+            sessions_gen = Some(state.snapshot_gen);
+            let wanted = state.transcript_sessions();
+            if sent_sessions.as_ref() != Some(&wanted) {
+                let _ = transcript_sessions.send(wanted.clone());
+                sent_sessions = Some(wanted);
+            }
+        }
+        while let Ok(updates) = digest_rx.try_recv() {
+            needs_redraw |= state.apply_digest_updates(updates);
+        }
+
         if let Ok(names) = session_rx.try_recv() {
-            state.sessions.names = names;
-            state.sessions.dirty = true;
+            state.set_session_names(names);
             needs_redraw = true;
         }
 

@@ -14,10 +14,13 @@ mod pane_runtime;
 mod pet;
 mod popup;
 mod refresh;
+mod rows;
 mod scroll;
+mod search;
 mod session;
 mod tab;
 mod timers;
+mod view;
 
 pub use activity::ActivityState;
 pub use filter::{RepoFilter, StatusFilter};
@@ -33,9 +36,23 @@ pub use pane_runtime::{PaneRuntimeMap, PaneRuntimeState};
 pub use popup::{PopupState, SpawnField};
 #[cfg(test)]
 pub(crate) use refresh::{TaskProgressDecision, classify_task_progress};
+pub use rows::{DEFAULT_STALE_HOURS, HeaderKind, ListItem, PaneItem, stale_after_from_options};
 pub use scroll::{ScrollState, ScrollStates};
+pub use search::{SearchHit, SearchState};
 pub use session::SessionNamesState;
 pub use timers::RefreshTimers;
+pub use view::{SortMode, ViewMode};
+
+/// What the TUI process is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum AppMode {
+    /// A sidebar pane in a tmux window.
+    #[default]
+    Sidebar,
+    /// `herdmux pick`: a one-shot agent finder, usually in a tmux popup.
+    /// Search is always open; a jump or `Esc` ends the process.
+    Picker,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum BottomTab {
@@ -149,6 +166,20 @@ pub struct AppState {
     /// Whether the pet animation is drawn and ticked. Loaded once at startup
     /// from the `@sidebar_pet` tmux option. Defaults to `false`.
     pub pet_enabled: bool,
+    /// Per Claude session id: AI title, typed prompts and last message
+    /// time, read from transcripts by the transcript worker.
+    pub digests: std::collections::HashMap<String, crate::transcript::SessionDigest>,
+    /// The `/` search line and its matches.
+    pub search: SearchState,
+    /// Idle agents inactive this long are dimmed; `0` turns it off.
+    /// Loaded once at startup from `@sidebar_stale_hours`.
+    pub stale_after_secs: u64,
+    pub mode: AppMode,
+    /// Set when the picker is done; the event loop then returns.
+    pub quit: bool,
+    /// Bumped each time `repo_groups` is rebuilt from a tmux snapshot, so
+    /// the event loop can tell when the set of agents may have changed.
+    pub snapshot_gen: u64,
 }
 
 impl AppState {
@@ -198,8 +229,14 @@ impl AppState {
             version_notice: None,
             global: GlobalState::new(),
             bottom_panel_height: crate::ui::BOTTOM_PANEL_HEIGHT,
-            sessions: SessionNamesState::new(),
+            sessions: SessionNamesState::default(),
             pet_enabled: false,
+            digests: std::collections::HashMap::new(),
+            search: SearchState::default(),
+            stale_after_secs: DEFAULT_STALE_HOURS * 3600,
+            mode: AppMode::Sidebar,
+            quit: false,
+            snapshot_gen: 0,
         };
         crate::state::pet::reseed_pet_idle_motion(&mut state);
         state
@@ -242,6 +279,10 @@ mod tests {
             pane_desc: String::new(),
             sidebar_spawned: false,
             spawned_by: None,
+            pinned: false,
+            activity_at: None,
+            window_name: String::new(),
+            tmux_session: String::new(),
             bg_shell_cmd: None,
         }
     }

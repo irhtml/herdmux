@@ -432,7 +432,7 @@ fn compute_scroll_offset(state: &mut AppState, total_lines: usize, list_area: Re
         let mut first_line: Option<usize> = None;
         let mut last_line: Option<usize> = None;
         for (i, mapping) in state.layout.line_to_row.iter().enumerate() {
-            if *mapping == Some(state.global.selected_pane_row) {
+            if *mapping == Some(state.cursor()) {
                 if first_line.is_none() {
                     first_line = Some(i);
                 }

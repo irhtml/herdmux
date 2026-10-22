@@ -309,6 +309,10 @@ fn snapshot_two_agents_same_window_ui() {
         pane_desc: String::new(),
         sidebar_spawned: false,
         spawned_by: None,
+        pinned: false,
+        activity_at: None,
+        window_name: String::new(),
+        tmux_session: String::new(),
         bg_shell_cmd: None,
     };
     let pane2 = PaneInfo {
@@ -332,6 +336,10 @@ fn snapshot_two_agents_same_window_ui() {
         pane_desc: String::new(),
         sidebar_spawned: false,
         spawned_by: None,
+        pinned: false,
+        activity_at: None,
+        window_name: String::new(),
+        tmux_session: String::new(),
         bg_shell_cmd: None,
     };
 

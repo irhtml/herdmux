@@ -43,6 +43,17 @@ pub(in crate::cli::hook) fn set_agent_meta(pane: &str, ctx: &AgentContext<'_>) {
     sync_pane_location(pane, ctx.cwd, ctx.worktree, ctx.session_id);
 }
 
+/// Stamp the pane's last-active time. Called at turn boundaries only
+/// (prompt, stop, failure, interrupt, session start, wait), not on every
+/// tool call, so a busy agent does not pay an extra tmux call per tool.
+pub(in crate::cli::hook) fn touch_activity(pane: &str) {
+    tmux::set_pane_option(
+        pane,
+        tmux::PANE_ACTIVITY_AT,
+        &crate::time::now_epoch_secs().to_string(),
+    );
+}
+
 pub(in crate::cli::hook) fn clear_run_state(pane: &str) {
     tmux::unset_pane_option(pane, tmux::PANE_STARTED_AT);
     tmux::unset_pane_option(pane, tmux::PANE_WAIT_REASON);
@@ -66,6 +77,7 @@ pub(in crate::cli::hook) fn clear_all_meta(pane: &str) {
         tmux::PANE_WORKTREE_BRANCH,
         tmux::PANE_SESSION_ID,
         tmux::PANE_PROMPT_AT,
+        tmux::PANE_ACTIVITY_AT,
         tmux::PANE_RESUME_PENDING,
         PENDING_SESSION_END,
         PENDING_WORKTREE_REMOVE,

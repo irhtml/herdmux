@@ -18,7 +18,7 @@ sidebar has been hidden for 2+ ticks (see [Refresh Cadence](#refresh-cadence)).
 | `repo_filter` | `@sidebar_repo_filter` | User input (repo popup) | Repository filter (All or specific repo) |
 | `session_scope` | `@sidebar_session_scope` | User input (`s` key) | When on, each sidebar lists only the agents of its own tmux session. Ignored while the search is open |
 | `view` | `@sidebar_view` | User input (`v` key) | `ViewMode`: `full` rows, or `compact` rows where only the cursor row (or the focused agent when the sidebar lacks the keyboard) shows details |
-| `sort` | `@sidebar_sort` | User input (`o` key) | `SortMode`: `repo` groups, or `recent` (one list by last activity). Pinned agents lead either way |
+| `sort` | `@sidebar_sort` | User input (`o` key) | `SortMode`: `repo` groups, or `recent` (one list). Both order by last activity: repositories by their latest agent, agents newest first. Pinned agents lead either way |
 
 Each field has a corresponding `last_saved_*` to prevent sync conflicts — only overwrites tmux if the local write succeeded.
 

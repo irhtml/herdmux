@@ -77,13 +77,13 @@ fn compact_view_shows_one_line_per_agent_and_opens_the_cursor_row() {
     insta::assert_snapshot!(output, @"
      ≡4  ●1  ◎0  ◐0  ○3  ✕0
                                              — ▾
-    billing
-      ○ Dockerfile security fix               2h
     storefront
+      ● PR 42 client impact                  23s
       ○ PHP CVE research                      3h
-      ● claude                               23s
-        PR 42 client impact
-        investigate PR 42
+    billing
+      ○ claude                                2h
+        Dockerfile security fix
+        Waiting for prompt…
     checkout-api
       ○ PHP 8.3 upgrade                       1d
     ");
@@ -100,13 +100,13 @@ fn compact_view_opens_the_focused_agent_when_the_sidebar_is_not_focused() {
     insta::assert_snapshot!(output, @"
      ≡4  ●1  ◎0  ◐0  ○3  ✕0
                                              — ▾
+    storefront
+      ● PR 42 client impact                  23s
+      ○ PHP CVE research                      3h
     billing
     ┃ ○ claude                                2h
         Dockerfile security fix
         Waiting for prompt…
-    storefront
-      ○ PHP CVE research                      3h
-      ● PR 42 client impact                  23s
     checkout-api
       ○ PHP 8.3 upgrade                       1d
     ");
@@ -152,12 +152,12 @@ fn full_view_pinned_group_names_the_repo() {
         Dockerfile security fix
         Waiting for prompt…
     storefront
-      ○ claude                                3h
-        PHP CVE research
-        Waiting for prompt…
       ● claude                               23s
         PR 42 client impact
         investigate PR 42
+      ○ claude                                3h
+        PHP CVE research
+        Waiting for prompt…
     checkout-api
       ○ claude                                1d
         PHP 8.3 upgrade

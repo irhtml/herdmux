@@ -61,16 +61,16 @@ The same search in a tmux popup over the current window, wide enough for long na
 `v` switches every sidebar between full rows and compact rows (`@sidebar_view`). A compact row is one line: status, name, and how long ago the agent was last active. Only the selected agent opens up to full detail, or the focused agent while the sidebar does not have the keyboard. The name is the first of: the tag, the `/rename` name, Claude's session title, the first prompt, the latest prompt, the agent name.
 
 ```text
+storefront                                   +
+  ● PR 42 client impact                    23s
+  ○ PHP CVE research                        3h
 billing                                      +
   ○ Dockerfile security fix                 2h
-storefront                                   +
-  ○ PHP CVE research                        3h
-  ● PR 42 client impact                    23s
 ```
 
-### Most recent first (`o`)
+### Order (`o`)
 
-`o` switches every sidebar between repository groups and one list ordered by last activity (`@sidebar_sort`). Rows outside their repository group show the repository name.
+By default agents are grouped under their repository, and the most recently active agent comes first: the repository with the latest activity sits at the top, and inside each repository the agents are listed newest first. A working agent counts as active now. `o` switches every sidebar between these groups and one list ordered by last activity (`@sidebar_sort`). Rows outside their repository group show the repository name.
 
 ### Stale agents
 

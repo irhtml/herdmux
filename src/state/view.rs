@@ -37,7 +37,8 @@ impl ViewMode {
 /// Order of the agent list. Shared by every sidebar through `@sidebar_sort`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum SortMode {
-    /// Grouped under repository headers, repositories in name order.
+    /// Grouped under repository headers. The repository with the most
+    /// recently active agent comes first, and its agents newest first.
     #[default]
     Repo,
     /// One list, most recently active agent first.

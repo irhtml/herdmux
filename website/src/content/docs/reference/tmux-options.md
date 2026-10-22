@@ -21,7 +21,7 @@ Most options must be set **before** loading the plugin in your `tmux.conf`. Colo
 | `@sidebar_pet`                  | `off`   | Show the animated pet in a 5-row band above the bottom panel                           |
 | `@sidebar_session_scope`         | `off`   | Each sidebar lists only the agents of its own tmux session. Toggled with `s`; search always covers every session |
 | `@sidebar_view`                  | `full`  | Agent rows: `full` shows every detail, `compact` shows one line per agent and opens only the selected one (or the focused one while the sidebar does not have the keyboard). Toggled with `v` |
-| `@sidebar_sort`                  | `repo`  | Agent order: `repo` groups agents under repository headers, `recent` lists the most recently active agent first. Toggled with `o` |
+| `@sidebar_sort`                  | `repo`  | Agent order: `repo` groups agents under repository headers, `recent` lists them in one list. Both put the most recently active agent first. Toggled with `o` |
 | `@sidebar_stale_hours`           | `4`     | Dim agents that have been idle this many hours. Fractions are allowed; `0` turns dimming off. Pinned agents are never dimmed. Read when the sidebar starts |
 | `@sidebar_key_find`              | `a`     | Prefix-triggered keybinding for the agent finder popup (`herdmux pick`). The default `a` is bound only while prefix + `a` is free; set `off` to bind nothing |
 

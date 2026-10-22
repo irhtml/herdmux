@@ -119,8 +119,8 @@ impl AppState {
     }
 
     /// The agent list in display order: pinned agents first, then the rest
-    /// grouped by repository or most recent first, or the search matches
-    /// while searching.
+    /// grouped by repository or in one list, most recently active first
+    /// either way, or the search matches while searching.
     pub fn list_items(&self) -> Vec<ListItem<'_>> {
         if self.search.open {
             return self.search_items();
@@ -143,9 +143,7 @@ impl AppState {
             .filter(|(_, p, _)| p.pinned && shown(p))
             .map(|(g, p, git)| PaneItem::new(g, p, git, true))
             .collect();
-        if self.global.sort == SortMode::Recent {
-            recent_first(&mut pinned);
-        }
+        recent_first(&mut pinned);
         let has_pinned = !pinned.is_empty();
         if has_pinned {
             items.push(ListItem::Header(HeaderKind::Pinned));
@@ -154,16 +152,23 @@ impl AppState {
 
         match self.global.sort {
             SortMode::Repo => {
-                for group in groups {
-                    let rows: Vec<PaneItem<'_>> = group
-                        .panes
-                        .iter()
-                        .filter(|(p, _)| !p.pinned && shown(p))
-                        .map(|(p, git)| PaneItem::new(group, p, git, false))
-                        .collect();
-                    if rows.is_empty() {
-                        continue;
-                    }
+                let mut sections: Vec<(&RepoGroup, Vec<PaneItem<'_>>)> = groups
+                    .iter()
+                    .filter_map(|group| {
+                        let mut rows: Vec<PaneItem<'_>> = group
+                            .panes
+                            .iter()
+                            .filter(|(p, _)| !p.pinned && shown(p))
+                            .map(|(p, git)| PaneItem::new(group, p, git, false))
+                            .collect();
+                        recent_first(&mut rows);
+                        (!rows.is_empty()).then_some((*group, rows))
+                    })
+                    .collect();
+                // A repository ranks by its most recently active agent, which
+                // is its first row. Ties keep the alphabetical order.
+                sections.sort_by_key(|(_, rows)| Reverse(self.last_active(rows[0].pane)));
+                for (group, rows) in sections {
                     items.push(ListItem::Header(HeaderKind::Repo(group)));
                     items.extend(rows.into_iter().map(ListItem::Pane));
                 }
@@ -408,7 +413,7 @@ mod tests {
             group("api", vec![idle_since("%1", 10), pinned]),
             group("web", vec![idle_since("%2", 5)]),
         ]);
-        assert_eq!(layout(&s), ["[pinned]", "%3", "[api]", "%1", "[web]", "%2"]);
+        assert_eq!(layout(&s), ["[pinned]", "%3", "[web]", "%2", "[api]", "%1"]);
         let ids: Vec<_> = s
             .layout
             .pane_row_targets
@@ -417,8 +422,25 @@ mod tests {
             .collect();
         assert_eq!(
             ids,
-            ["%3", "%1", "%2"],
+            ["%3", "%2", "%1"],
             "cursor rows follow the display order"
+        );
+    }
+
+    #[test]
+    fn repo_groups_and_their_agents_put_the_latest_activity_first() {
+        let mut running = pane("%4", PaneStatus::Running);
+        running.activity_at = Some(NOW - 9000);
+        let s = state(vec![
+            group("api", vec![idle_since("%1", 7200), idle_since("%2", 60)]),
+            group("docs", vec![pane("%5", PaneStatus::Idle)]),
+            group("web", vec![idle_since("%3", 3600), running]),
+        ]);
+        // A running agent counts as active now. An agent with no activity
+        // time sorts last, and its repository with it.
+        assert_eq!(
+            layout(&s),
+            ["[web]", "%4", "%3", "[api]", "%2", "%1", "[docs]", "%5"]
         );
     }
 
@@ -705,7 +727,7 @@ mod tests {
     #[test]
     fn leaving_search_puts_the_cursor_back_on_its_agent() {
         let mut s = fleet();
-        s.global.selected_pane_row = 1;
+        s.global.selected_pane_row = s.row_of("%2").unwrap();
         assert_eq!(selected_id(&s), Some("%2"));
 
         open_search_without_refresh(&mut s);

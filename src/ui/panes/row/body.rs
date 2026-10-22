@@ -80,20 +80,92 @@ pub(super) fn subagent_rows(subagents: &[String], ctx: &RowCtx) -> Vec<Line<'sta
     out
 }
 
-/// User-set `@pane_desc` tag, shown as its own muted row.
-pub(super) fn pane_desc_row(desc: &str, ctx: &RowCtx) -> Option<Line<'static>> {
+/// What the agent is about: its `@pane_desc` tag, or the title Claude Code
+/// gave the session when it has no tag. Dimmed when the agent is stale.
+pub(super) fn pane_desc_row(desc: &str, ctx: &RowCtx, stale: bool) -> Option<Line<'static>> {
     if desc.is_empty() {
         return None;
     }
     let text = truncate_to_width(&format!("  {desc}"), ctx.inner_width);
     let text_dw = display_width(&text);
+    let color = if stale {
+        ctx.theme.stale
+    } else {
+        ctx.theme.pane_desc
+    };
     Some(ctx.row_line(
-        vec![Span::styled(
-            text,
-            ctx.apply_bg(Style::default().fg(ctx.theme.text_muted)),
-        )],
+        vec![Span::styled(text, ctx.apply_bg(Style::default().fg(color)))],
         text_dw,
     ))
+}
+
+/// Marker in front of the session's first prompt.
+const GOAL_MARKER: &str = "◇ ";
+
+/// The prompt that started the session, so the row keeps saying what it
+/// was for after many follow-ups.
+pub(super) fn goal_rows(goal: &str, ctx: &RowCtx) -> Vec<Line<'static>> {
+    let marker_dw = display_width(GOAL_MARKER);
+    let wrapped = wrap_text(goal, ctx.inner_width.saturating_sub(marker_dw), 2);
+    let style = ctx.apply_bg(Style::default().fg(ctx.theme.text_muted));
+    wrapped
+        .into_iter()
+        .enumerate()
+        .map(|(i, wl)| {
+            let lead = if i == 0 { GOAL_MARKER } else { "  " };
+            let text = format!("{lead}{wl}");
+            let text_dw = display_width(&text);
+            ctx.row_line(vec![Span::styled(text, style)], text_dw)
+        })
+        .collect()
+}
+
+/// Marker in front of a search snippet.
+const SNIPPET_MARKER: &str = "  ↳ ";
+
+/// The prompt a search matched, with the matched words highlighted.
+pub(super) fn snippet_row(snippet: &crate::search::Snippet, ctx: &RowCtx) -> Line<'static> {
+    let theme = ctx.theme;
+    let base = ctx.apply_bg(Style::default().fg(theme.text_muted));
+    let hit = ctx.apply_bg(
+        Style::default()
+            .fg(theme.accent)
+            .add_modifier(Modifier::BOLD),
+    );
+    let budget = ctx
+        .inner_width
+        .saturating_sub(display_width(SNIPPET_MARKER));
+    let mut spans = vec![Span::styled(SNIPPET_MARKER.to_string(), base)];
+    let mut used = 0;
+    let mut current = String::new();
+    let mut current_hit = false;
+    let total_dw = display_width(&snippet.text);
+    for (i, ch) in snippet.text.chars().enumerate() {
+        let cw = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(0);
+        // Keep a column for the ellipsis when the text does not fit.
+        if total_dw > budget && used + cw + 1 > budget {
+            current.push('…');
+            used += 1;
+            break;
+        }
+        let is_hit = snippet.highlights.iter().any(|&(s, e)| i >= s && i < e);
+        if is_hit != current_hit && !current.is_empty() {
+            let style = if current_hit { hit } else { base };
+            spans.push(Span::styled(std::mem::take(&mut current), style));
+        }
+        current_hit = is_hit;
+        current.push(ch);
+        used += cw;
+    }
+    if !current.is_empty() {
+        let style = if current_hit && !current.ends_with('…') {
+            hit
+        } else {
+            base
+        };
+        spans.push(Span::styled(current, style));
+    }
+    ctx.row_line(spans, display_width(SNIPPET_MARKER) + used)
 }
 
 /// Which pane started this one with `agent spawn`.
@@ -150,19 +222,28 @@ pub(super) fn background_hint_row(ctx: &RowCtx, cmd: &str) -> Line<'static> {
     )
 }
 
-pub(super) fn prompt_rows(pane: &crate::tmux::PaneInfo, ctx: &RowCtx) -> Vec<Line<'static>> {
+/// The latest prompt, or the agent's reply after `▷`, wrapped to at most
+/// `max_lines`. Muted when the agent is stale.
+pub(super) fn prompt_rows(
+    prompt: &str,
+    is_response: bool,
+    max_lines: usize,
+    stale: bool,
+    ctx: &RowCtx,
+) -> Vec<Line<'static>> {
     let theme = ctx.theme;
-    let is_response = pane.prompt_is_response;
-    let prompt_color = if ctx.active {
+    let prompt_color = if stale {
+        theme.stale
+    } else if ctx.active {
         theme.text_active
     } else {
         theme.text_inactive
     };
     let wrap_width = ctx.inner_width.saturating_sub(2);
     let wrapped = if is_response {
-        wrap_text_char(&pane.prompt, wrap_width, 3)
+        wrap_text_char(prompt, wrap_width, max_lines)
     } else {
-        wrap_text(&pane.prompt, wrap_width, 3)
+        wrap_text(prompt, wrap_width, max_lines)
     };
 
     let mut out = Vec::with_capacity(wrapped.len());

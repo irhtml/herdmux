@@ -5,7 +5,7 @@ use crate::tmux;
 
 use super::super::context::{
     AgentContext, PENDING_SESSION_END, PENDING_WORKTREE_REMOVE, clear_run_state,
-    pane_writes_allowed, run_session_end_teardown, set_agent_meta,
+    pane_writes_allowed, run_session_end_teardown, set_agent_meta, touch_activity,
 };
 use super::super::notifications::{
     NotifyLabels, NotifyPayload, notify_lifecycle, session_end_body, session_end_fingerprint,
@@ -44,6 +44,11 @@ pub(in crate::cli::hook) fn on_session_start(
         "resume" => tmux::set_pane_option(pane, tmux::PANE_WAIT_REASON, "session_resumed"),
         "compact" => tmux::set_pane_option(pane, tmux::PANE_WAIT_REASON, "session_resumed_compact"),
         _ => tmux::unset_pane_option(pane, tmux::PANE_WAIT_REASON),
+    }
+    // A resume is not new work: leave the last-active time to the
+    // transcript, so sessions relaunched after a reboot keep their age.
+    if source != "resume" {
+        touch_activity(pane);
     }
     set_status(pane, "idle");
     0
@@ -174,6 +179,21 @@ mod tests {
         );
         assert!(!tmux::test_mock::contains(pane, tmux::PANE_CWD));
         assert!(!tmux::test_mock::contains(pane, tmux::PANE_STATUS));
+    }
+
+    #[test]
+    fn on_session_start_stamps_activity_except_on_resume() {
+        let _guard = tmux::test_mock::install();
+        on_session_start("%FRESH", &basic_ctx(), "startup");
+        assert!(tmux::test_mock::contains("%FRESH", tmux::PANE_ACTIVITY_AT));
+
+        // After a reboot the pane has no stamp, and a resume must not add
+        // one: the transcript keeps the time of the last real work.
+        on_session_start("%RESUMED", &basic_ctx(), "resume");
+        assert!(!tmux::test_mock::contains(
+            "%RESUMED",
+            tmux::PANE_ACTIVITY_AT
+        ));
     }
 
     #[test]

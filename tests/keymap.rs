@@ -9,7 +9,7 @@ fn keymap_wide() {
     let mut state = AppState::new("%99".into());
     state.popup = PopupState::Keymap { scroll: 0 };
     let output = render_to_string(&mut state, 80, 32);
-    insta::assert_snapshot!(output, @r"
+    insta::assert_snapshot!(output, @"
     ┌ Keymap ──────────────────────────────────────────────────────────────────────┐
     │Navigation                                                                    │
     │j / Down / Ctrl+n: Move down                                                  │
@@ -17,6 +17,7 @@ fn keymap_wide() {
     │Move past list edges to focus the filter or bottom panel.                     │
     │Enter: Focus selected agent pane                                              │
     │Esc: Return to agent list                                                     │
+    │/: Search agents in every session                                             │
     │Filters and panels                                                            │
     │Tab: Cycle status filter                                                      │
     │h/l or Left/Right: Change status (filter focused)                             │
@@ -24,6 +25,9 @@ fn keymap_wide() {
     │s: Toggle current/all sessions                                                │
     │Shift+Tab: Switch Activity/Git/MRs                                            │
     │Agent list                                                                    │
+    │v: Toggle compact/full rows                                                   │
+    │o: Toggle repo/recent order                                                   │
+    │p: Pin/unpin selected agent                                                   │
     │n: Spawn worktree and agent                                                   │
     │x: Remove spawned pane/worktree                                               │
     │Dialogs                                                                       │
@@ -32,9 +36,8 @@ fn keymap_wide() {
     │Spawn: Tab/Shift+Tab or Up/Down to select field; Left/Right to cycle; Enter   │
     │to spawn                                                                      │
     │Remove: y/Enter removes window and worktree; c closes window only; n cancels  │
-    │Keymap                                                                        │
-    │?: Open/close keymap                                                          │
-    │j/k, arrows, Ctrl+n/p or mouse wheel: Scroll                                  │
+    │Search: type to filter; Up/Down or Ctrl+n/p to move; Enter jumps; Ctrl+w      │
+    │deletes a word; Ctrl+u clears; Esc closes                                     │
     └ ? / Esc: close ──────────────────────────────────────────────────────────────┘
     ");
 }
@@ -44,13 +47,13 @@ fn keymap_narrow_scrolled_to_end() {
     let mut state = AppState::new("%99".into());
     state.popup = PopupState::Keymap { scroll: u16::MAX };
     let output = render_to_string(&mut state, 30, 12);
-    insta::assert_snapshot!(output, @r"
+    insta::assert_snapshot!(output, @"
     ┌ Keymap ────────────────────┐
-    │to spawn                    │
-    │Remove: y/Enter removes     │
-    │window and worktree; c      │
-    │closes window only; n       │
-    │cancels                     │
+    │Search: type to filter;     │
+    │Up/Down or Ctrl+n/p to      │
+    │move; Enter jumps; Ctrl+w   │
+    │deletes a word; Ctrl+u      │
+    │clears; Esc closes          │
     │Keymap                      │
     │?: Open/close keymap        │
     │j/k, arrows, Ctrl+n/p or    │

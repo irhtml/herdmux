@@ -3,10 +3,30 @@ use ratatui::{
     text::{Line, Span},
 };
 
+use super::RowExtras;
 use super::ctx::RowCtx;
 use crate::tmux::PaneStatus;
 use crate::ui::icons::StatusIcons;
-use crate::ui::text::{display_width, elapsed_label, truncate_to_width};
+use crate::ui::text::{age_label, display_width, elapsed_label, truncate_to_width};
+
+/// Glyph in front of a pinned agent's name.
+pub(super) const PIN_GLYPH: &str = "★";
+
+/// Longest repository name shown on a row that is not under its header.
+pub(super) const ROW_REPO_MAX_WIDTH: usize = 16;
+
+/// Right-hand time label of an agent row: the running time of the current
+/// turn while the agent works, otherwise how long ago it was last active.
+pub(super) fn time_label(
+    pane: &crate::tmux::PaneInfo,
+    last_active: Option<u64>,
+    now: u64,
+) -> String {
+    match last_active {
+        Some(at) if !pane.status.is_active() && at > 0 => age_label(now.saturating_sub(at)),
+        _ => elapsed_label(pane.started_at, now),
+    }
+}
 
 pub(super) fn status_row(
     pane: &crate::tmux::PaneInfo,
@@ -14,6 +34,7 @@ pub(super) fn status_row(
     icons: &StatusIcons,
     spinner_frame: usize,
     now: u64,
+    extras: &RowExtras<'_>,
 ) -> Line<'static> {
     use crate::tmux::PermissionMode;
     let theme = ctx.theme;
@@ -27,7 +48,7 @@ pub(super) fn status_row(
         &pane.session_name
     };
     let badge = pane.permission_mode.badge();
-    let elapsed = elapsed_label(pane.started_at, now);
+    let elapsed = time_label(pane, extras.last_active, now);
 
     let title_fg = theme.agent_color(&pane.agent);
     let elapsed_fg = if pane.status.is_active() {
@@ -36,8 +57,22 @@ pub(super) fn status_row(
         theme.text_muted
     };
 
+    let pin = if pane.pinned {
+        format!(" {PIN_GLYPH}")
+    } else {
+        String::new()
+    };
+    let repo = extras
+        .repo
+        .map(|r| format!(" · {}", truncate_to_width(r, ROW_REPO_MAX_WIDTH)))
+        .unwrap_or_default();
     let badge_extra = if badge.is_empty() { 0 } else { 1 };
-    let fixed_width = display_width(icon) + 1 + badge_extra + display_width(badge);
+    let fixed_width = display_width(icon)
+        + display_width(&pin)
+        + 1
+        + badge_extra
+        + display_width(badge)
+        + display_width(&repo);
     // User-supplied session names (set via `/rename`) can be arbitrarily
     // long; cap the title to the space left after reserving room for the
     // icon, badge, and elapsed label so they stay visible instead of
@@ -54,11 +89,17 @@ pub(super) fn status_row(
     let elapsed = truncate_to_width(&elapsed, available_for_elapsed);
     let elapsed_width = display_width(&elapsed);
 
-    let mut left_spans: Vec<Span<'static>> = Vec::with_capacity(3);
+    let mut left_spans: Vec<Span<'static>> = Vec::with_capacity(5);
     left_spans.push(Span::styled(
         icon.to_string(),
         ctx.apply_bg(Style::default().fg(icon_color)),
     ));
+    if !pin.is_empty() {
+        left_spans.push(Span::styled(
+            pin,
+            ctx.apply_bg(Style::default().fg(theme.accent)),
+        ));
+    }
     left_spans.push(Span::styled(
         format!(" {}", title),
         ctx.apply_bg(Style::default().fg(title_fg)),
@@ -76,6 +117,12 @@ pub(super) fn status_row(
         left_spans.push(Span::styled(
             format!(" {}", badge),
             ctx.apply_bg(Style::default().fg(badge_color)),
+        ));
+    }
+    if !repo.is_empty() {
+        left_spans.push(Span::styled(
+            repo,
+            ctx.apply_bg(Style::default().fg(theme.text_muted)),
         ));
     }
 

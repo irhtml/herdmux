@@ -4,6 +4,7 @@ use std::time::Instant;
 use crate::tmux;
 
 use super::filter::{RepoFilter, StatusFilter};
+use super::view::{SortMode, ViewMode};
 
 /// State shared across all sidebar instances via tmux global variables.
 /// Synced from tmux at startup and by `AppState::refresh_tick` once the
@@ -16,6 +17,10 @@ pub struct GlobalState {
     /// session it lives in. The flag is shared globally like the other
     /// filters, but its effect is relative to each instance's own session.
     pub session_scope: bool,
+    /// Row density (`@sidebar_view`).
+    pub view: ViewMode,
+    /// List order (`@sidebar_sort`).
+    pub sort: SortMode,
     /// Last filter value successfully written to tmux.
     last_saved_filter: StatusFilter,
     /// Last cursor value successfully written to tmux.
@@ -24,6 +29,10 @@ pub struct GlobalState {
     last_saved_repo_filter: RepoFilter,
     /// Last session-scope value successfully written to tmux.
     last_saved_session_scope: bool,
+    /// Last view value successfully written to tmux.
+    last_saved_view: ViewMode,
+    /// Last sort value successfully written to tmux.
+    last_saved_sort: SortMode,
     /// When the selected cursor was last changed and still needs persisting.
     pending_cursor_save_since: Option<Instant>,
 }
@@ -41,10 +50,14 @@ impl GlobalState {
             selected_pane_row: 0,
             repo_filter: RepoFilter::All,
             session_scope: false,
+            view: ViewMode::Full,
+            sort: SortMode::Repo,
             last_saved_filter: StatusFilter::All,
             last_saved_cursor: 0,
             last_saved_repo_filter: RepoFilter::All,
             last_saved_session_scope: false,
+            last_saved_view: ViewMode::Full,
+            last_saved_sort: SortMode::Repo,
             pending_cursor_save_since: None,
         }
     }
@@ -138,6 +151,20 @@ impl GlobalState {
         }
     }
 
+    /// Save the row density to tmux global variable.
+    pub fn save_view(&mut self) {
+        if tmux::run_tmux(&["set", "-g", tmux::SIDEBAR_VIEW, self.view.as_str()]).is_some() {
+            self.last_saved_view = self.view;
+        }
+    }
+
+    /// Save the list order to tmux global variable.
+    pub fn save_sort(&mut self) {
+        if tmux::run_tmux(&["set", "-g", tmux::SIDEBAR_SORT, self.sort.as_str()]).is_some() {
+            self.last_saved_sort = self.sort;
+        }
+    }
+
     /// Load all global state from tmux variables.
     /// Called by `AppState::refresh_tick` before the snapshot of a sidebar
     /// that has been hidden.
@@ -176,6 +203,20 @@ impl GlobalState {
                 self.last_saved_session_scope = tmux_scope;
             }
         }
+        if let Some(view_str) = opts.get(tmux::SIDEBAR_VIEW) {
+            let tmux_view = ViewMode::from_label(view_str);
+            if tmux_view != self.last_saved_view {
+                self.view = tmux_view;
+                self.last_saved_view = tmux_view;
+            }
+        }
+        if let Some(sort_str) = opts.get(tmux::SIDEBAR_SORT) {
+            let tmux_sort = SortMode::from_label(sort_str);
+            if tmux_sort != self.last_saved_sort {
+                self.sort = tmux_sort;
+                self.last_saved_sort = tmux_sort;
+            }
+        }
     }
 }
 
@@ -194,6 +235,23 @@ mod tests {
         opts.insert(tmux::SIDEBAR_SESSION_SCOPE.to_string(), "off".to_string());
         global.apply_all(&opts);
         assert!(!global.session_scope);
+    }
+
+    #[test]
+    fn apply_all_reads_view_and_sort() {
+        let mut global = GlobalState::new();
+        let mut opts = HashMap::new();
+        opts.insert(tmux::SIDEBAR_VIEW.to_string(), "compact".to_string());
+        opts.insert(tmux::SIDEBAR_SORT.to_string(), "recent".to_string());
+        global.apply_all(&opts);
+        assert_eq!(global.view, ViewMode::Compact);
+        assert_eq!(global.sort, SortMode::Recent);
+
+        opts.insert(tmux::SIDEBAR_VIEW.to_string(), "full".to_string());
+        opts.insert(tmux::SIDEBAR_SORT.to_string(), "repo".to_string());
+        global.apply_all(&opts);
+        assert_eq!(global.view, ViewMode::Full);
+        assert_eq!(global.sort, SortMode::Repo);
     }
 
     #[test]

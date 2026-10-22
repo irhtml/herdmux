@@ -37,6 +37,14 @@ pub struct PaneInfo {
     /// The pane that started this one with `agent spawn`, shown by its
     /// `@pane_desc` tag, or by its pane id when untagged or closed.
     pub spawned_by: Option<String>,
+    /// The user pinned this pane from the sidebar (`@pane_pinned`).
+    pub pinned: bool,
+    /// Epoch seconds of the pane's last turn boundary (`@pane_activity_at`).
+    pub activity_at: Option<u64>,
+    /// Name of the tmux window holding the pane.
+    pub window_name: String,
+    /// Name of the tmux session holding the pane.
+    pub tmux_session: String,
 }
 
 #[derive(Debug, Clone, Default)]

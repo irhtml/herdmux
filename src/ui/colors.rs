@@ -46,6 +46,11 @@ pub struct ColorTheme {
     pub section_title: Color,
     pub activity_timestamp: Color,
     pub response_arrow: Color,
+    /// User-set `@pane_desc` tag row. Defaults to ANSI magenta, the color
+    /// a `#[fg=magenta]` tag gets on the tmux pane border.
+    pub pane_desc: Color,
+    /// Text of agents idle past `@sidebar_stale_hours`.
+    pub stale: Color,
 }
 
 impl Default for ColorTheme {
@@ -86,6 +91,8 @@ impl Default for ColorTheme {
             section_title: Color::Indexed(109),
             activity_timestamp: Color::Indexed(109),
             response_arrow: Color::Indexed(81),
+            pane_desc: Color::Magenta,
+            stale: Color::Indexed(243),
         }
     }
 }
@@ -137,6 +144,8 @@ impl ColorTheme {
             theme.activity_timestamp,
         );
         theme.response_arrow = read(tmux::SIDEBAR_COLOR_RESPONSE_ARROW, theme.response_arrow);
+        theme.pane_desc = read(tmux::SIDEBAR_COLOR_PANE_DESC, theme.pane_desc);
+        theme.stale = read(tmux::SIDEBAR_COLOR_STALE, theme.stale);
 
         theme
     }

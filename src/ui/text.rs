@@ -32,6 +32,16 @@ pub fn elapsed_label(started_at: Option<u64>, now: u64) -> String {
     }
 }
 
+/// Coarse age for an idle agent: `45s`, `12m`, `3h`, `2d`.
+pub fn age_label(secs: u64) -> String {
+    match secs {
+        0..60 => format!("{secs}s"),
+        60..3600 => format!("{}m", secs / 60),
+        3600..86_400 => format!("{}h", secs / 3600),
+        _ => format!("{}d", secs / 86_400),
+    }
+}
+
 pub fn wait_reason_label(reason: &str) -> String {
     match reason {
         "permission_prompt" => "permission required".into(),
@@ -346,6 +356,17 @@ mod tests {
         let label = elapsed_label(Some(TEST_NOW - 3661), TEST_NOW);
         assert!(label.contains('h'));
         assert!(label.contains('m'));
+    }
+
+    #[test]
+    fn age_label_picks_the_largest_unit() {
+        assert_eq!(age_label(0), "0s");
+        assert_eq!(age_label(59), "59s");
+        assert_eq!(age_label(60), "1m");
+        assert_eq!(age_label(3599), "59m");
+        assert_eq!(age_label(3600), "1h");
+        assert_eq!(age_label(86_399), "23h");
+        assert_eq!(age_label(86_400 * 3 + 5), "3d");
     }
 
     // ─── wait_reason_label ─────────────────────────────────────────

@@ -123,6 +123,10 @@ pub fn make_pane(agent: AgentType, status: PaneStatus) -> PaneInfo {
         pane_desc: String::new(),
         sidebar_spawned: false,
         spawned_by: None,
+        pinned: false,
+        activity_at: None,
+        window_name: String::new(),
+        tmux_session: String::new(),
         bg_shell_cmd: None,
     }
 }

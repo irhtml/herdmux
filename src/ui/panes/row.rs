@@ -6,14 +6,16 @@ use crate::ui::icons::StatusIcons;
 
 mod body;
 mod branch;
+mod compact;
 mod ctx;
 mod status;
 
 use body::{
-    background_hint_row, idle_hint_row, pane_desc_row, prompt_rows, spawned_by_row, subagent_rows,
-    task_progress_row, wait_reason_row,
+    background_hint_row, goal_rows, idle_hint_row, pane_desc_row, prompt_rows, snippet_row,
+    spawned_by_row, subagent_rows, task_progress_row, wait_reason_row,
 };
 use branch::branch_ports_row;
+use compact::compact_row;
 use ctx::{RowCtx, SELECTION_MARKER};
 #[cfg(test)]
 use status::running_icon_for;
@@ -21,7 +23,44 @@ use status::status_row;
 
 pub(super) use branch::sidebar_remove_marker_col;
 
+/// What the agent list knows about a row beyond the pane itself.
+#[derive(Debug, Default, Clone, Copy)]
+pub(crate) struct RowExtras<'a> {
+    /// Transcript digest of a Claude session: title, goal, prompts.
+    pub digest: Option<&'a crate::transcript::SessionDigest>,
+    /// When the agent was last active, in epoch seconds.
+    pub last_active: Option<u64>,
+    /// Idle long enough to be dimmed.
+    pub stale: bool,
+    /// Repository name, for rows not under their repository header.
+    pub repo: Option<&'a str>,
+    /// Matched prompt while searching.
+    pub snippet: Option<&'a crate::search::Snippet>,
+}
+
+/// Shortest prompt treated as cut off when another prompt starts with it.
+/// The hooks keep the first 200 characters of a prompt in `@pane_prompt`.
+const CUT_PROMPT_MIN_CHARS: usize = 150;
+
+/// Whether two prompts are the same message: one from `@pane_prompt`
+/// (pipes and newlines turned into spaces, cut at 200 characters) and one
+/// from the transcript.
+fn same_prompt(a: &str, b: &str) -> bool {
+    let normalize = |text: &str| {
+        text.replace('|', " ")
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+    };
+    let (a, b) = (normalize(a), normalize(b));
+    let cut_prefix = |short: &str, long: &str| {
+        short.chars().count() >= CUT_PROMPT_MIN_CHARS && long.starts_with(short)
+    };
+    a == b || cut_prefix(&a, &b) || cut_prefix(&b, &a)
+}
+
 #[allow(clippy::too_many_arguments)]
+#[cfg(test)]
 pub(super) fn render_pane_lines_with_ports(
     pane: &crate::tmux::PaneInfo,
     git_info: &crate::group::PaneGitInfo,
@@ -34,6 +73,80 @@ pub(super) fn render_pane_lines_with_ports(
     theme: &ColorTheme,
     spinner_frame: usize,
     now: u64,
+) -> Vec<Line<'static>> {
+    render_pane_lines(
+        pane,
+        git_info,
+        ports,
+        task_progress,
+        selected,
+        active,
+        width,
+        icons,
+        theme,
+        spinner_frame,
+        now,
+        &RowExtras::default(),
+    )
+}
+
+/// One compact line for the agent, plus the search snippet when there is one.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn render_compact_lines(
+    pane: &crate::tmux::PaneInfo,
+    active: bool,
+    width: usize,
+    icons: &StatusIcons,
+    theme: &ColorTheme,
+    spinner_frame: usize,
+    now: u64,
+    extras: &RowExtras<'_>,
+) -> Vec<Line<'static>> {
+    let marker_ctx = RowCtx {
+        marker_char: if active { SELECTION_MARKER } else { " " },
+        marker_style: if active {
+            Style::default().fg(theme.accent)
+        } else {
+            Style::default()
+        },
+        inner_width: width.saturating_sub(2),
+        theme,
+        bg: None,
+        active,
+    };
+    let mut out = vec![compact_row(
+        pane,
+        &marker_ctx,
+        icons,
+        spinner_frame,
+        now,
+        extras,
+    )];
+    if let Some(snippet) = extras.snippet {
+        let plain_ctx = RowCtx {
+            marker_char: " ",
+            marker_style: Style::default(),
+            ..marker_ctx
+        };
+        out.push(snippet_row(snippet, &plain_ctx));
+    }
+    out
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn render_pane_lines(
+    pane: &crate::tmux::PaneInfo,
+    git_info: &crate::group::PaneGitInfo,
+    ports: Option<&[u16]>,
+    task_progress: Option<&crate::activity::TaskProgress>,
+    selected: bool,
+    active: bool,
+    width: usize,
+    icons: &StatusIcons,
+    theme: &ColorTheme,
+    spinner_frame: usize,
+    now: u64,
+    extras: &RowExtras<'_>,
 ) -> Vec<Line<'static>> {
     let bg = if selected {
         Some(theme.selection_bg)
@@ -71,14 +184,41 @@ pub(super) fn render_pane_lines_with_ports(
         active,
     };
 
+    let digest = extras.digest;
+    // The latest prompt or reply; after a resume the hooks have not set
+    // one yet, so fall back to the last prompt in the transcript.
+    let (prompt, is_response) = if !pane.prompt.is_empty() {
+        (pane.prompt.as_str(), pane.prompt_is_response)
+    } else {
+        (digest.and_then(|d| d.last_prompt()).unwrap_or(""), false)
+    };
+    let goal = digest
+        .and_then(|d| d.goal())
+        .filter(|goal| !same_prompt(goal, prompt));
+    let label = if pane.pane_desc.is_empty() {
+        digest.map_or("", |d| d.title.as_str())
+    } else {
+        pane.pane_desc.as_str()
+    };
+
     let mut out: Vec<Line<'static>> = Vec::with_capacity(8);
-    out.push(status_row(pane, &marker_ctx, icons, spinner_frame, now));
+    out.push(status_row(
+        pane,
+        &marker_ctx,
+        icons,
+        spinner_frame,
+        now,
+        extras,
+    ));
     if let Some(line) = branch_ports_row(git_info, ports, pane.sidebar_spawned, &marker_ctx) {
         out.push(line);
     }
     let ctx = &plain_ctx;
-    if let Some(line) = pane_desc_row(&pane.pane_desc, ctx) {
+    if let Some(line) = pane_desc_row(label, ctx, extras.stale) {
         out.push(line);
+    }
+    if let Some(goal) = goal {
+        out.extend(goal_rows(goal, ctx));
     }
     if let Some(line) = spawned_by_row(pane.spawned_by.as_deref(), ctx) {
         out.push(line);
@@ -93,10 +233,20 @@ pub(super) fn render_pane_lines_with_ports(
     if let Some(cmd) = pane.bg_shell_cmd.as_deref() {
         out.push(background_hint_row(ctx, cmd));
     }
-    if !pane.prompt.is_empty() {
-        out.extend(prompt_rows(pane, ctx));
+    if !prompt.is_empty() {
+        let max_lines = if goal.is_some() { 2 } else { 3 };
+        out.extend(prompt_rows(
+            prompt,
+            is_response,
+            max_lines,
+            extras.stale,
+            ctx,
+        ));
     } else if matches!(pane.status, PaneStatus::Idle) {
         out.push(idle_hint_row(ctx));
+    }
+    if let Some(snippet) = extras.snippet {
+        out.push(snippet_row(snippet, ctx));
     }
     out
 }
@@ -141,6 +291,10 @@ mod tests {
             pane_desc: String::new(),
             sidebar_spawned: false,
             spawned_by: None,
+            pinned: false,
+            activity_at: None,
+            window_name: String::new(),
+            tmux_session: String::new(),
             bg_shell_cmd: None,
         }
     }
@@ -261,6 +415,12 @@ mod tests {
 
         let desc = line_text(&lines[1]);
         insta::assert_snapshot!(desc, @"    agent orchestrator research");
+        let desc_fg = lines[1].spans.iter().find_map(|span| {
+            span.content
+                .contains("agent orchestrator")
+                .then_some(span.style.fg)
+        });
+        assert_eq!(desc_fg, Some(Some(theme.pane_desc)));
     }
 
     #[test]
@@ -1207,13 +1367,30 @@ mod tests {
         let theme = ColorTheme::default();
         let ctx = test_ctx(&theme, 40, false);
         let pane = pane(PermissionMode::Default, PaneStatus::Running, "");
-        let line = status_row(&pane, &ctx, &StatusIcons::default(), 0, 0);
+        let line = status_row(
+            &pane,
+            &ctx,
+            &StatusIcons::default(),
+            0,
+            0,
+            &RowExtras::default(),
+        );
         let text = line_text(&line);
         // Default mode has an empty badge string — no extra badge token should appear.
         assert!(
             !text.contains(" auto") && !text.contains(" plan") && !text.contains(" !"),
             "default permission mode should not render a badge, got: {text}"
         );
+    }
+
+    #[test]
+    fn same_prompt_ignores_spacing_pipes_and_the_200_char_cut() {
+        assert!(same_prompt("fix  the\nbug", "fix the bug"));
+        assert!(same_prompt("a | b", "a  b"));
+        let long = "word ".repeat(100);
+        let cut: String = long.chars().take(200).collect();
+        assert!(same_prompt(&long, &cut));
+        assert!(!same_prompt("fix", "fix the bug"), "short prefixes differ");
     }
 
     #[test]
@@ -1226,7 +1403,7 @@ mod tests {
             "aaaa bbbb cccc dddd eeee",
         );
         p.prompt_is_response = false;
-        let lines = prompt_rows(&p, &ctx);
+        let lines = prompt_rows(&p.prompt, p.prompt_is_response, 3, false, &ctx);
         assert!(
             lines.len() >= 2,
             "expected prompt to wrap across multiple lines"

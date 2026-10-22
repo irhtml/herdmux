@@ -25,7 +25,7 @@ After implementation is complete, run `cargo build --release`. The plugin direct
 ### Entry Points
 
 The binary has two modes controlled by CLI args (`src/cli/mod.rs`):
-1. **TUI mode** — default. `src/main.rs` handles CLI arg parsing, SIGUSR1 signal wiring, and TUI session setup, then delegates to `app::run` (`src/app.rs`) for the event loop.
+1. **TUI mode** — default. `src/main.rs` handles CLI arg parsing, SIGUSR1 signal wiring, and TUI session setup, then delegates to `app::run` (`src/app.rs`) for the event loop. `herdmux pick` runs the same loop as a one-shot agent finder (`AppMode::Picker`) for a tmux popup.
 2. **CLI subcommands**: `setup`, `hook`, `toggle`, `toggle-all`, `auto-close`, `set-status`, `spawn`, `capture`, `agent` (`list` / `spawn` / `prompt` / `wait` / `read`, in `src/cli/agent/`), `resume` (`save` / `restore`, in `src/cli/resume.rs` + `src/resume/`), `--version` / `version`.
 
 ### Core Data Flow
@@ -50,7 +50,7 @@ TUI event loop (app::run) → AppState::sync_global_state()
 
 ### Key Modules
 
-- **`state.rs` + `state/`** — `AppState` central struct plus topical submodules (`activity`, `session`, `focus`, `scroll`, `pane_runtime`, `layout`, `popup`, `notices`, `timers`, `filter`, `global`, `refresh`, `tab`). All UI is computed from this state.
+- **`state.rs` + `state/`** — `AppState` central struct plus topical submodules (`activity`, `session`, `focus`, `scroll`, `pane_runtime`, `layout`, `popup`, `notices`, `timers`, `filter`, `global`, `refresh`, `tab`, `rows`, `search`, `view`). All UI is computed from this state. `rows::list_items()` is the single source of the agent list's order (pins, repo or recent order, filters, search hits); rendering and cursor targets both use it.
 - **`app.rs` + `app/`** — TUI orchestration: `setup` (prime `AppState`), `workers` (background git/session/version threads), `input` (keyboard/mouse handling), `render` (per-frame render entry). Split out from `main.rs` so the binary entry point only handles CLI dispatch, signal wiring, and TUI session setup.
 - **`tmux.rs`** — Tmux integration: queries all panes via single `list-panes -a` call, defines `PaneInfo`/`PaneStatus`/`AgentType`/`PermissionMode`/`WorktreeMetadata`.
 - **`adapter/`** — Per-agent hook adapters (`claude`, `codex`, `opencode`). Each exposes a `HOOK_REGISTRATIONS` table binding upstream hook triggers to an internal `AgentEventKind`, plus a `parse()` that maps raw JSON payloads into `AgentEvent`. Single source of truth consumed by the setup wizard, README snippets, and tests.
@@ -58,6 +58,8 @@ TUI event loop (app::run) → AppState::sync_global_state()
 - **`cli/hook.rs` + `cli/hook/`** — Receives real-time status updates from agent hooks; dispatch in `hook.rs`, with submodules `context` (shared helpers + `AgentContext`), `handlers` (per-event `on_*` handlers), `activity` (activity log writing), `notifications` (desktop notification helpers).
 - **`git.rs`** — Git operations (branch, ahead/behind, PR numbers via `gh` CLI, diff stats). Runs in a background polling thread.
 - **`activity.rs`** — Parses `/tmp/tmux-agent-activity*.log` files, maps tool types to colors.
+- **`transcript.rs`**: Tails Claude Code transcripts (`projects/*/<session id>.jsonl`) into a `SessionDigest` per session: AI title, typed prompts (goal first), newest message time. Polled by a background thread in `app/workers.rs`.
+- **`search.rs`**: Pure matcher for the `/` search: every query word must match a field; the best field's weight scores it; prompt-only matches get a highlighted snippet.
 - **`group.rs`** — Groups panes by repository path.
 - **`session.rs` / `worktree.rs` / `tool_name.rs` / `version.rs` / `port.rs` / `clipboard.rs` / `desktop_notification.rs`** — Leaf helpers used across modules (session name resolution, worktree metadata parsing, tool-name classification, version reporting, port detection, clipboard + desktop notification shims).
 - **`ui/`** — Rendering layer: `mod.rs` (entry `draw`), `panes.rs` (agent list + repo filter) with submodules (`filter_bar`, `row`, `row_collector`, `click_targets`, `popups`); `bottom.rs` + `bottom/` with submodules (`activity`, `git`) for the activity/git tabs; `colors.rs` (256-color theme); `icons.rs` (agent/status glyphs); `notices.rs` (transient banner rendering); `text.rs` (text formatting/truncation).

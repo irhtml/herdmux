@@ -5,11 +5,11 @@ use crate::process::{ProcessSnapshot, command_basename};
 
 use super::commands::run_tmux;
 use super::options::{
-    PANE_AGENT, PANE_ATTENTION, PANE_BG_CMD, PANE_CWD, PANE_DESC, PANE_NAME,
-    PANE_PENDING_SESSION_END, PANE_PENDING_WORKTREE_REMOVE, PANE_PERMISSION_MODE, PANE_PROMPT,
-    PANE_PROMPT_AT, PANE_PROMPT_SOURCE, PANE_RESUME_PENDING, PANE_ROLE, PANE_SESSION_ID,
-    PANE_SPAWNED_BY, PANE_STARTED_AT, PANE_STATUS, PANE_SUBAGENTS, PANE_WAIT_REASON,
-    PANE_WORKTREE_BRANCH, PANE_WORKTREE_NAME, unset_pane_option,
+    PANE_ACTIVITY_AT, PANE_AGENT, PANE_ATTENTION, PANE_BG_CMD, PANE_CWD, PANE_DESC, PANE_NAME,
+    PANE_PENDING_SESSION_END, PANE_PENDING_WORKTREE_REMOVE, PANE_PERMISSION_MODE, PANE_PINNED,
+    PANE_PROMPT, PANE_PROMPT_AT, PANE_PROMPT_SOURCE, PANE_RESUME_PENDING, PANE_ROLE,
+    PANE_SESSION_ID, PANE_SPAWNED_BY, PANE_STARTED_AT, PANE_STATUS, PANE_SUBAGENTS,
+    PANE_WAIT_REASON, PANE_WORKTREE_BRANCH, PANE_WORKTREE_NAME, unset_pane_option,
 };
 use super::types::{
     AgentType, CODEX_AGENT, PaneInfo, PaneStatus, PermissionMode, SessionInfo, WindowInfo,
@@ -29,7 +29,7 @@ mod session_line_field {
     /// Index where the per-pane field suffix consumed by `parse_pane_line` begins.
     pub const PANE_LINE_OFFSET: usize = 6;
     /// Minimum number of fields a valid `pane_format()` line must contain.
-    pub const MIN_FIELDS: usize = 30;
+    pub const MIN_FIELDS: usize = 32;
 }
 
 // Indices into the pane-line suffix that `parse_pane_line` operates on.
@@ -60,9 +60,11 @@ pub(super) mod pane_line_field {
     pub const BG_CMD: usize = 21; // absolute 27 (@pane_bg_cmd)
     pub const PANE_DESC: usize = 22; // absolute 28 (@pane_desc)
     pub const SPAWNED_BY: usize = 23; // absolute 29 (@pane_spawned_by)
+    pub const PINNED: usize = 24; // absolute 30 (@pane_pinned)
+    pub const ACTIVITY_AT: usize = 25; // absolute 31 (@pane_activity_at)
     /// Minimum number of fields the pane-line suffix must contain.
     /// Equals `session_line_field::MIN_FIELDS - PANE_LINE_OFFSET`.
-    pub const MIN_FIELDS: usize = 24;
+    pub const MIN_FIELDS: usize = 26;
 }
 
 /// Build the tmux `list-panes -F` format used by [`query_sessions`].
@@ -100,6 +102,8 @@ fn pane_format() -> String {
         q(PANE_BG_CMD),
         q(PANE_DESC),
         q(PANE_SPAWNED_BY),
+        q(PANE_PINNED),
+        q(PANE_ACTIVITY_AT),
     ]
     .join("|")
 }
@@ -194,7 +198,9 @@ fn build_session_hierarchy(
                 panes: Vec::new(),
             });
 
-        if let Some(pane) = parse_pane_fields_with_processes(pane_fields, process_snapshot) {
+        if let Some(mut pane) = parse_pane_fields_with_processes(pane_fields, process_snapshot) {
+            pane.window_name.clone_from(&window.window_name);
+            pane.tmux_session = session_name.to_string();
             if pane.agent == AgentType::Codex
                 && let Some(pid) = pane.pane_pid
             {
@@ -364,6 +370,10 @@ fn parse_pane_fields_with_processes(
         spawned_by: Some(&parts[pane_line_field::SPAWNED_BY])
             .filter(|id| !id.is_empty())
             .cloned(),
+        pinned: parts[pane_line_field::PINNED] == "1",
+        activity_at: parts[pane_line_field::ACTIVITY_AT].parse().ok(),
+        window_name: String::new(),
+        tmux_session: String::new(),
         bg_shell_cmd: {
             let raw = &parts[pane_line_field::BG_CMD];
             if raw.is_empty() {
@@ -399,6 +409,7 @@ fn clear_agent_pane_state(pane_id: &str) {
         PANE_PENDING_WORKTREE_REMOVE,
         PANE_STARTED_AT,
         PANE_PROMPT_AT,
+        PANE_ACTIVITY_AT,
         PANE_RESUME_PENDING,
         PANE_WAIT_REASON,
         PANE_ATTENTION,
@@ -632,6 +643,10 @@ mod tests {
             pane_desc: String::new(),
             sidebar_spawned: false,
             spawned_by: None,
+            pinned: false,
+            activity_at: None,
+            window_name: String::new(),
+            tmux_session: String::new(),
             bg_shell_cmd: None,
         }
     }
@@ -825,6 +840,8 @@ mod tests {
             "",                   // 21: @pane_bg_cmd
             "",                   // 22: @pane_desc
             "",                   // 23: @pane_spawned_by
+            "",                   // 24: @pane_pinned
+            "",                   // 25: @pane_activity_at
         ]
     }
 
@@ -839,7 +856,7 @@ mod tests {
     #[test]
     fn parse_pane_line_full_fields() {
         let line = make_pane_line(&full_fields());
-        let pane = parse_pane_line(&line).expect("should parse 24 fields");
+        let pane = parse_pane_line(&line).expect("should parse 26 fields");
         assert!(pane.pane_active);
         assert_eq!(pane.status, PaneStatus::Running);
         assert_eq!(pane.agent, AgentType::Claude);
@@ -1231,6 +1248,10 @@ mod tests {
                     pane_desc: String::new(),
                     sidebar_spawned: false,
                     spawned_by: None,
+                    pinned: false,
+                    activity_at: None,
+                    window_name: String::new(),
+                    tmux_session: String::new(),
                     bg_shell_cmd: None,
                 }],
             },
@@ -1293,9 +1314,10 @@ mod tests {
         // 20:@pane_subagents|21:@pane_cwd|22:@pane_permission_mode|
         // 23:@pane_worktree_name|24:@pane_worktree_branch|
         // 25:@pane_session_id|26:@agent-sidebar-spawned|27:@pane_bg_cmd|
-        // 28:@pane_desc|29:@pane_spawned_by
-        // 30 total fields (MIN_FIELDS = 30)
-        let mut fields: Vec<&str> = vec![""; 30];
+        // 28:@pane_desc|29:@pane_spawned_by|30:@pane_pinned|
+        // 31:@pane_activity_at
+        // 32 total fields (MIN_FIELDS = 32)
+        let mut fields: Vec<&str> = vec![""; 32];
         fields[0] = session_name;
         fields[1] = "@0"; // window_id
         fields[3] = "win"; // window_name

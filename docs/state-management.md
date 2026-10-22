@@ -16,7 +16,9 @@ sidebar has been hidden for 2+ ticks (see [Refresh Cadence](#refresh-cadence)).
 | `status_filter` | `@sidebar_filter` | User input (left/right key) | Active status filter (All/Running/Background/Waiting/Idle/Error) |
 | `selected_pane_row` | `@sidebar_cursor` | User input (j/k key); tmux write flushed after a short debounce | Cursor position in agent list |
 | `repo_filter` | `@sidebar_repo_filter` | User input (repo popup) | Repository filter (All or specific repo) |
-| `session_scope` | `@sidebar_session_scope` | User input (`s` key) | When on, each sidebar lists only the agents of its own tmux session |
+| `session_scope` | `@sidebar_session_scope` | User input (`s` key) | When on, each sidebar lists only the agents of its own tmux session. Ignored while the search is open |
+| `view` | `@sidebar_view` | User input (`v` key) | `ViewMode`: `full` rows, or `compact` rows where only the cursor row (or the focused agent when the sidebar lacks the keyboard) shows details |
+| `sort` | `@sidebar_sort` | User input (`o` key) | `SortMode`: `repo` groups, or `recent` (one list by last activity). Pinned agents lead either way |
 
 Each field has a corresponding `last_saved_*` to prevent sync conflicts — only overwrites tmux if the local write succeeded.
 
@@ -45,6 +47,8 @@ Pane options written to tmux:
 | `@pane_prompt_at` | UserPromptSubmit | Epoch milliseconds of the latest submitted prompt. Kept across Stop so `agent prompt` can confirm a submit landed and `agent wait --since` can tell the current turn from an earlier one |
 | `@pane_resume_pending` | `resume restore` (set), SessionStart (clear) | Epoch seconds when `resume restore` typed a resume command into the pane. While set (up to 30 min), `resume save` keeps the pane's previous entry instead of dropping it |
 | `@pane_desc` | User (`tmux set -p @pane_desc`), `agent spawn --desc`, `resume restore` | Free-form pane tag. Never written by hooks and never cleared on agent exit; `agent` commands accept it as a target |
+| `@pane_pinned` | Sidebar `p` key, `resume restore` | `1` when the user pinned the pane. Owned by the pane like `@pane_desc`: never written by hooks and never cleared on agent exit. Saved and restored by `resume` |
+| `@pane_activity_at` | UserPromptSubmit, Stop, StopFailure, Interrupt, Notification (non-meta), SessionStart (except `resume`) | Epoch seconds of the last turn boundary. Drives the last-active age, stale dimming and the recent-first order. A resume does not stamp it, so a session relaunched after a reboot keeps the age its transcript shows. Cleared on agent exit |
 | `@pane_spawned_by` | `agent spawn` | Pane id of the pane that ran `agent spawn` to create this pane. Owned by the pane like `@pane_desc`: never cleared, since pane ids are not reused within a server, so it survives `/clear` and agent restarts. Not restored after a reboot. The sidebar shows it as a "spawned by" row using the parent's `@pane_desc` (its pane id when the parent is untagged or closed); `agent list` shows the raw id |
 | `@pane_attention` | SessionStart, Stop, StopFailure, Interrupt (clear); Notification, PermissionDenied, TeammateIdle (set) | "notification" or "clear" |
 | `@pane_wait_reason` | StopFailure, PermissionDenied, TeammateIdle | Reason for waiting/error (`permission_denied`, `teammate_idle:<name>`, or error text) |
@@ -81,7 +85,7 @@ Written by `resume save` (run from tmux-resurrect's `post-save-layout` hook when
 
 | File | Description |
 |------|-------------|
-| `${XDG_STATE_HOME:-~/.local/state}/herdmux/resume-{socket}.json` | Mode 0600, one file per tmux socket name. Holds `socket_path`, `saved_at`, `restored_at`, one entry per interactive agent pane (location as session / window index / pane index, window pane count, process cwd, agent, session id, normalized argv, allowlisted env, `had_turn`, `transcript_found`) and every pane's `@pane_desc` tag, because tmux-resurrect does not save pane options |
+| `${XDG_STATE_HOME:-~/.local/state}/herdmux/resume-{socket}.json` | Mode 0600, one file per tmux socket name. Holds `socket_path`, `saved_at`, `restored_at`, one entry per interactive agent pane (location as session / window index / pane index, window pane count, process cwd, agent, session id, normalized argv, allowlisted env, `had_turn`, `transcript_found`) and every pane's `@pane_desc` tag and `@pane_pinned` flag, because tmux-resurrect does not save pane options |
 | `${XDG_STATE_HOME:-~/.local/state}/herdmux/restore.log` | One block per restore (the command typed into each pane, or why it was skipped) plus failures of hook-mode (`--quiet`) saves. Truncated past 256 KiB |
 
 Only `CLAUDE_CONFIG_DIR`, `CODEX_HOME` and `XDG_DATA_HOME` are ever read from an agent's environment (`process::ENV_ALLOWLIST`), and the list is re-applied when the file is loaded. An agent counts as interactive only when it is the pane's root process, a direct child of the pane shell, or the child of a `node`/`bun` launcher named after it; agents nested deeper (a script running `claude -p`) are never saved.
@@ -134,8 +138,12 @@ Only `CLAUDE_CONFIG_DIR`, `CODEX_HOME` and `XDG_DATA_HOME` are ever read from an
 | `tmux_pane` | Once at startup | This sidebar's own tmux pane ID |
 | `pane_states.seen` | Every 1s | Set of pane IDs that have been seen as agents (bundled with `pane_states.map` under the `PaneRuntimeMap` wrapper) |
 | `version_notice` | Once at startup (bg fetch) | GitHub release update notice, `None` when up-to-date |
-| `sessions.names` | Every 10s (background thread) | `session_id → session name` map; scanned by `session_poll_loop` in `app/workers.rs` so the TUI thread never blocks on filesystem I/O |
-| `sessions.dirty` | On session map refresh / application tick | Marks the session map as changed so the per-pane session label walk only runs when needed |
+| `sessions.names` | Every 10s (background thread) | `session_id → session name` map; scanned by `session_poll_loop` in `app/workers.rs` so the TUI thread never blocks on filesystem I/O. Put back on each pane (`session_name`) after every snapshot, since the snapshot rebuilds the panes |
+| `digests` | Every 3s while visible (transcript thread) | `session_id → SessionDigest` for Claude panes: AI title, typed prompts (first one is the goal, capped at 400), newest message timestamp. Read by `TranscriptIndex` in `transcript.rs`, which tails `projects/*/<session id>.jsonl` in `$CLAUDE_CONFIG_DIR`, `~/.claude` and `~/.claude-*`, reading only bytes appended since the last poll. The event loop sends the thread the Claude session list whenever a snapshot changes it (`snapshot_gen`) |
+| `search` | On user input / each `rebuild_row_targets` | `SearchState`: `open`, `query`, its own cursor (`selected`, so searching never moves the shared `@sidebar_cursor`), `hits` ranked by `search::score` then last activity, and `return_to` (the agent under the shared cursor when the search opened, restored on `Esc`). Both cursors follow their agent when rows reorder; a query edit moves the search cursor to the best match. While open, snapshots skip the session scope |
+| `stale_after_secs` | Once at startup | From `@sidebar_stale_hours` (default 4h, `0` = off) |
+| `mode` | Once at startup | `AppMode::Sidebar`, or `AppMode::Picker` for `herdmux pick` (search always open, no bottom panel, `Esc` or a jump sets `quit`) |
+| `snapshot_gen` | Every tmux snapshot | Bumped when `repo_groups` is rebuilt; the event loop uses it to resend the transcript session list only when needed |
 
 ---
 
@@ -162,6 +170,9 @@ Only `CLAUDE_CONFIG_DIR`, `CODEX_HOME` and `XDG_DATA_HOME` are ever read from an
 │  theme, bottom_panel_height, notices.claude_plugin_*,       │
 │  notices.claude_settings_has_residual_hooks,                │
 │  notices.claude_plugin_notice, notices.missing_hook_groups  │
+├─────────────────────────────────────────────────────────────┤
+│  Every 3s while visible (transcript thread)                 │
+│  digests (title, prompts, last message time per session)    │
 ├─────────────────────────────────────────────────────────────┤
 │  Every 2s (git background thread)                           │
 │  git (branch, diff, ahead/behind, PR)                       │
@@ -224,13 +235,15 @@ TUI main loop (app::run in app.rs; submodules app/{setup,workers,input,render})
   → refresh() every 1s
     → query_sessions() (tmux.rs)     ← reads @pane_* via `tmux list-panes -a`
     → group_panes_by_repo() (group.rs)
-    → rebuild_row_targets()          ← applies GlobalState filters
+    → rebuild_row_targets()          ← list_items(): pins, repo/recent order,
+                                        GlobalState filters, or search hits
     → refresh_activity_data()        ← reads /tmp activity logs
     → refresh_task_progress()        ← updates PaneRuntimeState.task_progress
     → refresh_port_data()            ← updates PaneRuntimeState.ports
     → scan_session_process_snapshot() ← detects dead panes and clears stale tmux metadata
                         ↓
   → git_rx.try_recv()                ← receives GitData from background thread
+  → digest_rx.try_recv()             ← receives transcript digests (Claude)
   → notices popup render/copy state  ← derived from AppState plugin fields
                         ↓
   → ui::draw() renders frame         ← reads all AppState fields
@@ -242,6 +255,9 @@ TUI main loop (app::run in app.rs; submodules app/{setup,workers,input,render})
 
 ```rust
 enum Focus { Filter, Panes, ActivityLog }
+enum ViewMode { Full, Compact }
+enum SortMode { Repo, Recent }
+enum AppMode { Sidebar, Picker }
 enum StatusFilter { All, Running, Background, Waiting, Idle, Error }
 enum RepoFilter { All, Repo(String) }
 enum BottomTab { Activity, GitStatus }
@@ -337,7 +353,6 @@ struct ActivityState {
 /// never blocks on `~/.claude/sessions/*.json` reads.
 struct SessionNamesState {
     names: HashMap<String, String>,
-    dirty: bool,
 }
 
 /// Frame-scoped render output cached for click hit-testing. Rewritten

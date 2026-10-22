@@ -9,7 +9,7 @@
 
 use super::commands::run_tmux;
 use super::options::{
-    PANE_AGENT, PANE_CWD, PANE_DESC, PANE_PROMPT, PANE_PROMPT_AT, PANE_PROMPT_SOURCE,
+    PANE_AGENT, PANE_CWD, PANE_DESC, PANE_PINNED, PANE_PROMPT, PANE_PROMPT_AT, PANE_PROMPT_SOURCE,
     PANE_RESUME_PENDING, PANE_ROLE, PANE_SESSION_ID, PANE_SPAWNED_BY, PANE_STATUS,
     PANE_WAIT_REASON, PANE_WORKTREE_BRANCH, PANE_WORKTREE_NAME,
 };
@@ -43,6 +43,8 @@ pub struct PaneLocation {
     pub resume_pending: String,
     /// Pane id of the pane that ran `agent spawn` for this one.
     pub spawned_by: String,
+    /// The user pinned the pane in the sidebar (`@pane_pinned`).
+    pub pinned: bool,
 }
 
 impl PaneLocation {
@@ -88,6 +90,7 @@ const FIELDS: &[&str] = &[
     PANE_PROMPT_AT,
     PANE_RESUME_PENDING,
     PANE_SPAWNED_BY,
+    PANE_PINNED,
 ];
 
 fn location_format() -> String {
@@ -145,6 +148,7 @@ fn parse_location_line(line: &str) -> Option<PaneLocation> {
         prompt_at: next().parse().ok(),
         resume_pending: next(),
         spawned_by: next(),
+        pinned: next() == "1",
     })
 }
 
@@ -181,6 +185,7 @@ mod tests {
             "1790000000123",
             "",
             "%1",
+            "1",
         ]
     }
 
@@ -201,6 +206,7 @@ mod tests {
         assert_eq!(loc.prompt, "fix the bug");
         assert_eq!(loc.prompt_at, Some(1790000000123));
         assert_eq!(loc.spawned_by, "%1");
+        assert!(loc.pinned);
         assert!(!loc.is_sidebar());
     }
 

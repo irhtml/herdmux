@@ -47,10 +47,7 @@ impl AppState {
     }
 
     pub fn selected_pane(&self) -> Option<&tmux::PaneInfo> {
-        let target = self
-            .layout
-            .pane_row_targets
-            .get(self.global.selected_pane_row)?;
+        let target = self.layout.pane_row_targets.get(self.cursor())?;
         self.pane_by_id(&target.pane_id)
     }
 
@@ -71,9 +68,13 @@ impl AppState {
             return false;
         }
         let len = self.layout.pane_row_targets.len() as isize;
-        let next = self.global.selected_pane_row as isize + delta;
+        let next = self.cursor() as isize + delta;
         if next >= 0 && next < len {
-            self.global.selected_pane_row = next as usize;
+            if self.search.open {
+                self.search.selected = next as usize;
+            } else {
+                self.global.selected_pane_row = next as usize;
+            }
             true
         } else {
             false
@@ -84,7 +85,7 @@ impl AppState {
         if let Some(target_pane_id) = self
             .layout
             .pane_row_targets
-            .get(self.global.selected_pane_row)
+            .get(self.cursor())
             .map(|target| target.pane_id.clone())
         {
             // Update the sidebar immediately so the active marker and
@@ -96,8 +97,13 @@ impl AppState {
             // The jump may land on a window that has no sidebar of its own
             // (e.g. with @sidebar_auto_create off). Summon one there so the
             // sidebar "follows" the jump instead of disappearing. create-only
-            // is a no-op when that window already has a sidebar.
-            let window_id = tmux::display_message(&target_pane_id, "#{window_id}");
+            // is a no-op when that window already has a sidebar. The picker
+            // is not a sidebar, so it leaves windows as they are.
+            let window_id = if self.mode == super::AppMode::Picker {
+                String::new()
+            } else {
+                tmux::display_message(&target_pane_id, "#{window_id}")
+            };
             if !window_id.is_empty() {
                 let pane_path = tmux::display_message(&target_pane_id, "#{pane_current_path}");
                 let pane_path = if pane_path.is_empty() {
@@ -170,6 +176,10 @@ mod tests {
             pane_desc: String::new(),
             sidebar_spawned: false,
             spawned_by: None,
+            pinned: false,
+            activity_at: None,
+            window_name: String::new(),
+            tmux_session: String::new(),
             bg_shell_cmd: None,
         }
     }

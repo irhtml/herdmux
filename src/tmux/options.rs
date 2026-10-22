@@ -27,6 +27,13 @@ pub const PANE_CWD: &str = "@pane_cwd";
 pub const PANE_BG_CMD: &str = "@pane_bg_cmd";
 /// User-owned pane tag (not written by hooks; never cleared on agent exit).
 pub const PANE_DESC: &str = "@pane_desc";
+/// User-owned pin flag (`1` when pinned), toggled from the sidebar. Owned
+/// by the pane like [`PANE_DESC`]: hooks never write or clear it.
+pub const PANE_PINNED: &str = "@pane_pinned";
+/// Epoch seconds of the pane's last turn boundary: a prompt submit, a
+/// stop, a failure, an interrupt, a session start or a wait. Drives the
+/// sidebar's last-active age and the recent-first sort.
+pub const PANE_ACTIVITY_AT: &str = "@pane_activity_at";
 /// Value written to [`PANE_BG_CMD`] when the hook payload omits the real
 /// command. The ps liveness sweep matches on this to skip its own entries
 /// (placeholder has no process to verify against).
@@ -104,6 +111,13 @@ pub const SIDEBAR_FILTER: &str = "@sidebar_filter";
 pub const SIDEBAR_CURSOR: &str = "@sidebar_cursor";
 pub const SIDEBAR_REPO_FILTER: &str = "@sidebar_repo_filter";
 pub const SIDEBAR_SESSION_SCOPE: &str = "@sidebar_session_scope";
+/// Row density shared by every sidebar: `full` (default) or `compact`.
+pub const SIDEBAR_VIEW: &str = "@sidebar_view";
+/// Agent list order shared by every sidebar: `repo` (default) or `recent`.
+pub const SIDEBAR_SORT: &str = "@sidebar_sort";
+/// Hours an idle agent may sit before its row is dimmed. `0` turns
+/// dimming off. Read once at startup.
+pub const SIDEBAR_STALE_HOURS: &str = "@sidebar_stale_hours";
 pub const SIDEBAR_BOTTOM_HEIGHT: &str = "@sidebar_bottom_height";
 pub const SIDEBAR_PET: &str = "@sidebar_pet";
 pub const SIDEBAR_NOTIFICATIONS: &str = "@sidebar_notifications";
@@ -140,6 +154,8 @@ pub const SIDEBAR_COLOR_PR_LINK: &str = "@sidebar_color_pr_link";
 pub const SIDEBAR_COLOR_SECTION_TITLE: &str = "@sidebar_color_section_title";
 pub const SIDEBAR_COLOR_ACTIVITY_TIMESTAMP: &str = "@sidebar_color_activity_timestamp";
 pub const SIDEBAR_COLOR_RESPONSE_ARROW: &str = "@sidebar_color_response_arrow";
+pub const SIDEBAR_COLOR_PANE_DESC: &str = "@sidebar_color_pane_desc";
+pub const SIDEBAR_COLOR_STALE: &str = "@sidebar_color_stale";
 
 pub const SIDEBAR_ICON_ALL: &str = "@sidebar_icon_all";
 pub const SIDEBAR_ICON_RUNNING: &str = "@sidebar_icon_running";

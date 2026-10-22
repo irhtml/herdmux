@@ -117,6 +117,10 @@ pub(super) fn handle_key_event(
         }
         return true;
     }
+    if state.search.open {
+        handle_search_key(key, state);
+        return true;
+    }
     if state.is_repo_popup_open() {
         let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
         match key.code {
@@ -163,6 +167,14 @@ pub(super) fn handle_key_event(
                 state.toggle_repo_popup();
             }
         }
+        KeyCode::Char('/') => state.open_search(),
+        KeyCode::Char('v') => state.toggle_view(),
+        KeyCode::Char('o') => state.toggle_sort(),
+        KeyCode::Char('p') if !ctrl => {
+            if state.focus_state.focus == Focus::Panes {
+                state.toggle_pin_selected();
+            }
+        }
         KeyCode::Char('s') => {
             state.global.session_scope = !state.global.session_scope;
             state.global.save_session_scope();
@@ -197,6 +209,34 @@ pub(super) fn handle_key_event(
         _ => {}
     }
     true
+}
+
+/// Keys while the search line is open: typing edits the query, arrows and
+/// Ctrl+n/p move through the matches, Enter jumps, Esc closes.
+fn handle_search_key(key: KeyEvent, state: &mut AppState) {
+    let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
+    match key.code {
+        KeyCode::Esc => state.close_search(),
+        KeyCode::Enter => state.confirm_search(),
+        KeyCode::Down => {
+            state.move_pane_selection(1);
+        }
+        KeyCode::Up => {
+            state.move_pane_selection(-1);
+        }
+        KeyCode::Char('n') if ctrl => {
+            state.move_pane_selection(1);
+        }
+        KeyCode::Char('p') if ctrl => {
+            state.move_pane_selection(-1);
+        }
+        KeyCode::Char('u') if ctrl => state.search_clear_query(),
+        KeyCode::Char('w') if ctrl => state.search_delete_word(),
+        KeyCode::Char('c') if ctrl => state.close_search(),
+        KeyCode::Backspace => state.search_pop_char(),
+        KeyCode::Char(c) if !ctrl => state.search_push_char(c),
+        _ => {}
+    }
 }
 
 fn pane_nav_down(state: &mut AppState) {

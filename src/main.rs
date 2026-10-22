@@ -6,6 +6,7 @@ use crossterm::{
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
+use herdmux::state::AppMode;
 use herdmux::{app, tmux};
 use ratatui::{Terminal, backend::CrosstermBackend};
 
@@ -40,6 +41,9 @@ impl Drop for TuiSession {
 
 fn main() -> io::Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.first().map(String::as_str) == Some("pick") {
+        return run_picker(args.get(1).map(String::as_str));
+    }
     if let Some(code) = herdmux::cli::run(&args) {
         std::process::exit(code);
     }
@@ -74,7 +78,30 @@ fn main() -> io::Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    app::run(&mut terminal, tmux_pane, &NEEDS_REFRESH)
+    app::run(&mut terminal, tmux_pane, &NEEDS_REFRESH, AppMode::Sidebar)
+}
+
+/// `herdmux pick [pane]`: a one-shot agent finder for a tmux popup. `pane`
+/// is the pane to jump from, which decides the client a jump switches.
+/// Without it, tmux's current pane is used: inside a popup that is the pane
+/// the popup opened over. `$TMUX_PANE` is not used, because a popup can
+/// inherit a stale one from the server's environment.
+fn run_picker(target: Option<&str>) -> io::Result<()> {
+    let pane = target
+        .filter(|p| p.starts_with('%'))
+        .map(str::to_string)
+        .or_else(|| tmux::run_tmux(&["display-message", "-p", "#{pane_id}"]))
+        .map(|p| p.trim().to_string())
+        .unwrap_or_default();
+    if pane.is_empty() {
+        eprintln!("herdmux pick: run it inside tmux");
+        std::process::exit(1);
+    }
+    let mut stdout = io::stdout();
+    let _tui_session = TuiSession::enter(&mut stdout)?;
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = Terminal::new(backend)?;
+    app::run(&mut terminal, pane, &NEEDS_REFRESH, AppMode::Picker)
 }
 
 extern "C" fn sigusr1_handler(_: libc::c_int) {

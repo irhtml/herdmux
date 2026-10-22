@@ -73,13 +73,14 @@ pub(crate) fn collect<E: SaveEnv>(
     report.state.saved_at = now;
 
     for loc in panes.iter().filter(|p| !p.is_sidebar()) {
-        if !loc.desc.is_empty() {
+        if !loc.desc.is_empty() || loc.pinned {
             report.state.tags.push(Tag {
                 session: loc.session.clone(),
                 window_index: loc.window_index,
                 pane_index: loc.pane_index,
                 window_panes: loc.window_panes,
                 desc: loc.desc.clone(),
+                pinned: loc.pinned,
             });
         }
         if loc.agent.is_empty() {

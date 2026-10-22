@@ -27,6 +27,21 @@ tmux set -g @agent_sidebar_bin "$SIDEBAR_BINARY"
 
 tmux source-file "$PLUGIN_DIR/agent-sidebar.conf"
 
+# --- Agent finder popup (prefix + @sidebar_key_find) ---
+# Defaults to `a`, claimed only while prefix + a is free or already ours,
+# so a user's own binding is never replaced, also on a later reload. Set
+# @sidebar_key_find to `off` to skip it.
+find_key="$(tmux show -gv @sidebar_key_find 2>/dev/null)"
+if [[ -z "$find_key" ]]; then
+    current_a="$(tmux list-keys -T prefix a 2>/dev/null)"
+    if [[ -z "$current_a" || "$current_a" == *"herdmux pick"* ]]; then
+        find_key=a
+    fi
+fi
+if [[ -n "$find_key" && "$find_key" != off ]]; then
+    tmux bind "$find_key" display-popup -E -w 80% -h 80% "$(printf '%q' "$SIDEBAR_BINARY") pick"
+fi
+
 # --- Resume agents after tmux-resurrect (opt-in: set -g @sidebar_resume on) ---
 # Only claims a resurrect hook that is unset or already ours, so a user's
 # own hook is never replaced.

@@ -13,6 +13,7 @@ k / Up / Ctrl+p: Move up\n\
 Move past list edges to focus the filter or bottom panel.\n\
 Enter: Focus selected agent pane\n\
 Esc: Return to agent list\n\
+/: Search agents in every session\n\
 \n\
 Filters and panels\n\
 Tab: Cycle status filter\n\
@@ -22,6 +23,9 @@ s: Toggle current/all sessions\n\
 Shift+Tab: Switch Activity/Git/MRs\n\
 \n\
 Agent list\n\
+v: Toggle compact/full rows\n\
+o: Toggle repo/recent order\n\
+p: Pin/unpin selected agent\n\
 n: Spawn worktree and agent\n\
 x: Remove spawned pane/worktree\n\
 \n\
@@ -30,6 +34,7 @@ Esc: Cancel/close\n\
 Repository: j/k or arrows, Enter to select\n\
 Spawn: Tab/Shift+Tab or Up/Down to select field; Left/Right to cycle; Enter to spawn\n\
 Remove: y/Enter removes window and worktree; c closes window only; n cancels\n\
+Search: type to filter; Up/Down or Ctrl+n/p to move; Enter jumps; Ctrl+w deletes a word; Ctrl+u clears; Esc closes\n\
 \n\
 Keymap\n\
 ?: Open/close keymap\n\

@@ -29,6 +29,53 @@ Cycle with `h` / `l` (or `←` / `→`), or click an entry. `Tab` advances throu
 
 Below the status row, a repo selector (`▾`) narrows the list to a single repository. Open it with `r` or by clicking the arrow; `—` means no repo filter is active.
 
+## Finding an agent
+
+With many agents running, three things help you find the one you want.
+
+### Search (`/`)
+
+Press `/` and type. The list shows the agents of every tmux session that match all the words you typed, ignoring the session scope and the status and repo filters. A word can match the tag, the `/rename` name, Claude's session title, the window, repository, branch, tmux session or path, and every prompt you sent in the session. Tag matches rank first. When a word matched only in an old prompt, a `↳` line under the row shows that prompt with the match highlighted. `Enter` jumps to the selected agent; `Esc` closes the search. With an empty query the list shows every agent, most recently active first.
+
+Prompt history comes from Claude Code's transcripts (`projects/*/<session id>.jsonl` in `$CLAUDE_CONFIG_DIR`, `~/.claude`, and any `~/.claude-*` directory). Other agents are matched on everything except their older prompts.
+
+```text
+/ dockerfile█                              2
+  ○ Dockerfile security fix       billing 2h
+  ○ PHP CVE research           storefront 3h
+    ↳ rebuild the dockerfile on php 8.3
+```
+
+### Agent finder popup (`prefix + a`)
+
+The same search in a tmux popup over the current window, wide enough for long names. It opens with every agent listed, most recently active first. `Enter` jumps and closes the popup; `Esc` closes it. Run it yourself with `herdmux pick`. The key is set with `@sidebar_key_find`.
+
+### Pins (`p`)
+
+`p` pins the selected agent. Pinned agents sit under a `★ pinned` header at the top of every sidebar, are never dimmed, and stay pinned after `/clear` and after a tmux-resurrect restore. Press `p` again to unpin.
+
+## Views
+
+### Compact rows (`v`)
+
+`v` switches every sidebar between full rows and compact rows (`@sidebar_view`). A compact row is one line: status, name, and how long ago the agent was last active. Only the selected agent opens up to full detail, or the focused agent while the sidebar does not have the keyboard. The name is the first of: the tag, the `/rename` name, Claude's session title, the first prompt, the latest prompt, the agent name.
+
+```text
+billing                                      +
+  ○ Dockerfile security fix                 2h
+storefront                                   +
+  ○ PHP CVE research                        3h
+  ● PR 42 client impact                    23s
+```
+
+### Most recent first (`o`)
+
+`o` switches every sidebar between repository groups and one list ordered by last activity (`@sidebar_sort`). Rows outside their repository group show the repository name.
+
+### Stale agents
+
+Agents idle for `@sidebar_stale_hours` (4 by default) are drawn dimmer, so the ones you worked with recently stand out.
+
 ## Row elements
 
 ### Status icon
@@ -62,6 +109,18 @@ When multiple signals compete on the same pane, the sidebar resolves them in thi
 
 Defaults to the agent name. Can be changed through Claude Code's `/rename`.
 
+### Pin (`★`)
+
+Shown after the status icon of a pinned agent.
+
+### Tag or title
+
+The pane's `@pane_desc` tag. When the pane has no tag, the title Claude Code generated for the session.
+
+### Goal (`◇`)
+
+The first prompt of the session, so the row still says what the session is for after many follow-ups. Hidden when it is also the latest prompt. Claude only (read from the transcript).
+
 ### `+` marker
 
 Indicates the pane sits in a git worktree (any worktree, not only sidebar-created ones). Sidebar-spawned worktrees additionally show a `×` button for one-keystroke teardown. See [Worktree](/herdmux/features/worktree/) for details.
@@ -70,9 +129,9 @@ Indicates the pane sits in a git worktree (any worktree, not only sidebar-create
 
 Current Git branch for the pane's cwd. Claude updates dynamically through the `CwdChanged` hook.
 
-### Elapsed time
+### Elapsed time / last active
 
-Time since the last user prompt.
+While the agent works or waits, the time since the last user prompt (`1m2s`). Once it is idle, how long ago it was last active (`12m`, `3h`, `2d`). Last active is the latest turn boundary the hooks recorded (`@pane_activity_at`) or the newest message in Claude's transcript, so a session resumed after a reboot keeps its real age.
 
 ### Task progress
 
@@ -120,7 +179,7 @@ Preview of the latest agent response.
 
 ### Prompt text
 
-Latest user prompt.
+Latest user prompt. After a resume, before the first new prompt, the last prompt from Claude's transcript.
 
 ### Wait reason
 

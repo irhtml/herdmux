@@ -10,6 +10,7 @@ use crate::merge_request::{self, BranchRef, MergeRequest, MrCache, MrSummary};
 use crate::session;
 use crate::state::{AppState, BottomTab};
 use crate::tmux;
+use crate::transcript::{self, DigestUpdate, TranscriptIndex};
 use crate::version::{self, UpdateNotice};
 
 /// Channels and shared flags produced by [`spawn`] that the main event loop
@@ -23,6 +24,11 @@ pub(super) struct Workers {
     pub mr_rx: Receiver<MrSnapshot>,
     pub mr_wake: Sender<()>,
     pub mr_tab_active: Arc<AtomicBool>,
+    /// Claude sessions whose transcripts the transcript thread should read.
+    pub transcript_sessions: Sender<Vec<(String, String)>>,
+    pub digest_rx: Receiver<Vec<DigestUpdate>>,
+    /// Set while someone views the sidebar; the transcript thread rests otherwise.
+    pub transcripts_active: Arc<AtomicBool>,
 }
 
 /// One publish of the MR poll thread.
@@ -88,6 +94,13 @@ pub(super) fn spawn(state: &AppState) -> Workers {
             let _ = version_tx.send(notice);
         }
     });
+    let (transcript_sessions, sessions_rx) = mpsc::channel::<Vec<(String, String)>>();
+    let (digest_tx, digest_rx) = mpsc::channel::<Vec<DigestUpdate>>();
+    let transcripts_active = Arc::new(AtomicBool::new(true));
+    let transcripts_flag = Arc::clone(&transcripts_active);
+    std::thread::spawn(move || {
+        transcript_poll_loop(&sessions_rx, &digest_tx, &transcripts_flag);
+    });
 
     Workers {
         git_rx,
@@ -98,6 +111,46 @@ pub(super) fn spawn(state: &AppState) -> Workers {
         mr_rx,
         mr_wake,
         mr_tab_active,
+        transcript_sessions,
+        digest_rx,
+        transcripts_active,
+    }
+}
+
+/// How often the transcript thread checks the tracked transcripts for new
+/// lines. Each check is one `stat` per session, plus a read of what was
+/// appended.
+const TRANSCRIPT_POLL_INTERVAL: Duration = Duration::from_secs(3);
+
+/// Transcript thread: keeps a digest (title, prompts, last message time)
+/// per tracked Claude session and sends what changed. A new session list
+/// is read right away; otherwise it polls every
+/// [`TRANSCRIPT_POLL_INTERVAL`] while `active` is set.
+pub(super) fn transcript_poll_loop(
+    sessions_rx: &Receiver<Vec<(String, String)>>,
+    digest_tx: &Sender<Vec<DigestUpdate>>,
+    active: &AtomicBool,
+) {
+    let mut index = TranscriptIndex::new(transcript::config_dirs());
+    let mut sessions: Vec<(String, String)> = Vec::new();
+    loop {
+        match sessions_rx.recv_timeout(TRANSCRIPT_POLL_INTERVAL) {
+            Ok(list) => {
+                sessions = list;
+                while let Ok(newer) = sessions_rx.try_recv() {
+                    sessions = newer;
+                }
+            }
+            Err(RecvTimeoutError::Timeout) => {}
+            Err(RecvTimeoutError::Disconnected) => return,
+        }
+        if !active.load(Ordering::Relaxed) {
+            continue;
+        }
+        let updates = index.poll(&sessions);
+        if !updates.is_empty() && digest_tx.send(updates).is_err() {
+            return;
+        }
     }
 }
 

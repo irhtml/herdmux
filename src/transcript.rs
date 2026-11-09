@@ -158,6 +158,7 @@ const INJECTED_PREFIXES: &[&str] = &[
     "[Request interrupted by user",
     "This session is being continued from a previous conversation",
     "Caveat: The messages below were generated",
+    crate::park::PARK_PROMPT_MARKER,
 ];
 
 /// Commands that say nothing about what a session is for.
@@ -479,6 +480,11 @@ mod tests {
             parse_line(&user_line("fix the  login\nbug")),
             Some(Entry::Prompt("fix the login bug".into()))
         );
+    }
+
+    #[test]
+    fn parse_line_skips_the_park_handoff_prompt() {
+        assert_eq!(parse_line(&user_line(crate::park::HANDOFF_PROMPT)), None);
     }
 
     #[test]

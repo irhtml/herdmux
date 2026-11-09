@@ -59,6 +59,10 @@ Prompt history comes from Claude Code's transcripts (`projects/*/<session id>.js
 
 The same search in a tmux popup over the current window, wide enough for long names. It opens with every agent listed, most recently active first. `Enter` jumps and closes the popup; `Esc` closes it. Run it yourself with `herdmux pick`. The key is set with `@sidebar_key_find`.
 
+### Parked sessions
+
+Agents you parked with `z` are listed under a `parked` header below the live agents, in both the search and the finder. `Enter` resumes one in a new window. See [Park an agent](/features/park/).
+
 ### Pins (`p`)
 
 `p` pins the selected agent. Pinned agents sit under a `★ pinned` header at the top of every sidebar, are never dimmed, and stay pinned after `/clear` and after a tmux-resurrect restore. Press `p` again to unpin.

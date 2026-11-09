@@ -117,6 +117,15 @@ pub(super) fn handle_key_event(
         }
         return true;
     }
+    if state.is_park_confirm_open() {
+        match key.code {
+            KeyCode::Esc | KeyCode::Char('n') => state.close_park_confirm(),
+            KeyCode::Char('s') => state.confirm_park(false),
+            KeyCode::Enter | KeyCode::Char('y') => state.confirm_park(true),
+            _ => {}
+        }
+        return true;
+    }
     if state.search.open {
         handle_search_key(key, state);
         return true;
@@ -192,6 +201,11 @@ pub(super) fn handle_key_event(
                 state.open_remove_confirm();
             }
         }
+        KeyCode::Char('z') => {
+            if state.focus_state.focus == Focus::Panes {
+                state.open_park_confirm();
+            }
+        }
         KeyCode::Enter => {
             if state.focus_state.focus == Focus::Panes {
                 state.activate_selected_pane();
@@ -232,6 +246,7 @@ fn handle_search_key(key: KeyEvent, state: &mut AppState) {
         }
         KeyCode::Char('u') if ctrl => state.search_clear_query(),
         KeyCode::Char('w') if ctrl => state.search_delete_word(),
+        KeyCode::Char('d') if ctrl => state.forget_selected_parked(),
         KeyCode::Char('c') if ctrl => state.close_search(),
         KeyCode::Backspace => state.search_pop_char(),
         KeyCode::Char(c) if !ctrl => state.search_push_char(c),

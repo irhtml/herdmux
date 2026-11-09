@@ -9,6 +9,7 @@ pub(crate) mod fs_util;
 pub mod git;
 pub mod group;
 pub mod merge_request;
+pub mod park;
 pub mod port;
 pub(crate) mod process;
 pub(crate) mod resume;

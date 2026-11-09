@@ -36,7 +36,10 @@ pub use pane_runtime::{PaneRuntimeMap, PaneRuntimeState};
 pub use popup::{PopupState, SpawnField};
 #[cfg(test)]
 pub(crate) use refresh::{TaskProgressDecision, classify_task_progress};
-pub use rows::{DEFAULT_STALE_HOURS, HeaderKind, ListItem, PaneItem, stale_after_from_options};
+pub use rows::{
+    DEFAULT_STALE_HOURS, HeaderKind, ListItem, PARKED_ROW_PREFIX, PaneItem, ParkedItem,
+    parked_session_of, stale_after_from_options,
+};
 pub use scroll::{ScrollState, ScrollStates};
 pub use search::{SearchHit, SearchState};
 pub use session::SessionNamesState;
@@ -169,6 +172,8 @@ pub struct AppState {
     /// Per Claude session id: AI title, typed prompts and last message
     /// time, read from transcripts by the transcript worker.
     pub digests: std::collections::HashMap<String, crate::transcript::SessionDigest>,
+    /// Parked sessions, newest first, loaded while the search is open.
+    pub parked: Vec<crate::park::Parked>,
     /// The `/` search line and its matches.
     pub search: SearchState,
     /// Idle agents inactive this long are dimmed; `0` turns it off.
@@ -232,6 +237,7 @@ impl AppState {
             sessions: SessionNamesState::default(),
             pet_enabled: false,
             digests: std::collections::HashMap::new(),
+            parked: Vec::new(),
             search: SearchState::default(),
             stale_after_secs: DEFAULT_STALE_HOURS * 3600,
             mode: AppMode::Sidebar,

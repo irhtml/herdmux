@@ -83,6 +83,13 @@ pub enum PopupState {
         error: Option<String>,
         area: Option<ratatui::layout::Rect>,
     },
+    /// Confirmation shown when the user presses `z` to park an agent:
+    /// `herdmux park` asks it for a handoff, saves it and closes the pane.
+    ParkConfirm {
+        pane_id: String,
+        name: String,
+        area: Option<ratatui::layout::Rect>,
+    },
 }
 
 impl PopupState {
@@ -108,6 +115,28 @@ impl PopupState {
         if let Self::RemoveConfirm { area, .. } = self {
             *area = rect;
         }
+    }
+
+    pub fn set_park_confirm_area(&mut self, rect: Option<ratatui::layout::Rect>) {
+        if let Self::ParkConfirm { area, .. } = self {
+            *area = rect;
+        }
+    }
+}
+
+/// Why the sidebar won't park `pane`, checked before `herdmux park` runs
+/// detached, since that run has no terminal to report to. The command
+/// checks again against the live pane.
+pub fn park_refusal(pane: &crate::tmux::PaneInfo) -> Option<&'static str> {
+    use crate::tmux::PaneStatus;
+    match pane.status {
+        PaneStatus::Running => Some("park: the agent is working; wait for its turn to end"),
+        PaneStatus::Waiting => Some("park: the agent is waiting on you; answer it first"),
+        PaneStatus::Background => {
+            Some("park: a background shell is running; parking would stop it")
+        }
+        _ if pane.session_id.is_none() => Some("park: the agent has no session id yet"),
+        _ => None,
     }
 }
 
@@ -452,6 +481,74 @@ impl AppState {
             Err(e) => self.set_flash(format!("spawn failed: {e}")),
         }
         true
+    }
+
+    // ─── Park confirm popup (z key) ──────────────────────────────────────
+
+    pub fn is_park_confirm_open(&self) -> bool {
+        matches!(self.popup, PopupState::ParkConfirm { .. })
+    }
+
+    pub fn park_confirm_popup_area(&self) -> Option<ratatui::layout::Rect> {
+        match &self.popup {
+            PopupState::ParkConfirm { area, .. } => *area,
+            _ => None,
+        }
+    }
+
+    pub fn close_park_confirm(&mut self) {
+        if self.is_park_confirm_open() {
+            self.popup = PopupState::None;
+        }
+    }
+
+    /// Ask to park the selected agent, unless it can't be parked now.
+    pub fn open_park_confirm(&mut self) {
+        let Some(pane) = self.selected_pane() else {
+            self.set_flash("park: no agent selected");
+            return;
+        };
+        if let Some(reason) = park_refusal(pane) {
+            self.set_flash(reason);
+            return;
+        }
+        let digest = self.digest_for(pane);
+        let name = [
+            pane.pane_desc.as_str(),
+            pane.session_name.as_str(),
+            digest.map_or("", |d| d.title.as_str()),
+            digest.and_then(|d| d.goal()).unwrap_or(""),
+        ]
+        .into_iter()
+        .map(str::trim)
+        .find(|s| !s.is_empty())
+        .unwrap_or(pane.agent.label())
+        .to_string();
+        self.popup = PopupState::ParkConfirm {
+            pane_id: pane.pane_id.clone(),
+            name,
+            area: None,
+        };
+    }
+
+    /// Start `herdmux park` for the agent in the popup, detached so the
+    /// handoff can take its time while the sidebar keeps running.
+    pub fn confirm_park(&mut self, handoff: bool) {
+        let PopupState::ParkConfirm { pane_id, name, .. } = std::mem::take(&mut self.popup) else {
+            return;
+        };
+        let mut args = vec!["park".to_string(), pane_id];
+        if !handoff {
+            args.push("--no-handoff".into());
+        }
+        if let Some(client) = crate::tmux::jump_client(&self.tmux_pane) {
+            args.extend(["--client".into(), client]);
+        }
+        match crate::process::spawn_self_detached(&args) {
+            Ok(()) if handoff => self.set_flash(format!("parking {name}: asking for a handoff")),
+            Ok(()) => self.set_flash(format!("parking {name}")),
+            Err(e) => self.set_flash(format!("park failed: {e}")),
+        }
     }
 
     // ─── Remove confirm popup (x key) ────────────────────────────────────

@@ -37,6 +37,7 @@ impl AppState {
             return;
         }
         self.begin_search();
+        self.load_parked();
         // Search covers every tmux session, so drop the session scope for
         // this snapshot.
         self.refresh();
@@ -67,10 +68,22 @@ impl AppState {
         self.leave_search(back);
     }
 
-    /// Jump to the selected match and close the search line, leaving the
-    /// cursor on that agent.
+    /// Read the parked sessions, for the search to list them.
+    pub fn load_parked(&mut self) {
+        self.parked = crate::park::parked_dir()
+            .map(|dir| crate::park::load_all(&dir))
+            .unwrap_or_default();
+    }
+
+    /// Jump to the selected match, or resume it when it is parked, and
+    /// close the search line, leaving the cursor on that agent.
     pub fn confirm_search(&mut self) {
-        let Some(target) = self.selected_pane().map(|p| p.pane_id.clone()) else {
+        let Some(target) = self
+            .layout
+            .pane_row_targets
+            .get(self.cursor())
+            .map(|t| t.pane_id.clone())
+        else {
             return;
         };
         self.activate_selected_pane();
@@ -97,6 +110,7 @@ impl AppState {
         let back = self.search.return_to.take();
         self.search = SearchState::default();
         self.layout.pane_row_targets.clear();
+        self.parked.clear();
         back
     }
 
@@ -180,5 +194,92 @@ impl AppState {
         }
         hits.sort_by_key(|(hit, last_active)| (Reverse(hit.score), Reverse(*last_active)));
         self.search.hits = hits.into_iter().map(|(hit, _)| hit).collect();
+        self.search.hits.extend(self.parked_hits(&terms));
+    }
+
+    /// Parked sessions that match, best first and newest first among
+    /// equals. A session that runs again (its record kept because it was
+    /// slow to report in) is listed only as the live agent.
+    fn parked_hits(&self, terms: &[String]) -> Vec<SearchHit> {
+        let live: std::collections::HashSet<&str> = self
+            .repo_groups
+            .iter()
+            .flat_map(|g| g.panes.iter())
+            .filter_map(|(p, _)| p.session_id.as_deref())
+            .collect();
+        let mut hits: Vec<SearchHit> = Vec::new();
+        for parked in self
+            .parked
+            .iter()
+            .filter(|p| !live.contains(p.session_id.as_str()))
+        {
+            let labels = [
+                (parked.desc.as_str(), weight::TAG),
+                (parked.title.as_str(), weight::TITLE),
+                (parked.window_name.as_str(), weight::WINDOW),
+                (parked.repo.as_str(), weight::REPO),
+                (parked.branch.as_str(), weight::BRANCH),
+                (parked.tmux_session.as_str(), weight::TMUX_SESSION),
+                (parked.cwd.as_str(), weight::PATH),
+            ];
+            // One text per handoff line, so a snippet is one line.
+            let handoff = parked
+                .handoff
+                .lines()
+                .map(|line| (line.trim(), weight::HISTORY));
+            let texts = [
+                (parked.goal.as_str(), weight::GOAL),
+                (parked.last_prompt.as_str(), weight::LAST_PROMPT),
+            ];
+            let candidate = Candidate {
+                labels: labels.into_iter().filter(|(t, _)| !t.is_empty()).collect(),
+                texts: texts
+                    .into_iter()
+                    .chain(handoff)
+                    .filter(|(t, _)| !t.is_empty())
+                    .collect(),
+            };
+            if let Some(scored) = search::score(terms, &candidate) {
+                hits.push(SearchHit {
+                    pane_id: format!("{}{}", super::PARKED_ROW_PREFIX, parked.session_id),
+                    score: scored.score,
+                    snippet: scored.snippet,
+                });
+            }
+        }
+        // Stable, so the records keep their newest-first order on ties.
+        hits.sort_by_key(|hit| Reverse(hit.score));
+        hits
+    }
+
+    /// Forget the parked session under the cursor (Ctrl+d in the search).
+    pub fn forget_selected_parked(&mut self) {
+        let Some(sid) = self
+            .layout
+            .pane_row_targets
+            .get(self.cursor())
+            .and_then(|t| super::parked_session_of(&t.pane_id))
+            .map(str::to_string)
+        else {
+            self.set_flash("ctrl+d forgets a parked session");
+            return;
+        };
+        let removed = crate::park::parked_dir()
+            .ok_or_else(|| "no state directory".to_string())
+            .and_then(|dir| crate::park::remove(&dir, &sid).map_err(|e| e.to_string()));
+        match removed {
+            Ok(()) => {
+                let name = self
+                    .parked
+                    .iter()
+                    .find(|p| p.session_id == sid)
+                    .map(|p| p.name().to_string())
+                    .unwrap_or_default();
+                self.parked.retain(|p| p.session_id != sid);
+                self.set_flash(format!("forgot {name}"));
+                self.rebuild_row_targets();
+            }
+            Err(e) => self.set_flash(format!("forget failed: {e}")),
+        }
     }
 }

@@ -200,7 +200,7 @@ pub(crate) fn execute(plan: &Plan, now: u64) -> Vec<String> {
 
 /// Give a freshly restored shell a moment to draw its prompt, so the
 /// typed command is not swallowed by its startup.
-fn wait_for_shell(pane: &str) {
+pub(crate) fn wait_for_shell(pane: &str) {
     let start = std::time::Instant::now();
     while start.elapsed() < SHELL_READY_LIMIT {
         if tmux::capture_pane(pane, 5).is_ok_and(|s| !s.trim().is_empty()) {

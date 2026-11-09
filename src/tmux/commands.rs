@@ -65,6 +65,11 @@ pub fn pane_session_name(pane_id: &str) -> Option<String> {
     Some(display_message(pane_id, "#{session_name}")).filter(|s| !s.is_empty())
 }
 
+/// `-t` target for a new window in the session named `session`.
+fn session_window_target(session: &str) -> String {
+    format!("={session}:")
+}
+
 /// Resolve a split target in the originating window, never the sidebar itself.
 pub fn worktree_split_target(origin: &str) -> Result<String, String> {
     let window = run_tmux_capture(&["display-message", "-t", origin, "-p", "#{window_id}"])?;
@@ -128,13 +133,17 @@ pub fn new_window(
     name: &str,
     detached: bool,
 ) -> Result<(String, String), String> {
+    // `=name:` matches the session name exactly and asks for the next free
+    // window index. A bare name would be read as a window index first when
+    // it is a number, or as a prefix of a longer session name.
+    let target = session_window_target(session);
     let mut args = vec!["new-window"];
     if detached {
         args.push("-d");
     }
     args.extend([
         "-t",
-        session,
+        &target,
         "-c",
         cwd,
         "-n",
@@ -241,7 +250,7 @@ pub fn kill_window(window_id: &str) -> Result<(), String> {
 /// so it identifies the terminal the user is typing in. Without an explicit
 /// `-c`, `switch-client` falls back to tmux's guess of the current client,
 /// which can yank a client attached to a *different* session onto the target.
-fn jump_client(own_pane_id: &str) -> Option<String> {
+pub fn jump_client(own_pane_id: &str) -> Option<String> {
     let session_id = display_message(own_pane_id, "#{session_id}");
     if session_id.is_empty() {
         return None;
@@ -356,8 +365,14 @@ fn show_pane_commands<'a>(
 mod tests {
     use super::{
         ClientInfo, batch_args, last_lines, most_recent_client, most_recent_client_info,
-        pick_worktree_split_target, show_pane_commands,
+        pick_worktree_split_target, session_window_target, show_pane_commands,
     };
+
+    #[test]
+    fn new_windows_target_the_session_by_exact_name() {
+        assert_eq!(session_window_target("7"), "=7:");
+        assert_eq!(session_window_target("main"), "=main:");
+    }
 
     #[test]
     fn show_pane_selects_pane_and_window_before_switching_the_client() {

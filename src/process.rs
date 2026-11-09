@@ -4,6 +4,34 @@ use std::process::Command;
 
 use crate::tmux::AgentType;
 
+/// Run this binary again with `args` in its own session, with no stdio, so
+/// it outlives the caller (a hook, the resurrect script, a popup). A thread
+/// reaps it, so a long-running caller such as the sidebar leaves no zombie.
+pub(crate) fn spawn_self_detached<S: AsRef<std::ffi::OsStr>>(args: &[S]) -> std::io::Result<()> {
+    use std::process::Stdio;
+    let mut cmd = Command::new(std::env::current_exe()?);
+    cmd.args(args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        // SAFETY: setsid is async-signal-safe and touches no Rust state.
+        unsafe {
+            cmd.pre_exec(|| {
+                libc::setsid();
+                Ok(())
+            });
+        }
+    }
+    let mut child = cmd.spawn()?;
+    std::thread::spawn(move || {
+        let _ = child.wait();
+    });
+    Ok(())
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct ProcessInfo {
     pub(crate) comm: String,

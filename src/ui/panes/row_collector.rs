@@ -47,12 +47,34 @@ pub(super) fn collect(state: &AppState, width: u16) -> CollectedRows {
                         "recent",
                         Style::default().fg(theme.text_muted),
                     )),
+                    HeaderKind::Parked => Line::from(Span::styled(
+                        "parked",
+                        Style::default().fg(theme.text_muted),
+                    )),
                 };
                 collected.lines.push(line);
                 collected.line_to_row.push(None);
                 continue;
             }
             ListItem::Pane(pane_item) => pane_item,
+            ListItem::Parked(item) => {
+                first_header = false;
+                let is_selected = has_cursor && row_index == state.cursor();
+                let lines = row::render_parked_lines(
+                    item.parked,
+                    item.snippet,
+                    is_selected,
+                    width,
+                    theme,
+                    state.now,
+                );
+                collected
+                    .line_to_row
+                    .extend(lines.iter().map(|_| Some(row_index)));
+                collected.lines.extend(lines);
+                row_index += 1;
+                continue;
+            }
         };
         let PaneItem {
             pane,

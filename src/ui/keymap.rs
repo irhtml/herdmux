@@ -28,13 +28,15 @@ o: Toggle repo/recent order\n\
 p: Pin/unpin selected agent\n\
 n: Spawn worktree and agent\n\
 x: Remove spawned pane/worktree\n\
+z: Park agent (handoff, close pane; resume from search)\n\
 \n\
 Dialogs\n\
 Esc: Cancel/close\n\
 Repository: j/k or arrows, Enter to select\n\
 Spawn: Tab/Shift+Tab or Up/Down to select field; Left/Right to cycle; Enter to spawn\n\
 Remove: y/Enter removes window and worktree; c closes window only; n cancels\n\
-Search: type to filter; Up/Down or Ctrl+n/p to move; Enter jumps; Ctrl+w deletes a word; Ctrl+u clears; Esc closes\n\
+Park: y/Enter asks for a handoff; s skips it; n cancels\n\
+Search: type to filter; Up/Down or Ctrl+n/p to move; Enter jumps or resumes a parked session; Ctrl+d forgets a parked session; Ctrl+w deletes a word; Ctrl+u clears; Esc closes\n\
 \n\
 Keymap\n\
 ?: Open/close keymap\n\

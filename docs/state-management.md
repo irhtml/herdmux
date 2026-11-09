@@ -90,6 +90,14 @@ Written by `resume save` (run from tmux-resurrect's `post-save-layout` hook when
 | `${XDG_STATE_HOME:-~/.local/state}/herdmux/resume-{socket}.json` | Mode 0600, one file per tmux socket name. Holds `socket_path`, `saved_at`, `restored_at`, one entry per interactive agent pane (location as session / window index / pane index, window pane count, process cwd, agent, session id, normalized argv, allowlisted env, `had_turn`, `transcript_found`) and every pane's `@pane_desc` tag and `@pane_pinned` flag, because tmux-resurrect does not save pane options |
 | `${XDG_STATE_HOME:-~/.local/state}/herdmux/restore.log` | One block per restore (the command typed into each pane, or why it was skipped) plus failures of hook-mode (`--quiet`) saves. Truncated past 256 KiB |
 
+### Parked Sessions
+
+Written by `herdmux park` (the sidebar's `z` key) and read by the search and the agent finder, which load them when the search opens. `park resume` deletes a record once the resumed agent reports `@pane_session_id`; `park forget` (`Ctrl+d` in the search) deletes it unasked.
+
+| File | Description |
+|------|-------------|
+| `${XDG_STATE_HOME:-~/.local/state}/herdmux/parked/{session_id}.json` | Mode 0600, one file per session, so parks running at the same time never lose each other's records; parking a session again replaces it. Holds `version`, the resume fields (cwd, agent, session id, normalized argv, allowlisted env), `parked_at`, the tmux session and window name, `@pane_desc`, `@pane_pinned`, Claude's title, goal and last typed prompt, repository and branch, and the handoff with `handoff_from_agent` (false when it is the last reply) |
+
 Only `CLAUDE_CONFIG_DIR`, `CODEX_HOME` and `XDG_DATA_HOME` are ever read from an agent's environment (`process::ENV_ALLOWLIST`), and the list is re-applied when the file is loaded. An agent counts as interactive only when it is the pane's root process, a direct child of the pane shell, or the child of a `node`/`bun` launcher named after it; agents nested deeper (a script running `claude -p`) are never saved.
 
 `resume restore` acts only within 10 minutes of the tmux server's start and on the same socket (unless `--force`), and only types into a pane that is a shell with no `@pane_agent`, sits at the saved location, has the saved window pane count, and is in the saved directory. A save during that window does not replace a snapshot taken before the server started until a restore has run (`restored_at`).

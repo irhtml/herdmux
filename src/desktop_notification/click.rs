@@ -30,22 +30,9 @@ const MAX_ANCESTORS: usize = 8;
 /// Start the helper for one notification. An error means it did not start,
 /// and the caller sends a plain notification instead.
 pub(super) fn spawn_waiter(pane_id: &str, title: &str, body: &str) -> std::io::Result<()> {
-    use std::os::unix::process::CommandExt;
-    let mut cmd = Command::new(std::env::current_exe()?);
-    cmd.args([WAIT_SUBCOMMAND, pane_id, title, body])
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
-    // Its own session, so it outlives the hook, and its own process group,
-    // so a newer notification can stop it together with its notify-send.
-    // SAFETY: setsid is async-signal-safe and touches no Rust state.
-    unsafe {
-        cmd.pre_exec(|| {
-            libc::setsid();
-            Ok(())
-        });
-    }
-    cmd.spawn().map(|_| ())
+    // Its own session, so it outlives the hook, and so its own process
+    // group: a newer notification can stop it together with its notify-send.
+    crate::process::spawn_self_detached(&[WAIT_SUBCOMMAND, pane_id, title, body])
 }
 
 /// `herdmux notify-wait <pane> <title> <body>`.

@@ -345,6 +345,53 @@ pub(super) fn render_remove_confirm_popup(frame: &mut Frame, state: &mut AppStat
     }
 }
 
+pub(super) fn render_park_confirm_popup(frame: &mut Frame, state: &mut AppState, area: Rect) {
+    let name = match &state.popup {
+        PopupState::ParkConfirm { name, .. } => name.clone(),
+        _ => return,
+    };
+    let theme = &state.theme;
+
+    // Title, three option rows and a hint, narrow enough for a 21-column
+    // sidebar.
+    let popup_rect = center_popup(area, area.width.min(28), 7);
+    state.popup.set_park_confirm_area(Some(popup_rect));
+
+    frame.render_widget(Clear, popup_rect);
+    let title_text = format!(" park {name} ");
+    let title = truncate_to_width(&title_text, popup_rect.width.saturating_sub(2) as usize);
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(theme.accent))
+        .title(Span::styled(title, Style::default().fg(theme.accent)));
+    let inner = block.inner(popup_rect);
+    frame.render_widget(block, popup_rect);
+
+    let rows = [
+        ("[y] with handoff", theme.text_active),
+        ("[s] no handoff", theme.text_active),
+        ("[n] cancel", theme.text_muted),
+        ("", theme.text_muted),
+        ("closes the pane", theme.text_muted),
+    ];
+    for (y, (text, color)) in rows.into_iter().enumerate() {
+        let y = y as u16;
+        if y >= inner.height {
+            break;
+        }
+        let row = Rect::new(inner.x, inner.y + y, inner.width, 1);
+        let truncated = truncate_to_width(text, row.width as usize);
+        frame.render_widget(
+            Paragraph::new(Line::from(Span::styled(
+                truncated,
+                Style::default().fg(color),
+            ))),
+            row,
+        );
+    }
+}
+
 pub(super) fn render_repo_popup(frame: &mut Frame, state: &mut AppState, area: Rect) {
     let theme = &state.theme;
     let repos = state.repo_names();

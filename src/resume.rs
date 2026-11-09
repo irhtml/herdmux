@@ -15,7 +15,7 @@ mod save;
 mod store;
 
 pub(crate) use argv::{ResumeCommand, build as build_command, render as render_command};
-pub(crate) use restore::{Action, RESTORE_WINDOW_SECS, ServerInfo, execute, plan};
+pub(crate) use restore::{Action, RESTORE_WINDOW_SECS, ServerInfo, execute, plan, wait_for_shell};
 pub(crate) use resurrect::Snapshot;
 pub(crate) use save::{RealSaveEnv, SaveReport, collect};
-pub(crate) use store::{ResumeState, migrate_legacy_state_dir, state_dir, state_path};
+pub(crate) use store::{Entry, ResumeState, migrate_legacy_state_dir, state_dir, state_path};

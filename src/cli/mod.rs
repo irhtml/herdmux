@@ -29,6 +29,7 @@ pub fn run(args: &[String]) -> Option<i32> {
         "set-status" => cmd_set_status(rest),
         "spawn" => spawn::cmd_spawn(rest),
         "agent" => agent::cmd_agent(rest),
+        "park" => agent::cmd_park(rest),
         "resume" => resume::cmd_resume(rest),
         "capture" => capture::cmd_capture(rest),
         #[cfg(target_os = "linux")]

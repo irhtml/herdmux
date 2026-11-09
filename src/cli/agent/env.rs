@@ -71,6 +71,8 @@ pub(super) trait AgentTmux {
     fn detect_agent(&self, pane_pid: u32) -> Option<String>;
     fn paste(&self, pane: &str, text: &str) -> Result<(), String>;
     fn press_enter(&self, pane: &str) -> Result<(), String>;
+    /// Stop the agent's current turn or dismiss its dialog.
+    fn press_escape(&self, pane: &str) -> Result<(), String>;
     fn cancel_mode(&self, pane: &str) -> Result<(), String>;
     fn capture(&self, pane: &str, lines: usize) -> Result<String, String>;
     fn sleep(&self, duration: Duration);
@@ -97,6 +99,9 @@ impl AgentTmux for RealTmux {
     }
     fn press_enter(&self, pane: &str) -> Result<(), String> {
         tmux::send_key(pane, "Enter")
+    }
+    fn press_escape(&self, pane: &str) -> Result<(), String> {
+        tmux::send_key(pane, "Escape")
     }
     fn cancel_mode(&self, pane: &str) -> Result<(), String> {
         tmux::cancel_pane_mode(pane)
@@ -187,6 +192,10 @@ pub(super) mod fake {
                 state.prompt_at = Some(self.clock.get());
                 state.status = "running".into();
             }
+            Ok(())
+        }
+        fn press_escape(&self, pane: &str) -> Result<(), String> {
+            self.calls.borrow_mut().push(format!("escape({pane})"));
             Ok(())
         }
         fn cancel_mode(&self, pane: &str) -> Result<(), String> {

@@ -7,8 +7,8 @@ mod types;
 mod visibility;
 
 pub use commands::{
-    ClientInfo, cancel_pane_mode, capture_pane, client_for_pane, display_message, kill_pane,
-    kill_window, new_window, pane_session_name, paste_text, run_tmux, run_tmux_batch,
+    ClientInfo, cancel_pane_mode, capture_pane, client_for_pane, display_message, jump_client,
+    kill_pane, kill_window, new_window, pane_session_name, paste_text, run_tmux, run_tmux_batch,
     run_tmux_capture, select_pane, send_command, send_key, set_spawn_pane_option,
     set_window_option, show_pane, split_worktree_pane, worktree_split_target,
 };

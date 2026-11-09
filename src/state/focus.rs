@@ -88,6 +88,10 @@ impl AppState {
             .get(self.cursor())
             .map(|target| target.pane_id.clone())
         {
+            if let Some(sid) = super::parked_session_of(&target_pane_id) {
+                self.resume_parked(sid.to_string());
+                return;
+            }
             // Update the sidebar immediately so the active marker and
             // repo header highlight move without waiting for the next
             // periodic tmux refresh.
@@ -117,6 +121,25 @@ impl AppState {
                     pane_path,
                 ]);
             }
+        }
+    }
+
+    /// Resume a parked session in a new window, through a detached
+    /// `herdmux park resume` so the picker can close right away.
+    fn resume_parked(&mut self, session_id: String) {
+        let name = self
+            .parked
+            .iter()
+            .find(|p| p.session_id == session_id)
+            .map(|p| p.name().to_string())
+            .unwrap_or_default();
+        let mut args = vec!["park".to_string(), "resume".into(), session_id];
+        if let Some(client) = tmux::jump_client(&self.tmux_pane) {
+            args.extend(["--client".into(), client]);
+        }
+        match crate::process::spawn_self_detached(&args) {
+            Ok(()) => self.set_flash(format!("resuming {name}")),
+            Err(e) => self.set_flash(format!("resume failed: {e}")),
         }
     }
 }

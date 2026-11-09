@@ -1,6 +1,6 @@
 ---
 title: Keybindings
-description: Every shortcut in the sidebar, the agent search, the worktree spawn modal, and the close-pane modal.
+description: Every shortcut in the sidebar, the agent search, the worktree spawn modal, the close-pane modal, and the park modal.
 ---
 
 ## Sidebar
@@ -20,6 +20,7 @@ description: Every shortcut in the sidebar, the agent search, the worktree spawn
 | `v`            | Toggle compact and full rows                                  |
 | `o`            | Toggle repository groups and most-recent-first order          |
 | `p`            | Pin or unpin the selected agent                               |
+| `z`            | Park the selected agent (see [Park an agent](/features/park/)) |
 | `Enter`        | Jump to the selected pane                                     |
 | `Tab`          | Cycle status filter                                           |
 | `Shift+Tab`    | Switch bottom panel tab (Activity, Git, MRs)                  |
@@ -34,7 +35,8 @@ Opened with `/` in the sidebar. The agent finder popup (`prefix + a`) opens stra
 | ---------------------------- | ---------------------------------------------- |
 | Text keys                    | Type the query                                 |
 | `Up` / `Down` / `Ctrl+p` / `Ctrl+n` | Move through the matches                |
-| `Enter`                      | Jump to the selected agent and close the search |
+| `Enter`                      | Jump to the selected agent and close the search; on a parked session, resume it |
+| `Ctrl+d`                     | Forget the selected parked session             |
 | `Backspace`                  | Delete a character                             |
 | `Ctrl+w`                     | Delete the last word                           |
 | `Ctrl+u`                     | Clear the query                                |
@@ -89,3 +91,13 @@ Opened with `x` on a spawn-created pane.
 | `n` / `Esc`     | Cancel                                                                                                    |
 
 Dedicated worktree windows created by older versions retain window-level cleanup.
+
+## Park modal
+
+Opened with `z` on an idle agent.
+
+| Key             | Action                                                              |
+| --------------- | ------------------------------------------------------------------- |
+| `y` / `Enter`   | Ask the agent for a handoff, then exit it and close the pane        |
+| `s`             | Skip the handoff; keep the agent's last reply instead               |
+| `n` / `Esc`     | Cancel                                                              |

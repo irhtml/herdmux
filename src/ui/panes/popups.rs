@@ -12,5 +12,7 @@ pub(super) fn render_if_open(frame: &mut Frame, state: &mut AppState, area: Rect
         super::render_spawn_input_popup(frame, state, area);
     } else if state.is_remove_confirm_open() {
         super::render_remove_confirm_popup(frame, state, area);
+    } else if state.is_park_confirm_open() {
+        super::render_park_confirm_popup(frame, state, area);
     }
 }

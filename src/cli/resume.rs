@@ -221,7 +221,7 @@ fn restore(raw: &[String]) -> i32 {
         if force {
             args.push("--force".into());
         }
-        return match spawn_detached(&args) {
+        return match crate::process::spawn_self_detached(&args) {
             Ok(()) => 0,
             Err(e) => {
                 eprintln!("error: could not start a background restore: {e}");
@@ -331,29 +331,6 @@ fn append_log(lines: &[String]) {
             let _ = writeln!(file, "{line}");
         }
     }
-}
-
-/// Re-run this binary in its own session so the restore outlives the
-/// tmux-resurrect script (and its spinner) that invoked it.
-fn spawn_detached(args: &[String]) -> std::io::Result<()> {
-    use std::process::{Command, Stdio};
-    let mut cmd = Command::new(std::env::current_exe()?);
-    cmd.args(args)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt;
-        // SAFETY: setsid is async-signal-safe and touches no Rust state.
-        unsafe {
-            cmd.pre_exec(|| {
-                libc::setsid();
-                Ok(())
-            });
-        }
-    }
-    cmd.spawn().map(|_| ())
 }
 
 #[cfg(test)]

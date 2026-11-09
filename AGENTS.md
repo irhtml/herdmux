@@ -26,7 +26,7 @@ After implementation is complete, run `cargo build --release`. The plugin direct
 
 The binary has two modes controlled by CLI args (`src/cli/mod.rs`):
 1. **TUI mode** — default. `src/main.rs` handles CLI arg parsing, SIGUSR1 signal wiring, and TUI session setup, then delegates to `app::run` (`src/app.rs`) for the event loop. `herdmux pick` runs the same loop as a one-shot agent finder (`AppMode::Picker`) for a tmux popup.
-2. **CLI subcommands**: `setup`, `hook`, `toggle`, `toggle-all`, `auto-close`, `set-status`, `spawn`, `capture`, `agent` (`list` / `spawn` / `prompt` / `wait` / `read`, in `src/cli/agent/`), `resume` (`save` / `restore`, in `src/cli/resume.rs` + `src/resume/`), `--version` / `version`. Internal: `notify-wait` (Linux), the detached helper that shows a desktop notification and jumps to its pane when it is clicked (`src/desktop_notification/click.rs`).
+2. **CLI subcommands**: `setup`, `hook`, `toggle`, `toggle-all`, `auto-close`, `set-status`, `spawn`, `capture`, `agent` (`list` / `spawn` / `prompt` / `wait` / `read`, in `src/cli/agent/`), `resume` (`save` / `restore`, in `src/cli/resume.rs` + `src/resume/`), `park` (`<target>` / `resume` / `forget`, in `src/cli/agent/park.rs` + `src/park.rs`), `--version` / `version`. Internal: `notify-wait` (Linux), the detached helper that shows a desktop notification and jumps to its pane when it is clicked (`src/desktop_notification/click.rs`); `mark-read <window_id>`, run from tmux focus hooks to clear the unread mark of agents now on screen (`src/tmux/visibility.rs`).
 
 ### Core Data Flow
 
@@ -59,6 +59,7 @@ TUI event loop (app::run) → AppState::sync_global_state()
 - **`git.rs`** — Git operations (branch, ahead/behind, PR numbers via `gh` CLI, diff stats). Runs in a background polling thread.
 - **`activity.rs`** — Parses `/tmp/tmux-agent-activity*.log` files, maps tool types to colors.
 - **`transcript.rs`**: Tails Claude Code transcripts (`projects/*/<session id>.jsonl`) into a `SessionDigest` per session: AI title, typed prompts (goal first), newest message time. Polled by a background thread in `app/workers.rs`.
+- **`park.rs`**: Parked session records (one JSON file per session under the state dir) and the handoff prompt. `cli/agent/park.rs` parks (handoff, `/exit`, close the pane) and resumes; the search lists records as `ListItem::Parked` rows with `parked:<session id>` row ids.
 - **`search.rs`**: Pure matcher for the `/` search: every query word must match a field; the best field's weight scores it; prompt-only matches get a highlighted snippet.
 - **`group.rs`** — Groups panes by repository path.
 - **`session.rs` / `worktree.rs` / `tool_name.rs` / `version.rs` / `port.rs` / `clipboard.rs` / `desktop_notification.rs`** — Leaf helpers used across modules (session name resolution, worktree metadata parsing, tool-name classification, version reporting, port detection, clipboard + desktop notification shims).

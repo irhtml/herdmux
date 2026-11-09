@@ -29,6 +29,25 @@ pub enum HeaderKind<'a> {
     /// The unpinned agents in the recent-first order, shown only when
     /// pinned agents come before them.
     Recent,
+    /// Parked sessions, after the live agents in the search results.
+    Parked,
+}
+
+/// Row id prefix of a parked session. Pane ids start with `%`, so the two
+/// kinds of row never share an id.
+pub const PARKED_ROW_PREFIX: &str = "parked:";
+
+/// The session id of a parked session's row id.
+pub fn parked_session_of(row_id: &str) -> Option<&str> {
+    row_id.strip_prefix(PARKED_ROW_PREFIX)
+}
+
+/// A parked session in the search results.
+#[derive(Debug)]
+pub struct ParkedItem<'a> {
+    pub parked: &'a crate::park::Parked,
+    /// Matched prompt or handoff text to show under the row.
+    pub snippet: Option<&'a Snippet>,
 }
 
 /// An agent row in the agent list.
@@ -66,6 +85,7 @@ impl<'a> PaneItem<'a> {
 pub enum ListItem<'a> {
     Header(HeaderKind<'a>),
     Pane(PaneItem<'a>),
+    Parked(ParkedItem<'a>),
 }
 
 impl AppState {
@@ -204,20 +224,30 @@ impl AppState {
                     .map(move |(p, git)| (p.pane_id.as_str(), (g, p, git)))
             })
             .collect();
-        self.search
-            .hits
-            .iter()
-            .filter_map(|hit| {
-                let (group, pane, git) = by_id.get(hit.pane_id.as_str())?;
-                Some(ListItem::Pane(PaneItem {
+        let mut items = Vec::new();
+        let mut parked_header = false;
+        for hit in &self.search.hits {
+            let snippet = hit.snippet.as_ref();
+            if let Some(sid) = parked_session_of(&hit.pane_id) {
+                let Some(parked) = self.parked.iter().find(|p| p.session_id == sid) else {
+                    continue;
+                };
+                if !parked_header {
+                    items.push(ListItem::Header(HeaderKind::Parked));
+                    parked_header = true;
+                }
+                items.push(ListItem::Parked(ParkedItem { parked, snippet }));
+            } else if let Some((group, pane, git)) = by_id.get(hit.pane_id.as_str()) {
+                items.push(ListItem::Pane(PaneItem {
                     pane,
                     git,
                     repo: &group.name,
                     show_repo: true,
-                    snippet: hit.snippet.as_ref(),
-                }))
-            })
-            .collect()
+                    snippet,
+                }));
+            }
+        }
+        items
     }
 
     /// Switch between full and compact rows (the `v` key).
@@ -311,12 +341,16 @@ impl AppState {
         true
     }
 
-    /// Pane ids of the agent rows, in display order.
+    /// Row ids in display order: the pane id of an agent row, or
+    /// [`PARKED_ROW_PREFIX`] and the session id of a parked session.
     pub fn listed_pane_ids(&self) -> Vec<String> {
         self.list_items()
             .into_iter()
             .filter_map(|item| match item {
                 ListItem::Pane(row) => Some(row.pane.pane_id.clone()),
+                ListItem::Parked(row) => {
+                    Some(format!("{PARKED_ROW_PREFIX}{}", row.parked.session_id))
+                }
                 ListItem::Header(_) => None,
             })
             .collect()
@@ -397,7 +431,9 @@ mod tests {
                 ListItem::Header(HeaderKind::Repo(g)) => format!("[{}]", g.name),
                 ListItem::Header(HeaderKind::Pinned) => "[pinned]".into(),
                 ListItem::Header(HeaderKind::Recent) => "[recent]".into(),
+                ListItem::Header(HeaderKind::Parked) => "[parked]".into(),
                 ListItem::Pane(row) => row.pane.pane_id.clone(),
+                ListItem::Parked(row) => format!("parked {}", row.parked.session_id),
             })
             .collect()
     }
@@ -619,6 +655,72 @@ mod tests {
         );
         let snippet = s.search.hits[1].snippet.as_ref().unwrap();
         assert_eq!(snippet.text, "patch the Dockerfile base");
+    }
+
+    fn parked(sid: &str, desc: &str, parked_at: u64) -> crate::park::Parked {
+        crate::park::Parked {
+            session_id: sid.into(),
+            agent: "claude".into(),
+            desc: desc.into(),
+            repo: "billing".into(),
+            handoff: "Goal: invoices\nNext: add the totals test".into(),
+            parked_at,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn search_lists_parked_sessions_after_the_live_agents() {
+        let mut live = idle_since("%1", 60);
+        live.pane_desc = "invoice export".into();
+        let mut s = state(vec![group("billing", vec![live])]);
+        s.parked = vec![
+            parked("new", "invoice totals", NOW - 60),
+            parked("old", "invoice pdf", NOW - 3600),
+            crate::park::Parked {
+                handoff: "Next: tune the ranking".into(),
+                ..parked("other", "storefront search", NOW - 30)
+            },
+        ];
+        s.search = SearchState {
+            open: true,
+            query: "invoice".into(),
+            ..SearchState::default()
+        };
+        s.rebuild_row_targets();
+        assert_eq!(layout(&s), ["%1", "[parked]", "parked new", "parked old"]);
+        assert_eq!(s.listed_pane_ids(), ["%1", "parked:new", "parked:old"]);
+        // A parked row has no pane behind it.
+        s.set_cursor(1);
+        assert!(s.selected_pane().is_none());
+    }
+
+    #[test]
+    fn search_matches_the_parked_handoff_and_skips_sessions_running_again() {
+        let mut running = idle_since("%1", 60);
+        running.session_id = Some("back".into());
+        let mut s = state(vec![group("billing", vec![running])]);
+        s.parked = vec![parked("back", "totals", NOW), parked("kept", "pdf", NOW)];
+        s.search = SearchState {
+            open: true,
+            query: "totals test".into(),
+            ..SearchState::default()
+        };
+        s.rebuild_row_targets();
+        assert_eq!(layout(&s), ["[parked]", "parked kept"]);
+        let snippet = s.search.hits[0].snippet.as_ref().unwrap();
+        assert!(snippet.text.contains("Next: add the totals test"));
+    }
+
+    #[test]
+    fn leaving_search_forgets_the_parked_sessions() {
+        let mut s = state(vec![group("billing", vec![idle_since("%1", 60)])]);
+        open_search_without_refresh(&mut s);
+        s.parked = vec![parked("p1", "totals", NOW)];
+        s.rebuild_row_targets();
+        assert_eq!(s.listed_pane_ids(), ["%1", "parked:p1"]);
+        s.end_search();
+        assert!(s.parked.is_empty());
     }
 
     #[test]

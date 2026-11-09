@@ -5,11 +5,14 @@
 
 mod env;
 mod list;
+mod park;
 mod prompt;
 mod read;
 mod spawn;
 mod target;
 mod wait;
+
+pub(crate) use park::cmd_park;
 
 const EXIT_OK: i32 = 0;
 const EXIT_ERROR: i32 = 1;

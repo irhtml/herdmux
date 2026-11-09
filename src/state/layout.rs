@@ -252,6 +252,15 @@ impl AppState {
             self.close_remove_confirm();
             return;
         }
+        if self.is_park_confirm_open() {
+            if let Some(area) = self.park_confirm_popup_area()
+                && point_in_rect(row, col, area)
+            {
+                return;
+            }
+            self.close_park_confirm();
+            return;
+        }
 
         if row == 0 {
             // The status filter does not apply to search results.

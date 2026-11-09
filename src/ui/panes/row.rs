@@ -8,6 +8,7 @@ mod body;
 mod branch;
 mod compact;
 mod ctx;
+mod parked;
 mod status;
 
 use body::{
@@ -22,6 +23,7 @@ use status::running_icon_for;
 use status::status_row;
 
 pub(super) use branch::sidebar_remove_marker_col;
+pub(super) use parked::render_parked_lines;
 
 /// What the agent list knows about a row beyond the pane itself.
 #[derive(Debug, Default, Clone, Copy)]

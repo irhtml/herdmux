@@ -100,6 +100,7 @@ export default defineConfig({
             { slug: 'features/agent-pane' },
             { slug: 'features/worktree' },
             { slug: 'features/agent-orchestration' },
+            { slug: 'features/park' },
             { slug: 'features/resume' },
             { slug: 'features/activity-log' },
             { slug: 'features/git-status' },

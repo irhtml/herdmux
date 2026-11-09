@@ -30,14 +30,14 @@ fn keymap_wide() {
     │p: Pin/unpin selected agent                                                   │
     │n: Spawn worktree and agent                                                   │
     │x: Remove spawned pane/worktree                                               │
+    │z: Park agent (handoff, close pane; resume from search)                       │
     │Dialogs                                                                       │
     │Esc: Cancel/close                                                             │
     │Repository: j/k or arrows, Enter to select                                    │
     │Spawn: Tab/Shift+Tab or Up/Down to select field; Left/Right to cycle; Enter   │
     │to spawn                                                                      │
     │Remove: y/Enter removes window and worktree; c closes window only; n cancels  │
-    │Search: type to filter; Up/Down or Ctrl+n/p to move; Enter jumps; Ctrl+w      │
-    │deletes a word; Ctrl+u clears; Esc closes                                     │
+    │Park: y/Enter asks for a handoff; s skips it; n cancels                       │
     └ ? / Esc: close ──────────────────────────────────────────────────────────────┘
     ");
 }
@@ -49,11 +49,11 @@ fn keymap_narrow_scrolled_to_end() {
     let output = render_to_string(&mut state, 30, 12);
     insta::assert_snapshot!(output, @"
     ┌ Keymap ────────────────────┐
-    │Search: type to filter;     │
-    │Up/Down or Ctrl+n/p to      │
-    │move; Enter jumps; Ctrl+w   │
-    │deletes a word; Ctrl+u      │
-    │clears; Esc closes          │
+    │resumes a parked session;   │
+    │Ctrl+d forgets a parked     │
+    │session; Ctrl+w deletes a   │
+    │word; Ctrl+u clears; Esc    │
+    │closes                      │
     │Keymap                      │
     │?: Open/close keymap        │
     │j/k, arrows, Ctrl+n/p or    │

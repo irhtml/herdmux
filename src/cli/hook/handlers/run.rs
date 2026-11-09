@@ -30,7 +30,7 @@ pub(in crate::cli::hook) fn on_user_prompt_submit(
     if !is_system_message(prompt) {
         tmux::unset_pane_option(pane, tmux::PANE_UNREAD);
     }
-    if !prompt.is_empty() && !is_system_message(prompt) {
+    if !prompt.is_empty() && !is_system_message(prompt) && !crate::park::is_park_prompt(prompt) {
         let p = sanitize_tmux_value(prompt);
         tmux::set_pane_option(pane, tmux::PANE_PROMPT, &p);
         tmux::set_pane_option(pane, tmux::PANE_PROMPT_SOURCE, "user");

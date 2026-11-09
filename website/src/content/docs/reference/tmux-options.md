@@ -115,6 +115,7 @@ Any Unicode glyph works. Make sure the glyphs render in your terminal font.
 | `@sidebar_icon_idle`    | `○`     | Idle status icon             |
 | `@sidebar_icon_error`   | `✕`     | Error status icon            |
 | `@sidebar_icon_unknown` | `·`     | Unknown status icon          |
+| `@sidebar_icon_unread`  | `◆`     | Unread reply and inbox filter icon |
 
 ## Example config
 

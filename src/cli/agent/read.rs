@@ -67,6 +67,10 @@ pub(super) fn run(raw: &[String]) -> i32 {
         crate::activity::read_response(&loc.pane_id),
         &loc.session_id,
     );
+    if reply.is_ok() {
+        // The calling agent read the reply, so it is not the user's turn.
+        crate::tmux::unset_pane_option(&loc.pane_id, crate::tmux::PANE_UNREAD);
+    }
     match reply {
         Ok(reply) if parsed.has("json") => {
             let mut json = reply.to_json();

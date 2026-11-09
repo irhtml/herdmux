@@ -173,7 +173,9 @@ fn print_reply(pane: &str, since: u64) {
         Some(resp)
             if resp.prompt_at_ms.is_none_or(|at| at >= since) && !resp.message.is_empty() =>
         {
-            println!("{}", resp.message)
+            println!("{}", resp.message);
+            // The calling agent read the reply, so it is not the user's turn.
+            crate::tmux::unset_pane_option(pane, crate::tmux::PANE_UNREAD);
         }
         _ => eprintln!(
             "note: {pane} ended its turn without reply text (it may have been interrupted)"

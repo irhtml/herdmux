@@ -34,6 +34,10 @@ pub const PANE_PINNED: &str = "@pane_pinned";
 /// stop, a failure, an interrupt, a session start or a wait. Drives the
 /// sidebar's last-active age and the recent-first sort.
 pub const PANE_ACTIVITY_AT: &str = "@pane_activity_at";
+/// `1` when the agent's turn ended while no attached client showed its
+/// window. Set by Stop and StopFailure, cleared when the window comes on
+/// screen (`mark-read`), on a typed prompt, and on agent exit.
+pub const PANE_UNREAD: &str = "@pane_unread";
 /// Value written to [`PANE_BG_CMD`] when the hook payload omits the real
 /// command. The ps liveness sweep matches on this to skip its own entries
 /// (placeholder has no process to verify against).
@@ -169,6 +173,7 @@ pub const SIDEBAR_ICON_WAITING: &str = "@sidebar_icon_waiting";
 pub const SIDEBAR_ICON_IDLE: &str = "@sidebar_icon_idle";
 pub const SIDEBAR_ICON_ERROR: &str = "@sidebar_icon_error";
 pub const SIDEBAR_ICON_UNKNOWN: &str = "@sidebar_icon_unknown";
+pub const SIDEBAR_ICON_UNREAD: &str = "@sidebar_icon_unread";
 
 pub fn get_option(name: &str) -> Option<String> {
     run_tmux(&["show", "-gv", name])

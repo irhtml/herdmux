@@ -8,57 +8,38 @@ use crate::tmux::PaneStatus;
 
 use crate::ui::text::{display_width, truncate_to_width};
 
-/// Render the status filter bar.
-pub(super) fn render_filter_bar<'a>(state: &AppState) -> Line<'a> {
+/// Render the status filter bar for a row `width` columns wide.
+pub(super) fn render_filter_bar<'a>(state: &AppState, width: u16) -> Line<'a> {
     let theme = &state.theme;
-    let icons = &state.icons;
-    let (all, running, background, waiting, idle, error) = state.status_counts();
-
-    let icon_for = |s: PaneStatus| (icons.status_icon(&s), theme.status_color(&s, false));
-    let items: Vec<(StatusFilter, (&str, ratatui::style::Color), usize)> = vec![
-        (StatusFilter::All, (icons.all_icon(), theme.status_all), all),
-        (
-            StatusFilter::Running,
-            icon_for(PaneStatus::Running),
-            running,
-        ),
-        (
-            StatusFilter::Background,
-            icon_for(PaneStatus::Background),
-            background,
-        ),
-        (
-            StatusFilter::Waiting,
-            icon_for(PaneStatus::Waiting),
-            waiting,
-        ),
-        (StatusFilter::Idle, icon_for(PaneStatus::Idle), idle),
-        (StatusFilter::Error, icon_for(PaneStatus::Error), error),
-    ];
-
     let mut spans: Vec<Span<'a>> = Vec::new();
-    spans.push(Span::raw(" "));
+    let mut col = 0;
+    for item in state.filter_items(width) {
+        spans.push(Span::raw(" ".repeat(item.x - col)));
+        col = item.x + item.width;
 
-    for (i, (filter, (icon, icon_color), count)) in items.into_iter().enumerate() {
-        if i > 0 {
-            spans.push(Span::raw("  "));
-        }
-
-        let is_selected = state.global.status_filter == filter;
-        let icon_style = if is_selected {
+        let icon_color = match item.filter.status() {
+            Some(status) => theme.status_color(&status, false),
+            None if item.filter == StatusFilter::Inbox => {
+                theme.status_color(&PaneStatus::Waiting, false)
+            }
+            None => theme.status_all,
+        };
+        let icon_style = if state.global.status_filter == item.filter {
             Style::default().fg(icon_color)
         } else {
             Style::default().fg(theme.filter_inactive)
         };
-        spans.push(Span::styled(icon.to_string(), icon_style));
+        spans.push(Span::styled(
+            state.filter_icon(item.filter).to_string(),
+            icon_style,
+        ));
 
-        let count_str = format!("{count}");
-        let count_style = if count == 0 {
+        let count_style = if item.count == 0 {
             Style::default().fg(theme.filter_inactive)
         } else {
             Style::default().fg(theme.text_active)
         };
-        spans.push(Span::styled(count_str, count_style));
+        spans.push(Span::styled(item.count.to_string(), count_style));
     }
 
     Line::from(spans)
@@ -285,7 +266,7 @@ mod tests {
     }
 
     fn filter_bar_text(state: &AppState) -> String {
-        let line = render_filter_bar(state);
+        let line = render_filter_bar(state, 0);
         line.spans.iter().map(|s| s.content.as_ref()).collect()
     }
 
@@ -324,6 +305,7 @@ mod tests {
             spawned_by: None,
             pinned: false,
             activity_at: None,
+            unread: false,
             window_name: String::new(),
             tmux_session: String::new(),
             bg_shell_cmd: None,
@@ -351,6 +333,7 @@ mod tests {
             spawned_by: None,
             pinned: false,
             activity_at: None,
+            unread: false,
             window_name: String::new(),
             tmux_session: String::new(),
             bg_shell_cmd: None,
@@ -366,14 +349,14 @@ mod tests {
         state.global.status_filter = StatusFilter::Running;
         let theme = &state.theme;
 
-        let line = render_filter_bar(&state);
+        let line = render_filter_bar(&state, 0);
         let cells: Vec<_> = line
             .spans
             .iter()
             .filter(|span| !span.content.as_ref().trim().is_empty())
             .collect();
 
-        assert_eq!(cells.len(), 12);
+        assert_eq!(cells.len(), 14);
 
         assert_eq!(cells[0].content.as_ref(), "≡");
         assert_eq!(cells[0].style.fg, Some(theme.filter_inactive));
@@ -382,36 +365,42 @@ mod tests {
         assert_eq!(cells[1].content.as_ref(), "2");
         assert_eq!(cells[1].style.fg, Some(theme.text_active));
 
-        assert_eq!(cells[2].content.as_ref(), "●");
-        assert_eq!(cells[2].style.fg, Some(theme.status_running));
-        assert!(!cells[2].style.add_modifier.contains(Modifier::UNDERLINED));
+        assert_eq!(cells[2].content.as_ref(), "◆");
+        assert_eq!(cells[2].style.fg, Some(theme.filter_inactive));
 
-        assert_eq!(cells[3].content.as_ref(), "1");
-        assert_eq!(cells[3].style.fg, Some(theme.text_active));
+        assert_eq!(cells[3].content.as_ref(), "0");
+        assert_eq!(cells[3].style.fg, Some(theme.filter_inactive));
 
-        assert_eq!(cells[4].content.as_ref(), "◎");
-        assert_eq!(cells[4].style.fg, Some(theme.filter_inactive));
+        assert_eq!(cells[4].content.as_ref(), "●");
+        assert_eq!(cells[4].style.fg, Some(theme.status_running));
+        assert!(!cells[4].style.add_modifier.contains(Modifier::UNDERLINED));
 
-        assert_eq!(cells[5].content.as_ref(), "0");
-        assert_eq!(cells[5].style.fg, Some(theme.filter_inactive));
+        assert_eq!(cells[5].content.as_ref(), "1");
+        assert_eq!(cells[5].style.fg, Some(theme.text_active));
 
-        assert_eq!(cells[6].content.as_ref(), "◐");
+        assert_eq!(cells[6].content.as_ref(), "◎");
         assert_eq!(cells[6].style.fg, Some(theme.filter_inactive));
 
         assert_eq!(cells[7].content.as_ref(), "0");
         assert_eq!(cells[7].style.fg, Some(theme.filter_inactive));
 
-        assert_eq!(cells[8].content.as_ref(), "○");
+        assert_eq!(cells[8].content.as_ref(), "◐");
         assert_eq!(cells[8].style.fg, Some(theme.filter_inactive));
 
-        assert_eq!(cells[9].content.as_ref(), "1");
-        assert_eq!(cells[9].style.fg, Some(theme.text_active));
+        assert_eq!(cells[9].content.as_ref(), "0");
+        assert_eq!(cells[9].style.fg, Some(theme.filter_inactive));
 
-        assert_eq!(cells[10].content.as_ref(), "✕");
+        assert_eq!(cells[10].content.as_ref(), "○");
         assert_eq!(cells[10].style.fg, Some(theme.filter_inactive));
 
-        assert_eq!(cells[11].content.as_ref(), "0");
-        assert_eq!(cells[11].style.fg, Some(theme.filter_inactive));
+        assert_eq!(cells[11].content.as_ref(), "1");
+        assert_eq!(cells[11].style.fg, Some(theme.text_active));
+
+        assert_eq!(cells[12].content.as_ref(), "✕");
+        assert_eq!(cells[12].style.fg, Some(theme.filter_inactive));
+
+        assert_eq!(cells[13].content.as_ref(), "0");
+        assert_eq!(cells[13].style.fg, Some(theme.filter_inactive));
     }
 
     #[test]

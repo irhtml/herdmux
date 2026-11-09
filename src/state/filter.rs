@@ -1,8 +1,11 @@
 use super::AppState;
+use crate::tmux::{PaneInfo, PaneStatus};
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StatusFilter {
     All,
+    /// Agents that need the user: waiting on them, or with an unread reply.
+    Inbox,
     Running,
     Background,
     Waiting,
@@ -11,8 +14,9 @@ pub enum StatusFilter {
 }
 
 impl StatusFilter {
-    pub const VARIANTS: [StatusFilter; 6] = [
+    pub const VARIANTS: [StatusFilter; 7] = [
         StatusFilter::All,
+        StatusFilter::Inbox,
         StatusFilter::Running,
         StatusFilter::Background,
         StatusFilter::Waiting,
@@ -40,6 +44,7 @@ impl StatusFilter {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::All => "all",
+            Self::Inbox => "inbox",
             Self::Running => "running",
             Self::Background => "background",
             Self::Waiting => "waiting",
@@ -52,6 +57,7 @@ impl StatusFilter {
     /// fall back to `All`.
     pub fn from_label(s: &str) -> Self {
         match s {
+            "inbox" => Self::Inbox,
             "running" => Self::Running,
             "background" => Self::Background,
             "waiting" => Self::Waiting,
@@ -61,16 +67,62 @@ impl StatusFilter {
         }
     }
 
-    pub fn matches(self, status: &crate::tmux::PaneStatus) -> bool {
-        match self {
-            StatusFilter::All => true,
-            StatusFilter::Running => *status == crate::tmux::PaneStatus::Running,
-            StatusFilter::Background => *status == crate::tmux::PaneStatus::Background,
-            StatusFilter::Waiting => *status == crate::tmux::PaneStatus::Waiting,
-            StatusFilter::Idle => *status == crate::tmux::PaneStatus::Idle,
-            StatusFilter::Error => *status == crate::tmux::PaneStatus::Error,
+    pub fn matches(self, pane: &PaneInfo) -> bool {
+        match self.status() {
+            Some(status) => pane.status == status,
+            None if self == StatusFilter::Inbox => pane.needs_user(),
+            None => true,
         }
     }
+
+    /// The single status this filter selects. `None` for All and Inbox.
+    pub fn status(self) -> Option<PaneStatus> {
+        match self {
+            StatusFilter::All | StatusFilter::Inbox => None,
+            StatusFilter::Running => Some(PaneStatus::Running),
+            StatusFilter::Background => Some(PaneStatus::Background),
+            StatusFilter::Waiting => Some(PaneStatus::Waiting),
+            StatusFilter::Idle => Some(PaneStatus::Idle),
+            StatusFilter::Error => Some(PaneStatus::Error),
+        }
+    }
+}
+
+/// Agent counts per filter, as shown in the filter row.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct StatusCounts {
+    pub all: usize,
+    pub inbox: usize,
+    pub running: usize,
+    pub background: usize,
+    pub waiting: usize,
+    pub idle: usize,
+    pub error: usize,
+}
+
+impl StatusCounts {
+    pub fn get(&self, filter: StatusFilter) -> usize {
+        match filter {
+            StatusFilter::All => self.all,
+            StatusFilter::Inbox => self.inbox,
+            StatusFilter::Running => self.running,
+            StatusFilter::Background => self.background,
+            StatusFilter::Waiting => self.waiting,
+            StatusFilter::Idle => self.idle,
+            StatusFilter::Error => self.error,
+        }
+    }
+}
+
+/// One entry of the filter row and the columns it covers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FilterItem {
+    pub filter: StatusFilter,
+    pub count: usize,
+    /// First column of the icon.
+    pub x: usize,
+    /// Icon plus count, in columns.
+    pub width: usize,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -105,26 +157,82 @@ impl RepoFilter {
 }
 
 impl AppState {
-    /// Count agents per status across all repo groups.
-    pub fn status_counts(&self) -> (usize, usize, usize, usize, usize, usize) {
-        let (mut running, mut background, mut waiting, mut idle, mut error) = (0, 0, 0, 0, 0);
+    /// Count agents per filter across the repo groups the repo filter shows.
+    pub fn status_counts(&self) -> StatusCounts {
+        let mut counts = StatusCounts::default();
         for group in &self.repo_groups {
             if !self.global.repo_filter.matches_group(&group.name) {
                 continue;
             }
             for (pane, _) in &group.panes {
                 match pane.status {
-                    crate::tmux::PaneStatus::Running => running += 1,
-                    crate::tmux::PaneStatus::Background => background += 1,
-                    crate::tmux::PaneStatus::Waiting => waiting += 1,
-                    crate::tmux::PaneStatus::Idle => idle += 1,
-                    crate::tmux::PaneStatus::Error => error += 1,
-                    crate::tmux::PaneStatus::Unknown => {}
+                    PaneStatus::Running => counts.running += 1,
+                    PaneStatus::Background => counts.background += 1,
+                    PaneStatus::Waiting => counts.waiting += 1,
+                    PaneStatus::Idle => counts.idle += 1,
+                    PaneStatus::Error => counts.error += 1,
+                    PaneStatus::Unknown => continue,
+                }
+                counts.all += 1;
+                if pane.needs_user() {
+                    counts.inbox += 1;
                 }
             }
         }
-        let all = running + background + waiting + idle + error;
-        (all, running, background, waiting, idle, error)
+        counts
+    }
+
+    /// Icon of a filter row entry.
+    pub fn filter_icon(&self, filter: StatusFilter) -> &str {
+        match filter {
+            StatusFilter::All => self.icons.all_icon(),
+            StatusFilter::Inbox => self.icons.unread_icon(),
+            _ => filter
+                .status()
+                .map_or("", |status| self.icons.status_icon(&status)),
+        }
+    }
+
+    /// Lay out the filter row for a sidebar `width` columns wide (`0`: no
+    /// limit). Shared by the renderer and the click handler. When the row
+    /// does not fit with two-space gaps, it uses single spaces and drops
+    /// empty entries other than All and the selected one.
+    pub fn filter_items(&self, width: u16) -> Vec<FilterItem> {
+        let counts = self.status_counts();
+        let mut entries: Vec<(StatusFilter, usize, usize)> = StatusFilter::VARIANTS
+            .iter()
+            .map(|&filter| {
+                let count = counts.get(filter);
+                let cols = crate::ui::text::display_width(self.filter_icon(filter))
+                    + count.to_string().len();
+                (filter, count, cols)
+            })
+            .collect();
+        let row_width = |entries: &[(StatusFilter, usize, usize)], gap: usize| {
+            1 + entries.iter().map(|e| e.2).sum::<usize>() + gap * entries.len().saturating_sub(1)
+        };
+        let mut gap = 2;
+        if width > 0 && row_width(&entries, gap) > width as usize {
+            gap = 1;
+            let selected = self.global.status_filter;
+            entries.retain(|&(filter, count, _)| {
+                count > 0 || filter == StatusFilter::All || filter == selected
+            });
+        }
+        let mut x = 1;
+        entries
+            .into_iter()
+            .map(|(filter, count, width)| {
+                let item = FilterItem {
+                    filter,
+                    count,
+                    x,
+                    width,
+                };
+                x += width + gap;
+                item
+            })
+            .collect()
     }
 
     /// Return list of repo names for the popup: ["All", repo1, repo2, ...]
@@ -146,7 +254,8 @@ mod tests {
 
     #[test]
     fn status_filter_next_cycles() {
-        assert_eq!(StatusFilter::All.next(), StatusFilter::Running);
+        assert_eq!(StatusFilter::All.next(), StatusFilter::Inbox);
+        assert_eq!(StatusFilter::Inbox.next(), StatusFilter::Running);
         assert_eq!(StatusFilter::Running.next(), StatusFilter::Background);
         assert_eq!(StatusFilter::Background.next(), StatusFilter::Waiting);
         assert_eq!(StatusFilter::Waiting.next(), StatusFilter::Idle);
@@ -161,34 +270,48 @@ mod tests {
         assert_eq!(StatusFilter::Idle.prev(), StatusFilter::Waiting);
         assert_eq!(StatusFilter::Waiting.prev(), StatusFilter::Background);
         assert_eq!(StatusFilter::Background.prev(), StatusFilter::Running);
-        assert_eq!(StatusFilter::Running.prev(), StatusFilter::All);
+        assert_eq!(StatusFilter::Running.prev(), StatusFilter::Inbox);
+        assert_eq!(StatusFilter::Inbox.prev(), StatusFilter::All);
     }
 
     #[test]
     fn status_filter_matches_status() {
-        assert!(StatusFilter::All.matches(&PaneStatus::Running));
-        assert!(StatusFilter::All.matches(&PaneStatus::Background));
-        assert!(StatusFilter::All.matches(&PaneStatus::Idle));
-        assert!(StatusFilter::All.matches(&PaneStatus::Waiting));
-        assert!(StatusFilter::All.matches(&PaneStatus::Error));
+        use PaneStatus::*;
+        let statuses = [Running, Background, Waiting, Idle, Error];
+        for status in statuses.clone() {
+            let pane = test_pane("%1", status.clone());
+            assert!(StatusFilter::All.matches(&pane));
+            for filter in StatusFilter::VARIANTS.into_iter().skip(2) {
+                assert_eq!(
+                    filter.matches(&pane),
+                    filter.status() == Some(status.clone()),
+                    "{filter:?} on {status:?}"
+                );
+            }
+        }
+    }
 
-        assert!(StatusFilter::Running.matches(&PaneStatus::Running));
-        assert!(!StatusFilter::Running.matches(&PaneStatus::Background));
-        assert!(!StatusFilter::Running.matches(&PaneStatus::Idle));
-        assert!(!StatusFilter::Running.matches(&PaneStatus::Waiting));
-        assert!(!StatusFilter::Running.matches(&PaneStatus::Error));
+    #[test]
+    fn inbox_holds_waiting_agents_and_unread_replies_but_not_new_turns() {
+        use PaneStatus::*;
+        let unread = |status: PaneStatus| PaneInfo {
+            unread: true,
+            ..test_pane("%1", status)
+        };
+        let inbox = |pane: &PaneInfo| StatusFilter::Inbox.matches(pane);
+        assert!(inbox(&test_pane("%1", Waiting)), "blocked on the user");
+        assert!(inbox(&unread(Idle)));
+        assert!(inbox(&unread(Background)));
+        assert!(inbox(&unread(Error)));
+        assert!(!inbox(&unread(Running)), "a new turn already started");
+        assert!(!inbox(&test_pane("%1", Idle)), "read already");
+        assert!(!inbox(&test_pane("%1", Error)), "an old error the user saw");
+    }
 
-        assert!(StatusFilter::Background.matches(&PaneStatus::Background));
-        assert!(!StatusFilter::Background.matches(&PaneStatus::Running));
-
-        assert!(StatusFilter::Waiting.matches(&PaneStatus::Waiting));
-        assert!(!StatusFilter::Waiting.matches(&PaneStatus::Running));
-
-        assert!(StatusFilter::Idle.matches(&PaneStatus::Idle));
-        assert!(!StatusFilter::Idle.matches(&PaneStatus::Running));
-
-        assert!(StatusFilter::Error.matches(&PaneStatus::Error));
-        assert!(!StatusFilter::Error.matches(&PaneStatus::Idle));
+    #[test]
+    fn inbox_label_round_trips() {
+        assert_eq!(StatusFilter::from_label("inbox"), StatusFilter::Inbox);
+        assert_eq!(StatusFilter::Inbox.as_str(), "inbox");
     }
 
     // ─── StatusFilter as_str / from_str tests ─────────────────────────
@@ -254,7 +377,7 @@ mod tests {
     // ─── AppState status_counts / repo_names ─────────────────────────
 
     use crate::group::{PaneGitInfo, RepoGroup};
-    use crate::tmux::{AgentType, PaneInfo, PermissionMode, WorktreeMetadata};
+    use crate::tmux::{AgentType, PermissionMode, WorktreeMetadata};
 
     fn test_pane(id: &str, status: PaneStatus) -> PaneInfo {
         PaneInfo {
@@ -280,6 +403,7 @@ mod tests {
             spawned_by: None,
             pinned: false,
             activity_at: None,
+            unread: false,
             window_name: String::new(),
             tmux_session: String::new(),
             bg_shell_cmd: None,
@@ -289,7 +413,7 @@ mod tests {
     #[test]
     fn status_counts_on_empty_state_is_all_zeroes() {
         let state = AppState::new("%99".into());
-        assert_eq!(state.status_counts(), (0, 0, 0, 0, 0, 0));
+        assert_eq!(state.status_counts(), StatusCounts::default());
     }
 
     #[test]
@@ -315,14 +439,99 @@ mod tests {
             },
         ];
 
-        // All repos: 4 total
-        let (all, r, b, w, i, e) = state.status_counts();
-        assert_eq!((all, r, b, w, i, e), (4, 1, 1, 1, 1, 0));
+        // All repos: 4 total, the waiting one is in the inbox
+        assert_eq!(
+            state.status_counts(),
+            StatusCounts {
+                all: 4,
+                inbox: 1,
+                running: 1,
+                background: 1,
+                waiting: 1,
+                idle: 1,
+                error: 0,
+            }
+        );
 
         // Restrict to "app"
         state.global.repo_filter = RepoFilter::Repo("app".into());
-        let (all, r, b, w, i, e) = state.status_counts();
-        assert_eq!((all, r, b, w, i, e), (3, 1, 1, 0, 1, 0));
+        assert_eq!(
+            state.status_counts(),
+            StatusCounts {
+                all: 3,
+                inbox: 0,
+                running: 1,
+                background: 1,
+                waiting: 0,
+                idle: 1,
+                error: 0,
+            }
+        );
+    }
+
+    #[test]
+    fn status_counts_counts_unread_replies_in_the_inbox() {
+        let mut state = AppState::new("%99".into());
+        let unread_idle = PaneInfo {
+            unread: true,
+            ..test_pane("%1", PaneStatus::Idle)
+        };
+        state.repo_groups = vec![RepoGroup {
+            name: "app".into(),
+            has_focus: true,
+            panes: vec![
+                (unread_idle, PaneGitInfo::default()),
+                (test_pane("%2", PaneStatus::Idle), PaneGitInfo::default()),
+            ],
+        }];
+        let counts = state.status_counts();
+        assert_eq!((counts.all, counts.idle, counts.inbox), (2, 2, 1));
+    }
+
+    fn layout(state: &AppState, width: u16) -> Vec<(StatusFilter, usize, usize)> {
+        state
+            .filter_items(width)
+            .into_iter()
+            .map(|item| (item.filter, item.x, item.width))
+            .collect()
+    }
+
+    #[test]
+    fn filter_items_use_two_space_gaps_when_they_fit() {
+        let state = AppState::new("%99".into());
+        // " ≡0  ◆0  ●0  ◎0  ◐0  ○0  ✕0" is 27 columns.
+        assert_eq!(
+            layout(&state, 27),
+            vec![
+                (StatusFilter::All, 1, 2),
+                (StatusFilter::Inbox, 5, 2),
+                (StatusFilter::Running, 9, 2),
+                (StatusFilter::Background, 13, 2),
+                (StatusFilter::Waiting, 17, 2),
+                (StatusFilter::Idle, 21, 2),
+                (StatusFilter::Error, 25, 2),
+            ]
+        );
+        assert_eq!(layout(&state, 0), layout(&state, 27), "0 means no limit");
+    }
+
+    #[test]
+    fn narrow_filter_items_drop_empty_entries_but_keep_all_and_the_selection() {
+        let mut state = AppState::new("%99".into());
+        state.repo_groups = vec![RepoGroup {
+            name: "app".into(),
+            has_focus: true,
+            panes: vec![(test_pane("%1", PaneStatus::Idle), PaneGitInfo::default())],
+        }];
+        state.global.status_filter = StatusFilter::Error;
+        assert_eq!(
+            layout(&state, 21),
+            vec![
+                (StatusFilter::All, 1, 2),
+                (StatusFilter::Idle, 4, 2),
+                (StatusFilter::Error, 7, 2),
+            ]
+        );
     }
 
     #[test]

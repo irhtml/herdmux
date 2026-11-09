@@ -41,10 +41,32 @@ pub struct PaneInfo {
     pub pinned: bool,
     /// Epoch seconds of the pane's last turn boundary (`@pane_activity_at`).
     pub activity_at: Option<u64>,
+    /// The agent's turn ended while no attached client showed its window
+    /// (`@pane_unread`). Cleared once the window is on screen or the user
+    /// sends a prompt.
+    pub unread: bool,
     /// Name of the tmux window holding the pane.
     pub window_name: String,
     /// Name of the tmux session holding the pane.
     pub tmux_session: String,
+}
+
+impl PaneInfo {
+    /// The agent's turn ended off screen and nobody has looked since.
+    /// Running panes don't count: a new turn already started.
+    pub fn has_unread_reply(&self) -> bool {
+        self.unread
+            && matches!(
+                self.status,
+                PaneStatus::Idle | PaneStatus::Background | PaneStatus::Error
+            )
+    }
+
+    /// It is the user's turn: the agent waits on them, or its reply is
+    /// unread. This is the inbox filter.
+    pub fn needs_user(&self) -> bool {
+        self.status == PaneStatus::Waiting || self.has_unread_reply()
+    }
 }
 
 #[derive(Debug, Clone, Default)]

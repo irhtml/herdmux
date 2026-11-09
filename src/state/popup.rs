@@ -548,6 +548,7 @@ mod tests {
             spawned_by: None,
             pinned: false,
             activity_at: None,
+            unread: false,
             window_name: String::new(),
             tmux_session: String::new(),
             bg_shell_cmd: None,
@@ -685,7 +686,7 @@ mod tests {
             .collect::<Vec<_>>()
             .join("\n");
         insta::assert_snapshot!(output, @r"
-         ≡0  ●0  ◎0  ◐0  ○0  ✕0
+         ≡0  ◆0  ●0  ◎0  ◐0  ○0  ✕0
                                      — ▾
 
 

@@ -39,9 +39,7 @@ pub(super) fn status_row(
     use crate::tmux::PermissionMode;
     let theme = ctx.theme;
 
-    let (icon, pulse_color) = running_icon_for(&pane.status, spinner_frame, icons);
-    let icon_color =
-        pulse_color.unwrap_or_else(|| theme.status_color(&pane.status, pane.attention));
+    let (icon, icon_color) = row_icon(pane, spinner_frame, icons, theme);
     let title_raw: &str = if pane.session_name.is_empty() {
         pane.agent.label()
     } else {
@@ -132,6 +130,22 @@ pub(super) fn status_row(
     )];
 
     ctx.row_line_split(left_spans, left_width, right_spans, elapsed_width)
+}
+
+/// Icon and color of a row's status. An idle or background agent whose
+/// reply waits for the user shows the unread icon; an error keeps its own.
+pub(super) fn row_icon<'a>(
+    pane: &crate::tmux::PaneInfo,
+    spinner_frame: usize,
+    icons: &'a StatusIcons,
+    theme: &crate::ui::colors::ColorTheme,
+) -> (&'a str, Color) {
+    if pane.has_unread_reply() && pane.status != PaneStatus::Error {
+        return (icons.unread_icon(), theme.status_waiting);
+    }
+    let (icon, pulse_color) = running_icon_for(&pane.status, spinner_frame, icons);
+    let color = pulse_color.unwrap_or_else(|| theme.status_color(&pane.status, pane.attention));
+    (icon, color)
 }
 
 pub(super) fn running_icon_for<'a>(

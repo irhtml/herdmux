@@ -320,32 +320,60 @@ pub fn select_pane(pane_id: &str, own_pane_id: &str) {
     show_pane(pane_id, jump_client(own_pane_id).as_deref());
 }
 
-/// Bring `pane_id` on screen: switch `client` (or tmux's guess of the
-/// current client) to its session, then select its window and the pane.
+/// Bring `pane_id` on screen: select the pane and its window, then switch
+/// `client` (or tmux's guess of the current client) to its session.
 pub fn show_pane(pane_id: &str, client: Option<&str>) {
-    // Find the session containing this pane and switch to it first
-    let session_id = display_message(pane_id, "#{session_id}");
-    if !session_id.is_empty() {
-        if let Some(client) = client {
-            let _ = run_tmux(&["switch-client", "-c", client, "-t", &session_id]);
-        } else {
-            let _ = run_tmux(&["switch-client", "-t", &session_id]);
-        }
+    let ids = display_message(pane_id, "#{session_id} #{window_id}");
+    let mut ids = ids.split_whitespace();
+    let (Some(session_id), Some(window_id)) = (ids.next(), ids.next()) else {
+        return;
+    };
+    let _ = run_tmux_batch(&show_pane_commands(pane_id, window_id, session_id, client));
+}
+
+/// Pane and window first, client last, in one tmux call: the client lands
+/// on the pane directly, so the unread mark of a window it would otherwise
+/// pass through on the way stays (see `mark-read`).
+fn show_pane_commands<'a>(
+    pane_id: &'a str,
+    window_id: &'a str,
+    session_id: &'a str,
+    client: Option<&'a str>,
+) -> Vec<Vec<&'a str>> {
+    let mut switch = vec!["switch-client"];
+    if let Some(client) = client {
+        switch.extend(["-c", client]);
     }
-    // Then switch to the correct window
-    let window_id = display_message(pane_id, "#{window_id}");
-    if !window_id.is_empty() {
-        let _ = run_tmux(&["select-window", "-t", &window_id]);
-    }
-    let _ = run_tmux(&["select-pane", "-t", pane_id]);
+    switch.extend(["-t", session_id]);
+    vec![
+        vec!["select-pane", "-t", pane_id],
+        vec!["select-window", "-t", window_id],
+        switch,
+    ]
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
         ClientInfo, batch_args, last_lines, most_recent_client, most_recent_client_info,
-        pick_worktree_split_target,
+        pick_worktree_split_target, show_pane_commands,
     };
+
+    #[test]
+    fn show_pane_selects_pane_and_window_before_switching_the_client() {
+        assert_eq!(
+            show_pane_commands("%4", "@2", "$1", Some("/dev/pts/3")),
+            vec![
+                vec!["select-pane", "-t", "%4"],
+                vec!["select-window", "-t", "@2"],
+                vec!["switch-client", "-c", "/dev/pts/3", "-t", "$1"],
+            ]
+        );
+        assert_eq!(
+            show_pane_commands("%4", "@2", "$1", None)[2],
+            vec!["switch-client", "-t", "$1"]
+        );
+    }
 
     #[test]
     fn most_recent_client_info_picks_the_latest_activity() {

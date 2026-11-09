@@ -1,4 +1,4 @@
-use super::{AppState, RepoFilter, StatusFilter};
+use super::{AppState, RepoFilter};
 
 #[derive(Debug, Clone)]
 pub struct RowTarget {
@@ -53,6 +53,9 @@ pub struct FrameLayout {
     /// Filtered pane list, in the order the UI rendered them. Index
     /// matches `AppState::cursor`.
     pub pane_row_targets: Vec<RowTarget>,
+    /// Width of the status filter row as last drawn, so clicks hit the
+    /// same layout. `0` before the first frame: no width limit.
+    pub filter_bar_width: u16,
     /// Maps each rendered text line in the agents panel back to a row in
     /// `pane_row_targets`. `None` for header/blank lines that should not
     /// route clicks to a pane.
@@ -159,31 +162,15 @@ impl AppState {
         }
         self.timers.last_filter_click = now;
 
-        let (all, running, background, waiting, idle, error) = self.status_counts();
-        // Layout: " ∑N  ●N  ◎N  ◐N  ○N  ✕N"
-        // Each filter item renders as `icon(1) + count`, so the clickable
-        // width is `1 + digits(count)`.
-        let mut x = 1usize; // leading space
-        let items: Vec<(StatusFilter, usize)> = vec![
-            (StatusFilter::All, 1 + format!("{all}").len()),
-            (StatusFilter::Running, 1 + format!("{running}").len()),
-            (StatusFilter::Background, 1 + format!("{background}").len()),
-            (StatusFilter::Waiting, 1 + format!("{waiting}").len()),
-            (StatusFilter::Idle, 1 + format!("{idle}").len()),
-            (StatusFilter::Error, 1 + format!("{error}").len()),
-        ];
         let col = col as usize;
-        for (i, (filter, width)) in items.iter().enumerate() {
-            if i > 0 {
-                x += 2; // "  " separator
-            }
-            if col >= x && col < x + width {
-                self.global.status_filter = *filter;
-                self.global.save_filter();
-                self.rebuild_row_targets();
-                return;
-            }
-            x += width;
+        let clicked = self
+            .filter_items(self.layout.filter_bar_width)
+            .into_iter()
+            .find(|item| col >= item.x && col < item.x + item.width);
+        if let Some(item) = clicked {
+            self.global.status_filter = item.filter;
+            self.global.save_filter();
+            self.rebuild_row_targets();
         }
     }
 

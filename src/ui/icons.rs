@@ -12,6 +12,8 @@ pub struct StatusIcons {
     idle: String,
     error: String,
     unknown: String,
+    /// An idle agent with a reply the user has not seen, and the inbox filter.
+    unread: String,
 }
 
 impl Default for StatusIcons {
@@ -24,6 +26,7 @@ impl Default for StatusIcons {
             idle: "○".into(),
             error: "✕".into(),
             unknown: "·".into(),
+            unread: "◆".into(),
         }
     }
 }
@@ -48,7 +51,13 @@ impl StatusIcons {
         icons.idle = read(tmux::SIDEBAR_ICON_IDLE, &icons.idle);
         icons.error = read(tmux::SIDEBAR_ICON_ERROR, &icons.error);
         icons.unknown = read(tmux::SIDEBAR_ICON_UNKNOWN, &icons.unknown);
+        icons.unread = read(tmux::SIDEBAR_ICON_UNREAD, &icons.unread);
         icons
+    }
+
+    /// Icon for an unread reply and for the inbox filter.
+    pub fn unread_icon(&self) -> &str {
+        self.unread.as_str()
     }
 
     /// Icon used for the "All" filter (not tied to any PaneStatus).

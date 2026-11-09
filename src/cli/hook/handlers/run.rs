@@ -25,6 +25,11 @@ pub(in crate::cli::hook) fn on_user_prompt_submit(
     set_attention(pane, "clear");
     set_status(pane, "running");
     set_notification_run_id(pane);
+    // A typed prompt means the user is at the pane. A system message (a
+    // finished background task) arrives while they may be elsewhere.
+    if !is_system_message(prompt) {
+        tmux::unset_pane_option(pane, tmux::PANE_UNREAD);
+    }
     if !prompt.is_empty() && !is_system_message(prompt) {
         let p = sanitize_tmux_value(prompt);
         tmux::set_pane_option(pane, tmux::PANE_PROMPT, &p);
@@ -45,6 +50,7 @@ pub(in crate::cli::hook) fn on_stop(
     notifications: &desktop_notification::DesktopNotificationSettings,
 ) -> i32 {
     let bg_shell_live = end_turn(pane, ctx, last_message);
+    mark_unread(pane);
 
     if !bg_shell_live {
         let run_id = notification_run_id(pane);
@@ -76,6 +82,16 @@ pub(in crate::cli::hook) fn on_stop(
         println!("{resp}");
     }
     0
+}
+
+/// Mark the reply unread unless an attached client shows the pane. The mark
+/// is set before the check: a focus change that lands after the set clears
+/// it through `mark-read`, and one that landed before is seen by the check.
+fn mark_unread(pane: &str) {
+    tmux::set_pane_option(pane, tmux::PANE_UNREAD, "1");
+    if tmux::pane_on_screen(pane) {
+        tmux::unset_pane_option(pane, tmux::PANE_UNREAD);
+    }
 }
 
 /// Codex `Interrupt`: the user aborted the turn. Ends it like `Stop` with no
@@ -151,6 +167,7 @@ pub(in crate::cli::hook) fn on_stop_failure(
     }
     touch_activity(pane);
     set_status(pane, "error");
+    mark_unread(pane);
     let _ = notify_lifecycle(
         pane,
         NotifyLabels::FromCtx(ctx),
@@ -504,5 +521,79 @@ mod tests {
             tmux::test_mock::get(pane, tmux::PANE_WAIT_REASON).as_deref(),
             Some("rate_limit")
         );
+    }
+
+    fn unread_ctx() -> AgentContext<'static> {
+        AgentContext {
+            agent: "claude",
+            cwd: "/repo",
+            permission_mode: "default",
+            worktree: &None,
+            session_id: &None,
+        }
+    }
+
+    fn quiet() -> desktop_notification::DesktopNotificationSettings {
+        desktop_notification::DesktopNotificationSettings {
+            enabled: false,
+            events: Default::default(),
+            click: false,
+        }
+    }
+
+    fn unread(pane: &str) -> bool {
+        tmux::test_mock::get(pane, tmux::PANE_UNREAD).as_deref() == Some("1")
+    }
+
+    #[test]
+    fn stop_off_screen_marks_the_reply_unread() {
+        let _guard = tmux::test_mock::install();
+        let pane = "%UNREAD_HIDDEN";
+        let _response = scopeguard::guard(pane, crate::activity::remove_response);
+        on_stop(pane, &unread_ctx(), "done", None, &quiet());
+        assert!(unread(pane));
+    }
+
+    #[test]
+    fn stop_on_screen_leaves_no_mark() {
+        let _guard = tmux::test_mock::install();
+        let pane = "%UNREAD_SHOWN";
+        let _response = scopeguard::guard(pane, crate::activity::remove_response);
+        tmux::test_mock::set(pane, tmux::visibility_test::ON_SCREEN, "1");
+        on_stop(pane, &unread_ctx(), "done", None, &quiet());
+        assert!(!tmux::test_mock::contains(pane, tmux::PANE_UNREAD));
+    }
+
+    #[test]
+    fn stop_failure_off_screen_marks_unread() {
+        let _guard = tmux::test_mock::install();
+        let pane = "%UNREAD_FAIL";
+        on_stop_failure(pane, &unread_ctx(), "rate_limit", &quiet());
+        assert!(unread(pane));
+    }
+
+    #[test]
+    fn interrupt_leaves_no_mark() {
+        let _guard = tmux::test_mock::install();
+        let pane = "%UNREAD_INTERRUPT";
+        let _response = scopeguard::guard(pane, crate::activity::remove_response);
+        on_interrupt(pane, &unread_ctx());
+        assert!(!tmux::test_mock::contains(pane, tmux::PANE_UNREAD));
+    }
+
+    #[test]
+    fn a_typed_prompt_clears_unread_and_a_task_notification_does_not() {
+        let _guard = tmux::test_mock::install();
+        let pane = "%UNREAD_PROMPT";
+        tmux::test_mock::set(pane, tmux::PANE_UNREAD, "1");
+        on_user_prompt_submit(
+            pane,
+            &unread_ctx(),
+            "<task-notification>shell finished</task-notification>",
+        );
+        assert!(unread(pane), "a background task finishing is not the user");
+
+        on_user_prompt_submit(pane, &unread_ctx(), "looks good, ship it");
+        assert!(!tmux::test_mock::contains(pane, tmux::PANE_UNREAD));
     }
 }

@@ -13,7 +13,7 @@ sidebar has been hidden for 2+ ticks (see [Refresh Cadence](#refresh-cadence)).
 
 | Field | Tmux Variable | Update Trigger | Description |
 |-------|--------------|----------------|-------------|
-| `status_filter` | `@sidebar_filter` | User input (left/right key) | Active status filter (All/Running/Background/Waiting/Idle/Error) |
+| `status_filter` | `@sidebar_filter` | User input (left/right key) | Active status filter (All/Inbox/Running/Background/Waiting/Idle/Error) |
 | `selected_pane_row` | `@sidebar_cursor` | User input (j/k key); tmux write flushed after a short debounce | Cursor position in agent list |
 | `repo_filter` | `@sidebar_repo_filter` | User input (repo popup) | Repository filter (All or specific repo) |
 | `session_scope` | `@sidebar_session_scope` | User input (`s` key) | When on, each sidebar lists only the agents of its own tmux session. Ignored while the search is open |
@@ -49,6 +49,7 @@ Pane options written to tmux:
 | `@pane_desc` | User (`tmux set -p @pane_desc`), `agent spawn --desc`, `resume restore` | Free-form pane tag. Never written by hooks and never cleared on agent exit; `agent` commands accept it as a target |
 | `@pane_pinned` | Sidebar `p` key, `resume restore` | `1` when the user pinned the pane. Owned by the pane like `@pane_desc`: never written by hooks and never cleared on agent exit. Saved and restored by `resume` |
 | `@pane_activity_at` | UserPromptSubmit, Stop, StopFailure, Interrupt, Notification (non-meta), SessionStart (except `resume`) | Epoch seconds of the last turn boundary. Drives the last-active age, stale dimming and the recent-first order. A resume does not stamp it, so a session relaunched after a reboot keeps the age its transcript shows. Cleared on agent exit |
+| `@pane_unread` | Stop, StopFailure (set unless a client shows the window); typed UserPromptSubmit, SessionStart, `mark-read`, `agent read`, `agent prompt --wait` (clear) | `1` when the agent's turn ended while no attached client showed its window. Stop sets it, then checks visibility and unsets it, so a focus change racing the hook is never lost. Drives the inbox filter and the `◆` row icon. Cleared on agent exit |
 | `@pane_notify_pid` | `herdmux notify-wait` (Linux) | Process id of the helper waiting for a click on the pane's latest desktop notification. The next notification for the pane stops that helper (after checking the id still belongs to one) and writes its own |
 | `@pane_spawned_by` | `agent spawn` | Pane id of the pane that ran `agent spawn` to create this pane. Owned by the pane like `@pane_desc`: never cleared, since pane ids are not reused within a server, so it survives `/clear` and agent restarts. Not restored after a reboot. The sidebar shows it as a "spawned by" row using the parent's `@pane_desc` (its pane id when the parent is untagged or closed); `agent list` shows the raw id |
 | `@pane_attention` | SessionStart, Stop, StopFailure, Interrupt (clear); Notification, PermissionDenied, TeammateIdle (set) | "notification" or "clear" |
@@ -249,6 +250,10 @@ TUI main loop (app::run in app.rs; submodules app/{setup,workers,input,render})
                         ↓
   → ui::draw() renders frame         ← reads all AppState fields
 ```
+
+### Unread mark
+
+`@pane_unread` lives outside the TUI loop, since most windows have no sidebar. Stop and StopFailure set it, then unset it when `tmux::pane_on_screen` sees an attached client showing the pane's window (`window_active_clients > 0`; a zoomed window shows only its active pane). `agent-sidebar.conf` hooks `window-pane-changed`, `session-window-changed`, `client-session-changed` and `client-attached` to run `herdmux mark-read <window_id>`, which re-checks visibility when it runs and clears every pane the window shows (`tmux/visibility.rs`). `tmux::show_pane` selects the pane and window before it switches the client, in one tmux call, so a jump does not clear the window the target session showed before. The sidebar only reads the mark, through `PaneInfo::unread`.
 
 ---
 

@@ -25,6 +25,7 @@ pub fn run(args: &[String]) -> Option<i32> {
         "toggle" => toggle::cmd_toggle(rest),
         "toggle-all" => toggle::cmd_toggle_all(rest),
         "auto-close" => toggle::cmd_auto_close(rest),
+        "mark-read" => cmd_mark_read(rest),
         "set-status" => cmd_set_status(rest),
         "spawn" => spawn::cmd_spawn(rest),
         "agent" => agent::cmd_agent(rest),
@@ -41,6 +42,21 @@ pub fn run(args: &[String]) -> Option<i32> {
         _ => return None,
     };
     Some(code)
+}
+
+/// `mark-read <window_id>`: run by the focus hooks. Clears the unread mark
+/// of every agent the window shows on screen right now.
+fn cmd_mark_read(args: &[String]) -> i32 {
+    match args.first() {
+        Some(window) if !window.is_empty() => {
+            tmux::mark_window_read(window);
+            0
+        }
+        _ => {
+            eprintln!("usage: herdmux mark-read <window_id>");
+            2
+        }
+    }
 }
 
 // ─── Shared helpers ──────────────────────────────────────────────────────────

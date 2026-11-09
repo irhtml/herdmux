@@ -40,6 +40,11 @@ pub(in crate::cli::hook) fn on_session_start(
     // The agent `resume restore` launched has registered; the restore
     // is complete for this pane.
     tmux::unset_pane_option(pane, tmux::PANE_RESUME_PENDING);
+    // A new or cleared session has no reply to read. A subagent's own
+    // SessionStart lands on the parent pane and must not clear it.
+    if pane_writes_allowed(pane) {
+        tmux::unset_pane_option(pane, tmux::PANE_UNREAD);
+    }
     match source {
         "resume" => tmux::set_pane_option(pane, tmux::PANE_WAIT_REASON, "session_resumed"),
         "compact" => tmux::set_pane_option(pane, tmux::PANE_WAIT_REASON, "session_resumed_compact"),
@@ -180,6 +185,22 @@ mod tests {
         );
         assert!(!tmux::test_mock::contains(pane, tmux::PANE_CWD));
         assert!(!tmux::test_mock::contains(pane, tmux::PANE_STATUS));
+    }
+
+    #[test]
+    fn on_session_start_clears_unread_unless_a_subagent_is_running() {
+        let _guard = tmux::test_mock::install();
+        tmux::test_mock::set("%NEW", tmux::PANE_UNREAD, "1");
+        on_session_start("%NEW", &basic_ctx(), "clear");
+        assert!(!tmux::test_mock::contains("%NEW", tmux::PANE_UNREAD));
+
+        tmux::test_mock::set("%PARENT", tmux::PANE_UNREAD, "1");
+        tmux::test_mock::set("%PARENT", tmux::PANE_SUBAGENTS, "Explore:abc");
+        on_session_start("%PARENT", &basic_ctx(), "startup");
+        assert_eq!(
+            tmux::test_mock::get("%PARENT", tmux::PANE_UNREAD).as_deref(),
+            Some("1")
+        );
     }
 
     #[test]

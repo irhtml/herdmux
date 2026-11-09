@@ -88,9 +88,13 @@ impl AppState {
     }
 
     /// An idle agent that has not done anything for `stale_after_secs`.
-    /// Pinned agents never go stale.
+    /// Pinned agents and unread replies never go stale.
     pub fn is_stale(&self, pane: &PaneInfo) -> bool {
-        if self.stale_after_secs == 0 || pane.pinned || pane.status.is_active() {
+        if self.stale_after_secs == 0
+            || pane.pinned
+            || pane.status.is_active()
+            || pane.has_unread_reply()
+        {
             return false;
         }
         self.last_active(pane)
@@ -126,7 +130,7 @@ impl AppState {
             return self.search_items();
         }
         let status = self.global.status_filter;
-        let shown = |pane: &PaneInfo| status.matches(&pane.status);
+        let shown = |pane: &PaneInfo| status.matches(pane);
         let groups: Vec<&RepoGroup> = self
             .repo_groups
             .iter()
@@ -352,6 +356,7 @@ mod tests {
             spawned_by: None,
             pinned: false,
             activity_at: None,
+            unread: false,
             window_name: String::new(),
             tmux_session: String::new(),
             bg_shell_cmd: None,

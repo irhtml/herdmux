@@ -75,7 +75,7 @@ fn compact_view_shows_one_line_per_agent_and_opens_the_cursor_row() {
 
     let output = render_to_string(&mut state, 44, 20);
     insta::assert_snapshot!(output, @"
-     ≡4  ●1  ◎0  ◐0  ○3  ✕0
+     ≡4  ◆0  ●1  ◎0  ◐0  ○3  ✕0
                                              — ▾
     storefront
       ● PR 42 client impact                  23s
@@ -98,7 +98,7 @@ fn compact_view_opens_the_focused_agent_when_the_sidebar_is_not_focused() {
 
     let output = render_to_string(&mut state, 44, 20);
     insta::assert_snapshot!(output, @"
-     ≡4  ●1  ◎0  ◐0  ○3  ✕0
+     ≡4  ◆0  ●1  ◎0  ◐0  ○3  ✕0
                                              — ▾
     storefront
       ● PR 42 client impact                  23s
@@ -124,7 +124,7 @@ fn recent_order_with_a_pinned_agent() {
 
     let output = render_to_string(&mut state, 44, 20);
     insta::assert_snapshot!(output, @"
-     ≡4  ●1  ◎0  ◐0  ○3  ✕0
+     ≡4  ◆0  ●1  ◎0  ◐0  ○3  ✕0
                                              — ▾
     ★ pinned
       ○ ★ PHP 8.3 upgrade        checkout-api 1d
@@ -145,7 +145,7 @@ fn full_view_pinned_group_names_the_repo() {
 
     let output = render_to_string(&mut state, 44, 30);
     insta::assert_snapshot!(output, @"
-     ≡4  ●1  ◎0  ◐0  ○3  ✕0
+     ≡4  ◆0  ●1  ◎0  ◐0  ○3  ✕0
                                              — ▾
     ★ pinned
       ○ ★ claude · billing                    2h
@@ -192,7 +192,7 @@ fn search_lists_matches_from_prompt_history_with_a_snippet() {
 
     let output = render_to_string(&mut state, 44, 20);
     insta::assert_snapshot!(output, @"
-     ≡4  ●1  ◎0  ◐0  ○3  ✕0
+     ≡4  ◆0  ●1  ◎0  ◐0  ○3  ✕0
     / dockerfile█                              2
       ○ claude · billing                      2h
         Dockerfile security fix
@@ -214,7 +214,7 @@ fn search_with_no_match_says_so() {
 
     let output = render_to_string(&mut state, 44, 10);
     insta::assert_snapshot!(output, @"
-     ≡4  ●1  ◎0  ◐0  ○3  ✕0
+     ≡4  ◆0  ●1  ◎0  ◐0  ○3  ✕0
     / kubernetes█                       no match
     ");
 }
@@ -244,7 +244,7 @@ fn full_row_uses_the_transcript_after_a_resume() {
 
     let output = render_to_string(&mut state, 44, 12);
     insta::assert_snapshot!(output, @"
-     ≡1  ●0  ◎0  ◐0  ○1  ✕0
+     ≡1  ◆0  ●0  ◎0  ◐0  ○1  ✕0
                                              — ▾
     checkout-api
       ○ claude auto                           5h
@@ -267,7 +267,7 @@ fn stale_rows_are_dimmed() {
 
     let output = render_to_styled_string(&mut state, 30, 5);
     insta::assert_snapshot!(output, @"
-     ≡[fg:111]2[fg:255]  ●[fg:245]0[fg:245]  ◎[fg:245]0[fg:245]  ◐[fg:245]0[fg:245]  ○[fg:245]2[fg:255]  ✕[fg:245]0[fg:245]
+     ≡[fg:111]2[fg:255]  ◆[fg:245]0[fg:245]  ●[fg:245]0[fg:245]  ◎[fg:245]0[fg:245]  ◐[fg:245]0[fg:245]  ○[fg:245]2[fg:255]  ✕[fg:245]0[fg:245]
                                —[fg:252] ▾[fg:252]
     c[fg:255]h[fg:255]e[fg:255]c[fg:255]k[fg:255]o[fg:255]u[fg:255]t[fg:255]-[fg:255]a[fg:255]p[fg:255]i[fg:255]
       ○[fg:110] [fg:255]f[fg:255]r[fg:255]e[fg:255]s[fg:255]h[fg:255]                   [fg:252]1[fg:252]m[fg:252]
@@ -285,7 +285,7 @@ fn picker_shows_the_search_line_and_every_agent() {
 
     let output = render_to_string(&mut state, 60, 16);
     insta::assert_snapshot!(output, @"
-     ≡4  ●1  ◎0  ◐0  ○3  ✕0
+     ≡4  ◆0  ●1  ◎0  ◐0  ○3  ✕0
     / █                                                        4
       ● claude · storefront                                  23s
         PR 42 client impact

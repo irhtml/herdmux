@@ -166,6 +166,7 @@ impl AppState {
             tmux::PANE_SESSION_ID,
             tmux::PANE_BG_CMD,
             tmux::PANE_ACTIVITY_AT,
+            tmux::PANE_UNREAD,
         ] {
             tmux::unset_pane_option(pane_id, key);
         }
@@ -619,6 +620,7 @@ mod tests {
             spawned_by: None,
             pinned: false,
             activity_at: None,
+            unread: false,
             window_name: String::new(),
             tmux_session: String::new(),
             bg_shell_cmd: None,

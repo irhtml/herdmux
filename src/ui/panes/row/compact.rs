@@ -5,7 +5,7 @@ use ratatui::{
 
 use super::RowExtras;
 use super::ctx::RowCtx;
-use super::status::{PIN_GLYPH, ROW_REPO_MAX_WIDTH, running_icon_for, time_label};
+use super::status::{PIN_GLYPH, ROW_REPO_MAX_WIDTH, row_icon, time_label};
 use crate::tmux::PaneInfo;
 use crate::ui::icons::StatusIcons;
 use crate::ui::text::{display_width, truncate_to_width};
@@ -45,9 +45,7 @@ pub(super) fn compact_row(
     extras: &RowExtras<'_>,
 ) -> Line<'static> {
     let theme = ctx.theme;
-    let (icon, pulse_color) = running_icon_for(&pane.status, spinner_frame, icons);
-    let icon_color =
-        pulse_color.unwrap_or_else(|| theme.status_color(&pane.status, pane.attention));
+    let (icon, icon_color) = row_icon(pane, spinner_frame, icons, theme);
 
     let time = time_label(pane, extras.last_active, now);
     let repo = extras

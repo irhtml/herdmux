@@ -17,13 +17,22 @@ The top row of the sidebar filters the agent list by status. Each entry is an ic
 ### Status filter
 
 - `≡N` — all panes
+- `◆N` — inbox: agents that need you (see [Inbox](#inbox))
 - `●N` — running
 - `◎N` — background shell running
 - `◐N` — waiting
 - `○N` — idle
 - `✕N` — error
 
-Cycle with `h` / `l` (or `←` / `→`), or click an entry. `Tab` advances through the filter one step at a time.
+Cycle with `h` / `l` (or `←` / `→`), or click an entry. `Tab` advances through the filter one step at a time. When the row does not fit the sidebar, the entries sit one space apart and empty ones are left out, except `≡` and the selected one.
+
+### Inbox
+
+`◆` lists the agents that wait for you: an agent waiting on you (a permission prompt or a question), and an agent whose reply you have not seen. A reply counts as unseen when the agent ended its turn, or failed, while no attached terminal showed its window. Its row shows `◆` instead of `○` (an error keeps `✕`) and is never dimmed as stale.
+
+The mark clears when the window comes on screen in any attached terminal: every agent the window shows counts as seen (only the zoomed pane of a zoomed window). Typing a prompt into the agent also clears it. When another agent reads the reply with `herdmux agent prompt --wait` or `herdmux agent read`, the mark clears too, so delegated work does not fill your inbox.
+
+The mark is the `@pane_unread` pane option. The clearing runs from tmux hooks the plugin installs (`window-pane-changed`, `session-window-changed`, `client-session-changed`, `client-attached`), so it works in windows without a sidebar. Reload the plugin config after an upgrade to install them.
 
 ### Repo filter
 
@@ -74,7 +83,7 @@ By default agents are grouped under their repository, and the most recently acti
 
 ### Stale agents
 
-Agents idle for `@sidebar_stale_hours` (4 by default) are drawn dimmer, so the ones you worked with recently stand out.
+Agents idle for `@sidebar_stale_hours` (4 by default) are drawn dimmer, so the ones you worked with recently stand out. An unread reply is never dimmed.
 
 ## Row elements
 
@@ -84,6 +93,7 @@ Agents idle for `@sidebar_stale_hours` (4 by default) are drawn dimmer, so the o
 - `◎` background shell running
 - `◐` waiting
 - `○` idle
+- `◆` idle or background shell, with a reply you have not seen ([Inbox](#inbox))
 - `✕` error
 
 When multiple signals compete on the same pane, the sidebar resolves them in this order:

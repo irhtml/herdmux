@@ -119,7 +119,7 @@ fn test_running_icon_blink_off() {
     state.spinner_frame = 0;
 
     insta::assert_snapshot!(render_to_string(&mut state, 28, 25), @r"
-     ≡1  ●1  ◎0  ◐0  ○0  ✕0
+     ≡1  ◆0  ●1  ◎0  ◐0  ○0  ✕0
     ⓘ                        — ▾
     project
     ┃ ● claude
@@ -148,7 +148,7 @@ fn test_running_spinner_frame_advances() {
     state.spinner_frame = 3;
 
     insta::assert_snapshot!(render_to_string(&mut state, 28, 25), @r"
-     ≡1  ●1  ◎0  ◐0  ○0  ✕0
+     ≡1  ◆0  ●1  ◎0  ◐0  ○0  ✕0
     ⓘ                        — ▾
     project
     ┃ ● claude
@@ -176,7 +176,7 @@ fn test_waiting_icon() {
     state.focus_state.sidebar_focused = false;
 
     insta::assert_snapshot!(render_to_string(&mut state, 28, 25), @r"
-     ≡1  ●0  ◎0  ◐1  ○0  ✕0
+     ≡1  ◆1  ●0  ◎0  ◐1  ○0  ✕0
     ⓘ                        — ▾
     project
     ┃ ◐ claude
@@ -204,7 +204,7 @@ fn test_error_icon() {
     state.focus_state.sidebar_focused = false;
 
     insta::assert_snapshot!(render_to_string(&mut state, 28, 25), @r"
-     ≡1  ●0  ◎0  ◐0  ○0  ✕1
+     ≡1  ◆0  ●0  ◎0  ◐0  ○0  ✕1
     ⓘ                        — ▾
     project
     ┃ ✕ claude
@@ -296,7 +296,7 @@ fn test_agents_auto_scroll_up_shows_group_header() {
     // The snapshot locks in that the `project` repo header is visible after
     // scrolling back up to the first agent.
     insta::assert_snapshot!(render_to_string(&mut state, 28, 26), @r"
-     ≡8  ●0  ◎0  ◐0  ○8  ✕0
+     ≡8  ◆0  ●0  ◎0  ◐0  ○8  ✕0
     ⓘ                        — ▾
     project
       ○ claude
@@ -335,7 +335,7 @@ fn repo_popup_renders_repo_names_when_open() {
     // The snapshot locks in that the popup lists the `All` entry plus both
     // repo names when opened.
     insta::assert_snapshot!(render_to_string(&mut state, 40, 30), @r"
-     ≡2  ●0  ◎0  ◐0  ○2  ✕0
+     ≡2  ◆0  ●0  ◎0  ◐0  ○2  ✕0
     ⓘ                                    — ▾
     frontend                    ┌──────────┐
     ┃ ○ claude                  │ All      │
@@ -383,7 +383,7 @@ fn repo_popup_highlights_selected_entry_with_background() {
     // Styled snapshot locks in that the `backend` row carries the selection
     // background (bg:239) on each cell of the entry.
     insta::assert_snapshot!(render_to_styled_string(&mut state, 40, 30), @r"
-     ≡[fg:111]2[fg:255]  ●[fg:245]0[fg:245]  ◎[fg:245]0[fg:245]  ◐[fg:245]0[fg:245]  ○[fg:245]2[fg:255]  ✕[fg:245]0[fg:245]
+     ≡[fg:111]2[fg:255]  ◆[fg:245]0[fg:245]  ●[fg:245]0[fg:245]  ◎[fg:245]0[fg:245]  ◐[fg:245]0[fg:245]  ○[fg:245]2[fg:255]  ✕[fg:245]0[fg:245]
     ⓘ[fg:221]                                    —[fg:255] ▾[fg:255]
     f[fg:153]r[fg:153]o[fg:153]n[fg:153]t[fg:153]e[fg:153]n[fg:153]d[fg:153]                    ┌[fg:153]─[fg:153]─[fg:153]─[fg:153]─[fg:153]─[fg:153]─[fg:153]─[fg:153]─[fg:153]─[fg:153]─[fg:153]┐[fg:153]
     ┃[fg:153] ○[fg:110] [fg:174]c[fg:174]l[fg:174]a[fg:174]u[fg:174]d[fg:174]e[fg:174]                  │[fg:153] [fg:255]A[fg:255]l[fg:255]l[fg:255] [fg:255] [fg:255] [fg:255] [fg:255] [fg:255] [fg:255]│[fg:153]

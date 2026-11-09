@@ -69,7 +69,8 @@ fn report(client: Option<&str>, message: &str, is_error: bool) {
         println!("{message}");
     }
     if let Some(client) = client {
-        let text = format!("herdmux: {message}");
+        // display-message expands formats; names and errors are outside text.
+        let text = tmux::escape_format(&format!("herdmux: {message}"));
         let _ = tmux::run_tmux(&["display-message", "-c", client, "-d", "5000", &text]);
     }
 }

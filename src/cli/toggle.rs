@@ -199,15 +199,10 @@ fn plan_sidebar_splits(layout: &str, path: Option<&str>) -> Vec<SidebarSplit> {
                 target_pane,
                 flags: split_window_flags(first.position),
                 width: resolve_sidebar_width(&first.width_setting, first.window_width),
-                path: escape_tmux_format(path.unwrap_or(&first.path)),
+                path: tmux::escape_format(path.unwrap_or(&first.path)),
             })
         })
         .collect()
-}
-
-/// Make `text` expand to itself in a tmux format: `##` is a literal `#`.
-fn escape_tmux_format(text: &str) -> String {
-    text.replace('#', "##")
 }
 
 /// Turn the `@sidebar_width` setting into a `split-window -l` value. A

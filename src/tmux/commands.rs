@@ -127,6 +127,13 @@ pub fn set_spawn_pane_option(pane: &str, key: &str, value: &str) -> Result<(), S
 /// is used by the spawn flow to set markers at window scope so split panes
 /// (e.g. Claude Code subagents) inherit them.
 /// `detached` leaves the current window selected.
+/// Make `text` expand to itself in a tmux format: `##` is a literal `#`.
+/// Use it for any outside text tmux expands (`new-window -c` / `-n`,
+/// `display-message`), since `#(...)` in a format runs a shell command.
+pub fn escape_format(text: &str) -> String {
+    text.replace('#', "##")
+}
+
 pub fn new_window(
     session: &str,
     cwd: &str,
@@ -137,6 +144,8 @@ pub fn new_window(
     // window index. A bare name would be read as a window index first when
     // it is a number, or as a prefix of a longer session name.
     let target = session_window_target(session);
+    // tmux expands both as formats.
+    let (cwd, name) = (escape_format(cwd), escape_format(name));
     let mut args = vec!["new-window"];
     if detached {
         args.push("-d");
@@ -145,9 +154,9 @@ pub fn new_window(
         "-t",
         &target,
         "-c",
-        cwd,
+        &cwd,
         "-n",
-        name,
+        &name,
         "-P",
         "-F",
         "#{pane_id} #{window_id}",

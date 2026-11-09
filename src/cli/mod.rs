@@ -30,6 +30,10 @@ pub fn run(args: &[String]) -> Option<i32> {
         "agent" => agent::cmd_agent(rest),
         "resume" => resume::cmd_resume(rest),
         "capture" => capture::cmd_capture(rest),
+        #[cfg(target_os = "linux")]
+        crate::desktop_notification::click::WAIT_SUBCOMMAND => {
+            crate::desktop_notification::click::cmd_notify_wait(rest)
+        }
         "--version" | "version" => {
             println!("{}", crate::VERSION);
             0

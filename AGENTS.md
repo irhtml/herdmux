@@ -26,7 +26,7 @@ After implementation is complete, run `cargo build --release`. The plugin direct
 
 The binary has two modes controlled by CLI args (`src/cli/mod.rs`):
 1. **TUI mode** — default. `src/main.rs` handles CLI arg parsing, SIGUSR1 signal wiring, and TUI session setup, then delegates to `app::run` (`src/app.rs`) for the event loop. `herdmux pick` runs the same loop as a one-shot agent finder (`AppMode::Picker`) for a tmux popup.
-2. **CLI subcommands**: `setup`, `hook`, `toggle`, `toggle-all`, `auto-close`, `set-status`, `spawn`, `capture`, `agent` (`list` / `spawn` / `prompt` / `wait` / `read`, in `src/cli/agent/`), `resume` (`save` / `restore`, in `src/cli/resume.rs` + `src/resume/`), `--version` / `version`.
+2. **CLI subcommands**: `setup`, `hook`, `toggle`, `toggle-all`, `auto-close`, `set-status`, `spawn`, `capture`, `agent` (`list` / `spawn` / `prompt` / `wait` / `read`, in `src/cli/agent/`), `resume` (`save` / `restore`, in `src/cli/resume.rs` + `src/resume/`), `--version` / `version`. Internal: `notify-wait` (Linux), the detached helper that shows a desktop notification and jumps to its pane when it is clicked (`src/desktop_notification/click.rs`).
 
 ### Core Data Flow
 

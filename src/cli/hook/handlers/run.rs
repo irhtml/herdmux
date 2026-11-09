@@ -314,6 +314,7 @@ mod tests {
             &desktop_notification::DesktopNotificationSettings {
                 enabled: false,
                 events: Default::default(),
+                click: false,
             },
         );
 
@@ -351,6 +352,7 @@ mod tests {
             &desktop_notification::DesktopNotificationSettings {
                 enabled: false,
                 events: Default::default(),
+                click: false,
             },
         );
 
@@ -382,6 +384,7 @@ mod tests {
             &desktop_notification::DesktopNotificationSettings {
                 enabled: false,
                 events: Default::default(),
+                click: false,
             },
         );
 
@@ -424,6 +427,7 @@ mod tests {
             &desktop_notification::DesktopNotificationSettings {
                 enabled: false,
                 events: Default::default(),
+                click: false,
             },
         );
 
@@ -488,6 +492,7 @@ mod tests {
             &desktop_notification::DesktopNotificationSettings {
                 enabled: false,
                 events: Default::default(),
+                click: false,
             },
         );
         assert_eq!(exit, 0);

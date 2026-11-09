@@ -131,6 +131,7 @@ mod tests {
         let notifications = desktop_notification::DesktopNotificationSettings {
             enabled: false,
             events: Default::default(),
+            click: false,
         };
         on_notification(
             pane,
@@ -164,6 +165,7 @@ mod tests {
         let notifications = desktop_notification::DesktopNotificationSettings {
             enabled: false,
             events: Default::default(),
+            click: false,
         };
         on_notification(
             pane,
@@ -201,6 +203,7 @@ mod tests {
         let notifications = desktop_notification::DesktopNotificationSettings {
             enabled: false,
             events: Default::default(),
+            click: false,
         };
         on_notification(
             pane,
@@ -230,6 +233,7 @@ mod tests {
         let notifications = desktop_notification::DesktopNotificationSettings {
             enabled: false,
             events: Default::default(),
+            click: false,
         };
         on_notification(
             pane,
@@ -262,6 +266,7 @@ mod tests {
         let notifications = desktop_notification::DesktopNotificationSettings {
             enabled: false,
             events: Default::default(),
+            click: false,
         };
         on_notification(
             pane,
@@ -290,6 +295,7 @@ mod tests {
         let notifications = desktop_notification::DesktopNotificationSettings {
             enabled: false,
             events: Default::default(),
+            click: false,
         };
         on_notification(
             pane,
@@ -325,6 +331,7 @@ mod tests {
         let notifications = desktop_notification::DesktopNotificationSettings {
             enabled: false,
             events: Default::default(),
+            click: false,
         };
         on_notification(pane, &ctx, "", /* meta_only */ false, &notifications);
 
@@ -348,6 +355,7 @@ mod tests {
         let notifications = desktop_notification::DesktopNotificationSettings {
             enabled: false,
             events: Default::default(),
+            click: false,
         };
         on_permission_denied(pane, &ctx, &notifications);
         assert_eq!(

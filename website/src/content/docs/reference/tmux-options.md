@@ -18,6 +18,7 @@ Most options must be set **before** loading the plugin in your `tmux.conf`. Colo
 | `@sidebar_auto_create_delay`     | `0`     | Seconds to defer auto-create after a window opens, so a declaratively-built window (e.g. tmuxinator's `select-layout`) finishes before the sidebar pane is injected; accepts fractional seconds. `0` keeps the create synchronous |
 | `@sidebar_notifications`         | `on`    | Master switch for desktop notifications                                                 |
 | `@sidebar_notifications_events`  | unset   | Restrict events — see [Notifications](/herdmux/features/notifications/)       |
+| `@sidebar_notifications_click`   | `on`    | Linux: clicking a notification jumps to its agent. See [Notifications](/herdmux/features/notifications/) |
 | `@sidebar_pet`                  | `off`   | Show the animated pet in a 5-row band above the bottom panel                           |
 | `@sidebar_session_scope`         | `off`   | Each sidebar lists only the agents of its own tmux session. Toggled with `s`; search always covers every session |
 | `@sidebar_view`                  | `full`  | Agent rows: `full` shows every detail, `compact` shows one line per agent and opens only the selected one (or the focused one while the sidebar does not have the keyboard). Toggled with `v` |

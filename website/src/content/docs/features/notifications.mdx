@@ -42,6 +42,26 @@ An empty value disables every event without touching the master `@sidebar_notifi
 
 If the required notification command is missing, the feature quietly disables itself.
 
+## Click to jump (Linux)
+
+Clicking a notification on Linux takes you to the agent that sent it. tmux switches to the agent's session, window and pane, and the terminal window comes to the front. herdmux picks the terminal that most recently showed that tmux session, or your most recently used terminal when none shows it.
+
+The hook does not wait for the click. It starts a small background `herdmux notify-wait` process that shows the notification with an **Open** action and exits when the notification is clicked, closed or expires. A newer notification from the same agent replaces the older one and stops its process.
+
+Requirements:
+
+- A notification daemon that supports actions (dunst, mako, GNOME and KDE do) and `notify-send` 0.7.10 or newer. Otherwise you get a plain notification.
+- To bring the terminal to the front: X11 with `xdotool`. Under i3 herdmux uses `i3-msg`, which also moves to the window's workspace.
+
+dunst runs the action on a middle click by default. To open the agent with a left click, set this in `dunstrc` and restart dunst:
+
+```ini
+mouse_left_click = do_action, close_current
+mouse_middle_click = close_current
+```
+
+Turn it off with `set -g @sidebar_notifications_click off`. macOS notifications do not support a click action yet.
+
 ## Notification layout
 
 ```

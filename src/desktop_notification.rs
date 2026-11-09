@@ -7,6 +7,9 @@ use std::time::{Duration, Instant};
 use crate::time::now_epoch_secs;
 use crate::tmux;
 
+#[cfg(target_os = "linux")]
+pub mod click;
+
 pub(crate) const DESKTOP_NOTIFICATION_COOLDOWN_SECS: u64 = 120;
 const DESKTOP_NOTIFICATION_TIMEOUT: Duration = Duration::from_secs(3);
 const DESKTOP_NOTIFICATION_PROBE_TIMEOUT: Duration = Duration::from_secs(1);
@@ -69,6 +72,8 @@ impl DesktopNotificationEvent {
 pub struct DesktopNotificationSettings {
     pub enabled: bool,
     pub events: HashSet<DesktopNotificationEvent>,
+    /// Clicking the notification jumps to the agent (Linux only).
+    pub click: bool,
 }
 
 impl Default for DesktopNotificationSettings {
@@ -76,6 +81,7 @@ impl Default for DesktopNotificationSettings {
         Self {
             enabled: true,
             events: DesktopNotificationEvent::DEFAULT.iter().copied().collect(),
+            click: true,
         }
     }
 }
@@ -94,8 +100,13 @@ impl DesktopNotificationSettings {
         let events = opts
             .get(tmux::SIDEBAR_NOTIFICATIONS_EVENTS)
             .map_or_else(|| Self::default().events, |raw| parse_events(raw));
+        let click = read_bool(opts, tmux::SIDEBAR_NOTIFICATIONS_CLICK).unwrap_or(true);
 
-        Self { enabled, events }
+        Self {
+            enabled,
+            events,
+            click,
+        }
     }
 
     pub fn from_tmux() -> Self {
@@ -182,7 +193,7 @@ pub fn notify_if_allowed(
         return false;
     }
 
-    match send_desktop_notification(title, body) {
+    match send_desktop_notification(pane_id, title, body, settings.click) {
         Ok(()) => {
             tmux::set_pane_option(pane_id, key, &encode_stamp(now, &normalized_fingerprint));
             true
@@ -232,9 +243,21 @@ fn normalize_fingerprint(value: &str) -> String {
     value.replace(['|', '\n', '\r'], " ")
 }
 
-fn send_desktop_notification(title: &str, body: &str) -> Result<(), String> {
+fn send_desktop_notification(
+    pane_id: &str,
+    title: &str,
+    body: &str,
+    click: bool,
+) -> Result<(), String> {
+    // Unit tests drive the hook handlers end to end; they must not put
+    // notifications on the developer's screen or start helpers.
+    if cfg!(test) {
+        return Ok(());
+    }
+
     #[cfg(target_os = "macos")]
     {
+        let _ = (pane_id, click);
         let script = format!(
             "display notification \"{}\" with title \"{}\"",
             escape_applescript(body),
@@ -250,9 +273,14 @@ fn send_desktop_notification(title: &str, body: &str) -> Result<(), String> {
 
     #[cfg(target_os = "linux")]
     {
+        // The helper shows the notification itself and waits for a click,
+        // so the hook returns at once.
+        if click && click::spawn_waiter(pane_id, title, body).is_ok() {
+            return Ok(());
+        }
         let mut command = Command::new("notify-send");
         command
-            .args(["--app-name=herdmux", "--urgency=normal", title, body])
+            .args(plain_notify_send_args(title, body))
             .stdout(Stdio::null())
             .stderr(Stdio::null());
         run_notification_command(&mut command, "notify-send", DESKTOP_NOTIFICATION_TIMEOUT)
@@ -260,15 +288,22 @@ fn send_desktop_notification(title: &str, body: &str) -> Result<(), String> {
 
     #[cfg(target_os = "windows")]
     {
-        let _ = (title, body);
+        let _ = (pane_id, title, body, click);
         Err("desktop notifications are not supported on Windows yet".into())
     }
 
     #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
     {
-        let _ = (title, body);
+        let _ = (pane_id, title, body, click);
         Err("desktop notifications are not supported on this platform".into())
     }
+}
+
+/// `notify-send` arguments for a notification without actions. `--` keeps
+/// a body that starts with `-` (a list item, say) from reading as options.
+#[cfg(target_os = "linux")]
+fn plain_notify_send_args<'a>(title: &'a str, body: &'a str) -> [&'a str; 5] {
+    ["--app-name=herdmux", "--urgency=normal", "--", title, body]
 }
 
 fn notification_backend_available() -> bool {
@@ -382,6 +417,16 @@ mod tests {
 
         let settings = DesktopNotificationSettings::from_tmux_options_with_backend(&opts, true);
         assert!(!settings.enabled);
+    }
+
+    #[test]
+    fn click_to_jump_is_on_unless_turned_off() {
+        let mut opts = HashMap::new();
+        let settings = DesktopNotificationSettings::from_tmux_options_with_backend(&opts, true);
+        assert!(settings.click);
+        opts.insert(tmux::SIDEBAR_NOTIFICATIONS_CLICK.into(), "off".into());
+        let settings = DesktopNotificationSettings::from_tmux_options_with_backend(&opts, true);
+        assert!(!settings.click);
     }
 
     #[test]

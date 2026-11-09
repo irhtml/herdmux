@@ -267,12 +267,67 @@ fn most_recent_client(list_clients_output: &str) -> Option<String> {
         .map(|(_, name)| name)
 }
 
+/// A tmux client: its name (the tty) and the pid of its `tmux` process.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientInfo {
+    pub name: String,
+    pub pid: u32,
+}
+
+/// The client that should show `pane_id` when the jump comes from outside
+/// tmux, such as a notification click: the most recently active client on
+/// the pane's session, or else the most recently active client of all.
+/// `None` when the pane is gone or no client is attached.
+pub fn client_for_pane(pane_id: &str) -> Option<ClientInfo> {
+    let session_id = display_message(pane_id, "#{session_id}");
+    if session_id.is_empty() {
+        return None;
+    }
+    const FORMAT: &str = "#{client_activity} #{client_pid} #{client_name}";
+    run_tmux(&["list-clients", "-t", &session_id, "-F", FORMAT])
+        .as_deref()
+        .and_then(most_recent_client_info)
+        .or_else(|| {
+            run_tmux(&["list-clients", "-F", FORMAT])
+                .as_deref()
+                .and_then(most_recent_client_info)
+        })
+}
+
+/// Parse `#{client_activity} #{client_pid} #{client_name}` lines.
+fn most_recent_client_info(list_clients_output: &str) -> Option<ClientInfo> {
+    list_clients_output
+        .lines()
+        .filter_map(|line| {
+            let mut fields = line.trim().splitn(3, ' ');
+            let activity = fields.next()?.parse::<u64>().ok()?;
+            let pid = fields.next()?.parse::<u32>().ok()?;
+            let name = fields.next().filter(|n| !n.is_empty())?;
+            Some((
+                activity,
+                ClientInfo {
+                    name: name.into(),
+                    pid,
+                },
+            ))
+        })
+        .max_by_key(|(activity, _)| *activity)
+        .map(|(_, client)| client)
+}
+
+/// Jump from the sidebar in `own_pane_id` to `pane_id`.
 pub fn select_pane(pane_id: &str, own_pane_id: &str) {
+    show_pane(pane_id, jump_client(own_pane_id).as_deref());
+}
+
+/// Bring `pane_id` on screen: switch `client` (or tmux's guess of the
+/// current client) to its session, then select its window and the pane.
+pub fn show_pane(pane_id: &str, client: Option<&str>) {
     // Find the session containing this pane and switch to it first
     let session_id = display_message(pane_id, "#{session_id}");
     if !session_id.is_empty() {
-        if let Some(client) = jump_client(own_pane_id) {
-            let _ = run_tmux(&["switch-client", "-c", &client, "-t", &session_id]);
+        if let Some(client) = client {
+            let _ = run_tmux(&["switch-client", "-c", client, "-t", &session_id]);
         } else {
             let _ = run_tmux(&["switch-client", "-t", &session_id]);
         }
@@ -287,7 +342,23 @@ pub fn select_pane(pane_id: &str, own_pane_id: &str) {
 
 #[cfg(test)]
 mod tests {
-    use super::{batch_args, last_lines, most_recent_client, pick_worktree_split_target};
+    use super::{
+        ClientInfo, batch_args, last_lines, most_recent_client, most_recent_client_info,
+        pick_worktree_split_target,
+    };
+
+    #[test]
+    fn most_recent_client_info_picks_the_latest_activity() {
+        let output = "100 4321 /dev/pts/0\n300 999 /dev/pts/62\n200 77 /dev/pts/3\nbad line\n";
+        assert_eq!(
+            most_recent_client_info(output),
+            Some(ClientInfo {
+                name: "/dev/pts/62".into(),
+                pid: 999,
+            })
+        );
+        assert_eq!(most_recent_client_info(""), None);
+    }
 
     #[test]
     fn batch_args_separates_commands_without_trailing_separator() {

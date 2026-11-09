@@ -49,6 +49,9 @@ pub const PANE_OS_NOTIFY_PERMISSION_REQUIRED: &str = "@pane_os_notify_permission
 pub const PANE_OS_NOTIFY_TASK_COMPLETED: &str = "@pane_os_notify_task_completed";
 /// Same dedup stamp for `TaskFailed` notifications.
 pub const PANE_OS_NOTIFY_TASK_FAILED: &str = "@pane_os_notify_task_failed";
+/// Process id of the `notify-wait` helper waiting for a click on this
+/// pane's latest desktop notification. A newer notification stops it.
+pub const PANE_NOTIFY_PID: &str = "@pane_notify_pid";
 /// Legacy marker — see
 /// `cli/hook/context/pending.rs::PENDING_SESSION_END` for the
 /// rationale for keeping it defined but never set.
@@ -122,6 +125,8 @@ pub const SIDEBAR_BOTTOM_HEIGHT: &str = "@sidebar_bottom_height";
 pub const SIDEBAR_PET: &str = "@sidebar_pet";
 pub const SIDEBAR_NOTIFICATIONS: &str = "@sidebar_notifications";
 pub const SIDEBAR_NOTIFICATIONS_EVENTS: &str = "@sidebar_notifications_events";
+/// `on` (default): clicking a desktop notification jumps to its agent.
+pub const SIDEBAR_NOTIFICATIONS_CLICK: &str = "@sidebar_notifications_click";
 
 pub const SIDEBAR_COLOR_ACCENT: &str = "@sidebar_color_accent";
 pub const SIDEBAR_COLOR_BORDER: &str = "@sidebar_color_border";

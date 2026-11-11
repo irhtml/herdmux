@@ -136,7 +136,7 @@ Only `CLAUDE_CONFIG_DIR`, `CODEX_HOME` and `XDG_DATA_HOME` are ever read from an
 | `popup` | On user input / render | `PopupState` enum: `None` / `Repo { selected, area }` / `Notices { area }`. Enforces "at most one popup open" via the type system |
 | `layout` | Every frame (render) | `FrameLayout` sub-struct bundling the ephemeral fields the UI rewrites every frame for click hit-testing: `pane_row_targets`, `line_to_row`, `repo_button_col`, `repo_spawn_targets`, `spawn_remove_targets`, `hyperlink_overlays`, `merge_request_targets`, `bottom_tab_targets` |
 | `notices` | Once at startup / on copy | `NoticesState` sub-struct: `button_col`, `missing_hook_groups`, `claude_plugin_status`, `claude_settings_has_residual_hooks`, `claude_plugin_notice`, `copy_targets`, `copied_at` |
-| `timers` | Refresh cycle / on user input | `RefreshTimers` sub-struct gating periodic work: `last_filter_click` (debounce), `last_port_refresh`, `port_scan_initialized` |
+| `timers` | Refresh cycle / on user input | `RefreshTimers` sub-struct gating periodic work: `last_filter_click` (debounce), `last_port_refresh`, `port_scan_initialized`, `port_scan_in_flight` |
 | `pending_osc52_copy` | On successful copy / frame flush | OSC 52 clipboard payload queued for terminal forwarding |
 | `pet_state` | Every 200ms (animation) | `Idle` / `WalkRight` / `Working` / `WalkLeft` |
 | `pet_x` | Every 200ms (animation) | Pet X position |
@@ -220,10 +220,10 @@ Only `CLAUDE_CONFIG_DIR`, `CODEX_HOME` and `XDG_DATA_HOME` are ever read from an
 Each 1s tick in `app::run` therefore starts with a cheap probe of the sidebar's own pane (`tmux::get_sidebar_pane_info`, one `display-message` that also reads `window_active_clients`) and runs the full tmux snapshot (`AppState::refresh_tick`) only when one of these holds:
 
 - a client is viewing the window (`SidebarPaneInfo::visible`),
-- SIGUSR1 arrived (`after-select-pane` / `after-select-window` hooks), or
+- SIGUSR1 arrived: from the `after-select-pane` / `after-select-window` hooks, or from `tmux::notify_sidebars`, which `herdmux hook` calls after an event that changes a row and `mark-read` calls after clearing a mark. Signal refreshes are spaced `SIGNAL_REFRESH_SPACING` (100ms) apart, or
 - the sidebar is hidden and `HIDDEN_SYNC_INTERVAL` (10s) has elapsed since its last snapshot.
 
-While hidden, a tick that does run the snapshot still skips the port scan (`lsof` plus a `ps` snapshot, the most expensive work a tick does; ports and per-pane commands are display-only, and the scan's own 10s gate is due by the first visible tick). The event loop also skips spinner-driven redraws (every pty write is another parse for the tmux server) and clears the git polling thread's active flag. A hidden sidebar is back on the 1s cadence within one probe of a client viewing it; the select-window hook makes that instant.
+While hidden, a tick that does run the snapshot still does not ask for a port scan (`lsof` plus a `ps` snapshot; ports and per-pane commands are display-only, and the scan's own 10s gate is due by the first visible tick). The scan itself runs on the port thread (`process_scan_loop` in `app/workers.rs`), so a tick never waits for it. The event loop also skips spinner-driven redraws (every pty write is another parse for the tmux server) and clears the git polling thread's active flag. A hidden sidebar is back on the 1s cadence within one probe of a client viewing it; the select-window hook makes that instant.
 
 A snapshot of a sidebar that has gone 2+ ticks without a viewer first reloads `GlobalState` from the tmux variables, because another instance may have changed the shared filters meanwhile. The reload comes before the snapshot since `session_scope` decides which sessions the snapshot keeps. It also runs on the hidden 10s snapshots, not only when the window is viewed again: tmux shows a pane's last frame the moment its window is selected, so a hidden sidebar that kept a stale filter would flash the wrong agent list until its first refresh finished. A single hidden tick does not trigger the reload, so a one-tick flicker of the probe cannot overwrite what the user just set.
 
@@ -244,13 +244,17 @@ TUI main loop (app::run in app.rs; submodules app/{setup,workers,input,render})
                         ↓
   → refresh() every 1s
     → query_sessions() (tmux.rs)     ← reads @pane_* via `tmux list-panes -a`
-    → group_panes_by_repo() (group.rs)
+    → group_panes_by_repo_cached() (group.rs) ← git info per path, reused for 3s
     → rebuild_row_targets()          ← list_items(): pins, repo/recent order,
                                         GlobalState filters, or search hits
     → refresh_activity_data()        ← reads /tmp activity logs
     → refresh_task_progress()        ← updates PaneRuntimeState.task_progress
-    → refresh_port_data()            ← updates PaneRuntimeState.ports
-    → scan_session_process_snapshot() ← detects dead panes and clears stale tmux metadata
+    → queue_port_scan_if_due()       ← every 10s while visible: asks the port thread
+                                        for a `ps` + `lsof` scan
+                        ↓
+  → port_rx.try_recv()               ← apply_port_scan(): PaneRuntimeState.ports /
+                                        command; clears the tmux metadata of panes
+                                        whose agent is gone, then re-syncs
                         ↓
   → git_rx.try_recv()                ← receives GitData from background thread
   → digest_rx.try_recv()             ← receives transcript digests (Claude)
@@ -388,6 +392,7 @@ struct RefreshTimers {
     last_filter_click: Instant,
     last_port_refresh: Instant,
     port_scan_initialized: bool,
+    port_scan_in_flight: bool,
 }
 
 /// All fields for the ⓘ notices button and its popup.

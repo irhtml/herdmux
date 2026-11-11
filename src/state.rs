@@ -34,6 +34,7 @@ pub(crate) use notices::debug_forced_display;
 pub use notices::{ClaudePluginNotice, NoticesCopyTarget, NoticesMissingHookGroup, NoticesState};
 pub use pane_runtime::{PaneRuntimeMap, PaneRuntimeState};
 pub use popup::{PopupState, SpawnField};
+pub use refresh::sweep_dead_bg_shells;
 #[cfg(test)]
 pub(crate) use refresh::{TaskProgressDecision, classify_task_progress};
 pub use rows::{
@@ -98,6 +99,14 @@ pub struct AppState {
     /// Periodic-refresh clocks (port scan, session-name scan, filter
     /// debounce, port-scan first-run flag).
     pub timers: RefreshTimers,
+    /// Sessions waiting to be handed to the port thread; see
+    /// `queue_port_scan_if_due`.
+    pub(crate) port_scan_request: Option<Vec<crate::tmux::SessionInfo>>,
+    /// Sessions waiting to be handed to the background-shell sweep
+    /// thread; see `sweep_dead_bg_shells_if_due`.
+    pub(crate) bg_shell_sweep_request: Option<Vec<crate::tmux::SessionInfo>>,
+    /// Git info per pane path, kept across snapshots for a few seconds.
+    pub(crate) git_info_cache: crate::group::GitInfoCache,
     /// Current popup state. At most one popup is open at a time; the enum
     /// variant encodes both which popup is open and its per-popup data.
     pub popup: PopupState,
@@ -207,6 +216,9 @@ impl AppState {
             merge_requests: MergeRequestsState::new(),
             pane_states: PaneRuntimeMap::new(),
             timers: RefreshTimers::default(),
+            port_scan_request: None,
+            bg_shell_sweep_request: None,
+            git_info_cache: crate::group::GitInfoCache::default(),
             popup: PopupState::None,
             spawn_job: None,
             notices: NoticesState::default(),

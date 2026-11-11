@@ -12,13 +12,17 @@ use std::time::Instant;
 pub struct RefreshTimers {
     /// Last time a mouse click was processed on the filter bar (debounce).
     pub last_filter_click: Instant,
-    /// Timestamp of the last port/command scan.
+    /// When the last port/command scan was requested.
     pub last_port_refresh: Instant,
-    /// Whether the first port scan has completed; the first scan must
-    /// always run regardless of the elapsed-time gate.
+    /// Whether a port scan has been requested yet; the first one is
+    /// requested regardless of the elapsed-time gate.
     pub port_scan_initialized: bool,
+    /// A requested port scan has not reported back yet.
+    pub port_scan_in_flight: bool,
     /// Timestamp of the last background-shell liveness sweep.
     pub last_bg_shell_sweep: Option<Instant>,
+    /// A sweep handed to the sweep thread has not reported back yet.
+    pub bg_shell_sweep_in_flight: bool,
     /// Timestamp of the last full tmux snapshot (`refresh_tick`). Gates
     /// the slow cadence of sidebars whose window no client is viewing.
     pub last_full_sync: Option<Instant>,
@@ -35,7 +39,9 @@ impl Default for RefreshTimers {
             last_filter_click: now,
             last_port_refresh: now,
             port_scan_initialized: false,
+            port_scan_in_flight: false,
             last_bg_shell_sweep: None,
+            bg_shell_sweep_in_flight: false,
             last_full_sync: None,
             hidden_ticks: 0,
         }

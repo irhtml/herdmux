@@ -18,6 +18,19 @@ mod render;
 mod setup;
 mod workers;
 
+/// Least time between two refreshes asked for by SIGUSR1. The first signal
+/// after a quiet spell is served at once; hooks of several busy agents can
+/// then signal many times a second, and each refresh costs a few tmux and
+/// git processes.
+const SIGNAL_REFRESH_SPACING: Duration = Duration::from_millis(100);
+
+/// How long a pending SIGUSR1 refresh still has to wait at `now`.
+fn signal_refresh_delay(last: Option<std::time::Instant>, now: std::time::Instant) -> Duration {
+    last.map_or(Duration::ZERO, |last| {
+        SIGNAL_REFRESH_SPACING.saturating_sub(now.duration_since(last))
+    })
+}
+
 /// Run the TUI event loop. Returns when the loop exits (currently only on
 /// fatal I/O error, since the loop is `loop { ... }`).
 ///
@@ -50,6 +63,10 @@ pub fn run(
         transcript_sessions,
         digest_rx,
         transcripts_active,
+        port_requests,
+        port_rx,
+        bg_sweep_requests,
+        bg_sweep_rx,
     } = workers;
     // Last session list sent to the transcript thread, and the snapshot
     // it was computed from.
@@ -59,6 +76,7 @@ pub fn run(
     let mut git_pane = state.focus_state.focused_pane_id.clone();
 
     let mut last_refresh = std::time::Instant::now();
+    let mut last_signal_refresh: Option<std::time::Instant> = None;
     let mut last_spinner = std::time::Instant::now();
     let refresh_interval = Duration::from_secs(1);
     let spinner_interval = Duration::from_millis(200);
@@ -76,7 +94,8 @@ pub fn run(
         let refresh_timeout = refresh_interval.saturating_sub(last_refresh.elapsed());
         let spinner_timeout = spinner_interval.saturating_sub(last_spinner.elapsed());
         let timeout = if needs_refresh.load(Ordering::Relaxed) {
-            Duration::ZERO
+            signal_refresh_delay(last_signal_refresh, std::time::Instant::now())
+                .min(Duration::from_millis(16))
         } else {
             refresh_timeout
                 .min(spinner_timeout)
@@ -108,7 +127,15 @@ pub fn run(
             }
         }
 
-        let sigusr1 = needs_refresh.swap(false, Ordering::Relaxed);
+        // A burst of signals (several agents reporting at once) is served
+        // as one refresh per `SIGNAL_REFRESH_SPACING`; the flag stays set
+        // until then.
+        let signal_due =
+            signal_refresh_delay(last_signal_refresh, std::time::Instant::now()).is_zero();
+        let sigusr1 = signal_due && needs_refresh.swap(false, Ordering::Relaxed);
+        if sigusr1 {
+            last_signal_refresh = Some(std::time::Instant::now());
+        }
         if sigusr1 || last_refresh.elapsed() >= refresh_interval {
             let outcome = state.refresh_tick(sigusr1);
             window_visible = outcome.window_visible;
@@ -122,6 +149,30 @@ pub fn run(
                 Ordering::Relaxed,
             );
             last_refresh = std::time::Instant::now();
+        }
+
+        // The port scan runs off this thread; a tick only asks for it.
+        if let Some(sessions) = state.take_port_scan_request() {
+            let _ = port_requests.send(sessions);
+        }
+        while let Ok(scan) = port_rx.try_recv() {
+            // A cleared dead agent is still in the list until the next
+            // snapshot, so take one right away.
+            if state.apply_port_scan(scan) {
+                needs_refresh.store(true, Ordering::Relaxed);
+            }
+            needs_redraw = true;
+        }
+
+        if let Some(sessions) = state.take_bg_shell_sweep_request() {
+            let _ = bg_sweep_requests.send(sessions);
+        }
+        while let Ok(cleared) = bg_sweep_rx.try_recv() {
+            state.bg_shell_sweep_done();
+            // The sweep changed pane options; show them now.
+            if cleared {
+                needs_refresh.store(true, Ordering::Relaxed);
+            }
         }
 
         // Input can change focus before the periodic refresh, so compare
@@ -190,5 +241,26 @@ pub fn run(
         state
             .global
             .flush_pending_cursor_save(std::time::Duration::from_millis(120));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Instant;
+
+    #[test]
+    fn first_signal_refresh_runs_at_once() {
+        assert!(signal_refresh_delay(None, Instant::now()).is_zero());
+    }
+
+    #[test]
+    fn signal_refreshes_are_spaced_out() {
+        let last = Instant::now();
+        assert_eq!(
+            signal_refresh_delay(Some(last), last + SIGNAL_REFRESH_SPACING / 4),
+            SIGNAL_REFRESH_SPACING / 4 * 3
+        );
+        assert!(signal_refresh_delay(Some(last), last + SIGNAL_REFRESH_SPACING).is_zero());
     }
 }

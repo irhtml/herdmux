@@ -64,6 +64,9 @@ pub(super) fn handle_activity_log(
         if existing_started.is_empty() {
             tmux::set_pane_option(pane, tmux::PANE_STARTED_AT, &now_epoch_secs().to_string());
         }
+        // The row changes state (an approved permission, say), unlike the
+        // tool calls that follow while it is already running.
+        tmux::notify_sidebars();
     }
 
     // Update permission mode when plan mode tools are used.

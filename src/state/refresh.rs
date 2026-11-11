@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 use crate::activity::{self, TaskProgress};
@@ -22,6 +22,9 @@ pub const HIDDEN_SYNC_INTERVAL: Duration = Duration::from_secs(10);
 /// its next snapshot. A single hidden tick is not enough: hook processing
 /// can make the probe flicker for one tick while the user is still there.
 const GLOBAL_RELOAD_HIDDEN_TICKS: u32 = 2;
+
+/// How often a visible sidebar asks the port thread for a new scan.
+const PORT_REFRESH_INTERVAL: Duration = Duration::from_secs(10);
 
 /// What a refresh tick did, so the event loop can skip the redraw and the
 /// focus-change git fetch when nothing was re-synced.
@@ -139,7 +142,8 @@ impl AppState {
         } else {
             sessions
         };
-        self.repo_groups = crate::group::group_panes_by_repo(&sessions);
+        self.repo_groups =
+            crate::group::group_panes_by_repo_cached(&sessions, &mut self.git_info_cache);
         self.snapshot_gen = self.snapshot_gen.wrapping_add(1);
         // The snapshot rebuilds every pane, so the `/rename` names go back
         // on each time, before the rows and search hits are built.
@@ -172,29 +176,6 @@ impl AppState {
         }
 
         let _ = std::fs::remove_file(activity::log_file_path(pane_id));
-    }
-
-    fn filter_sessions_to_live_agent_panes(
-        sessions: Vec<SessionInfo>,
-        live_agent_panes: &HashSet<String>,
-    ) -> Vec<SessionInfo> {
-        let mut out = Vec::new();
-        for mut session in sessions {
-            let mut windows = Vec::new();
-            for mut window in session.windows {
-                window
-                    .panes
-                    .retain(|pane| live_agent_panes.contains(&pane.pane_id));
-                if !window.panes.is_empty() {
-                    windows.push(window);
-                }
-            }
-            if !windows.is_empty() {
-                session.windows = windows;
-                out.push(session);
-            }
-        }
-        out
     }
 
     /// The session-scope filter: keep the tmux session named `own`, plus
@@ -268,26 +249,17 @@ impl AppState {
             self.own_session_name = tmux::pane_session_name(&self.tmux_pane);
         }
         let focused = info.focused;
-        let (mut sessions, mut process_snapshot) = tmux::query_sessions_with_process_snapshot();
-        self.sweep_dead_bg_shells_if_due(&mut sessions, &mut process_snapshot);
-        // The port scan (`lsof` + a `ps` snapshot) is the most expensive
-        // thing a tick does, and ports / per-pane commands are display-only,
-        // so a hidden sidebar skips it. It catches up on its first visible
-        // tick: the 10s gate inside `refresh_port_data` is due by then.
-        let port_snapshot = if info.visible {
-            self.refresh_port_data(&sessions, process_snapshot.as_ref())
-        } else {
-            None
-        };
-        if let Some(process_snapshot) = port_snapshot {
-            let sessions = Self::filter_sessions_to_live_agent_panes(
-                sessions,
-                &process_snapshot.live_agent_panes,
-            );
-            self.apply_session_snapshot(focused, sessions);
-        } else {
-            self.apply_session_snapshot(focused, sessions);
+        let (mut sessions, process_snapshot) = tmux::query_sessions_with_process_snapshot();
+        self.sweep_dead_bg_shells_if_due(&mut sessions, process_snapshot.as_ref());
+        // The port scan (`lsof` + a `ps` snapshot) takes a few hundred
+        // milliseconds on a busy machine, so it runs on a worker thread and
+        // this tick only asks for it. Ports / per-pane commands are
+        // display-only, so a hidden sidebar does not ask. It catches up on
+        // its first visible tick: the 10s gate is due by then.
+        if info.visible {
+            self.queue_port_scan_if_due(&sessions);
         }
+        self.apply_session_snapshot(focused, sessions);
         // Local only: nobody is looking, so this is not a user move.
         if let Some(row) = search_ended_on.and_then(|id| self.row_of(&id)) {
             self.global.selected_pane_row = row;
@@ -324,52 +296,55 @@ impl AppState {
         }
     }
 
-    pub(crate) fn refresh_port_data(
-        &mut self,
-        sessions: &[SessionInfo],
-        process_snapshot: Option<&ProcessSnapshot>,
-    ) -> Option<crate::port::PaneProcessSnapshot> {
-        const PORT_REFRESH_INTERVAL: Duration = Duration::from_secs(10);
+    /// Ask for a port scan of `sessions` when none is running and the
+    /// last one was requested [`PORT_REFRESH_INTERVAL`] ago, or never.
+    /// The event loop hands the request to the port thread
+    /// ([`Self::take_port_scan_request`]).
+    pub(crate) fn queue_port_scan_if_due(&mut self, sessions: &[SessionInfo]) {
+        let due = !self.timers.port_scan_initialized
+            || self.timers.last_port_refresh.elapsed() >= PORT_REFRESH_INTERVAL;
+        if self.timers.port_scan_in_flight || !due || sessions.is_empty() {
+            return;
+        }
+        self.port_scan_request = Some(sessions.to_vec());
+        self.timers.port_scan_in_flight = true;
+        self.timers.port_scan_initialized = true;
+        self.timers.last_port_refresh = Instant::now();
+    }
 
-        if !self.timers.port_scan_initialized
-            || self.timers.last_port_refresh.elapsed() >= PORT_REFRESH_INTERVAL
-        {
-            let scanned = crate::port::scan_session_process_snapshot(sessions, process_snapshot)?;
-            let mut updates: Vec<(String, Vec<u16>, Option<String>)> = Vec::new();
-            let mut dead_panes: Vec<String> = Vec::new();
-            for session in sessions {
-                for window in &session.windows {
-                    for pane in &window.panes {
-                        if !scanned.live_agent_panes.contains(&pane.pane_id) {
-                            dead_panes.push(pane.pane_id.clone());
-                        }
-                        updates.push((
-                            pane.pane_id.clone(),
-                            scanned
-                                .ports_by_pane
-                                .get(&pane.pane_id)
-                                .cloned()
-                                .unwrap_or_default(),
-                            scanned.command_by_pane.get(&pane.pane_id).cloned(),
-                        ));
-                    }
-                }
-            }
-            for (pane_id, ports, command) in updates {
+    /// The sessions the port thread should scan next, if a scan is due.
+    pub fn take_port_scan_request(&mut self) -> Option<Vec<SessionInfo>> {
+        self.port_scan_request.take()
+    }
+
+    /// Apply a finished port scan: ports and commands per pane, and the
+    /// cleanup of panes whose agent process is gone. Returns whether a
+    /// dead agent was cleared, in which case the caller should re-sync so
+    /// its row leaves the list.
+    pub fn apply_port_scan(&mut self, scan: crate::port::PortScan) -> bool {
+        self.timers.port_scan_in_flight = false;
+        // A failed scan says nothing about the panes; the next one is
+        // due after the usual interval.
+        let Some(scanned) = scan.snapshot else {
+            return false;
+        };
+        let mut cleared = false;
+        for pane_id in scan.pane_ids {
+            if scanned.live_agent_panes.contains(&pane_id) {
                 let pane_state = self.pane_state_mut(&pane_id);
-                pane_state.ports = ports;
-                pane_state.command = command;
-            }
-            for pane_id in dead_panes {
+                pane_state.ports = scanned
+                    .ports_by_pane
+                    .get(&pane_id)
+                    .cloned()
+                    .unwrap_or_default();
+                pane_state.command = scanned.command_by_pane.get(&pane_id).cloned();
+            } else {
                 Self::clear_dead_agent_metadata(&pane_id);
                 self.clear_pane_state(&pane_id);
+                cleared = true;
             }
-            self.timers.port_scan_initialized = true;
-            self.timers.last_port_refresh = std::time::Instant::now();
-            return Some(scanned);
         }
-
-        None
+        cleared
     }
 
     pub(crate) fn refresh_task_progress(&mut self) {
@@ -466,11 +441,14 @@ impl AppState {
 
     /// Run the background-shell liveness sweep at most once per
     /// `BG_SHELL_SWEEP_INTERVAL`. The first call always runs so the
-    /// initial pane state is accurate.
+    /// initial pane state is accurate. With the tick's own process
+    /// snapshot at hand the sweep runs here; otherwise it needs a `ps`
+    /// scan, which is left to the sweep thread
+    /// ([`Self::take_bg_shell_sweep_request`]).
     fn sweep_dead_bg_shells_if_due(
         &mut self,
         sessions: &mut [SessionInfo],
-        process_snapshot: &mut Option<ProcessSnapshot>,
+        process_snapshot: Option<&ProcessSnapshot>,
     ) {
         const BG_SHELL_SWEEP_INTERVAL: Duration = Duration::from_secs(5);
         let should_run = self
@@ -480,8 +458,26 @@ impl AppState {
         if !should_run {
             return;
         }
-        sweep_dead_bg_shells(sessions, process_snapshot);
+        if let Some(snapshot) = process_snapshot {
+            clear_dead_bg_shells(sessions, snapshot);
+        } else if self.timers.bg_shell_sweep_in_flight {
+            return;
+        } else if has_bg_shells(sessions) {
+            self.bg_shell_sweep_request = Some(sessions.to_vec());
+            self.timers.bg_shell_sweep_in_flight = true;
+        }
         self.timers.last_bg_shell_sweep = Some(std::time::Instant::now());
+    }
+
+    /// The sessions the sweep thread should check for dead background
+    /// shells, if a sweep is due.
+    pub fn take_bg_shell_sweep_request(&mut self) -> Option<Vec<SessionInfo>> {
+        self.bg_shell_sweep_request.take()
+    }
+
+    /// The sweep thread finished the last request.
+    pub fn bg_shell_sweep_done(&mut self) {
+        self.timers.bg_shell_sweep_in_flight = false;
     }
 
     pub(crate) fn refresh_activity_log(&mut self) {
@@ -507,24 +503,35 @@ impl AppState {
     }
 }
 
-pub(crate) fn sweep_dead_bg_shells(
-    sessions: &mut [SessionInfo],
-    process_snapshot: &mut Option<ProcessSnapshot>,
-) {
-    let has_any = sessions
+fn has_bg_shells(sessions: &[SessionInfo]) -> bool {
+    sessions
         .iter()
         .flat_map(|s| s.windows.iter())
         .flat_map(|w| w.panes.iter())
-        .any(|p| p.bg_shell_cmd.is_some());
-    if !has_any {
-        return;
+        .any(|p| p.bg_shell_cmd.is_some())
+}
+
+/// Scan the process table and clear the background-shell marker of every
+/// pane whose shell is gone. Blocks on `ps`, so it runs on the sweep
+/// thread. Returns whether a marker was cleared.
+pub fn sweep_dead_bg_shells(sessions: &mut [SessionInfo]) -> bool {
+    if !has_bg_shells(sessions) {
+        return false;
     }
-    if process_snapshot.is_none() {
-        *process_snapshot = ProcessSnapshot::scan();
-    }
-    if let Some(snapshot) = process_snapshot.as_ref() {
-        clear_dead_bg_shells(sessions, snapshot);
-    }
+    let Some(snapshot) = ProcessSnapshot::scan() else {
+        return false;
+    };
+    let marked = |sessions: &[SessionInfo]| {
+        sessions
+            .iter()
+            .flat_map(|s| s.windows.iter())
+            .flat_map(|w| w.panes.iter())
+            .filter(|p| p.bg_shell_cmd.is_some())
+            .count()
+    };
+    let before = marked(sessions);
+    clear_dead_bg_shells(sessions, &snapshot);
+    marked(sessions) != before
 }
 
 pub(crate) fn clear_dead_bg_shells(
@@ -595,6 +602,7 @@ mod tests {
     use crate::tmux::{
         AgentType, PaneInfo, PaneStatus, PermissionMode, SessionInfo, WindowInfo, WorktreeMetadata,
     };
+    use std::collections::HashSet;
 
     fn test_pane(id: &str) -> PaneInfo {
         PaneInfo {
@@ -943,26 +951,105 @@ mod tests {
     }
 
     #[test]
-    fn filter_sessions_to_live_agent_panes_removes_dead_panes() {
-        let sessions = test_session(vec![test_pane("%1"), test_pane("%2")]);
-        let live = HashSet::from(["%2".to_string()]);
+    fn bg_shell_sweep_without_a_process_snapshot_goes_to_the_sweep_thread() {
+        let mut state = AppState::new("%99".into());
+        let mut sessions =
+            test_session(vec![pane_with_bg("%1", "sleep 30", PaneStatus::Background)]);
 
-        let filtered = AppState::filter_sessions_to_live_agent_panes(sessions, &live);
+        state.sweep_dead_bg_shells_if_due(&mut sessions, None);
+        let request = state.take_bg_shell_sweep_request().expect("sweep is due");
+        assert_eq!(request[0].windows[0].panes[0].pane_id, "%1");
+        // The tick itself leaves the pane alone.
+        assert!(sessions[0].windows[0].panes[0].bg_shell_cmd.is_some());
 
-        assert_eq!(filtered.len(), 1);
-        assert_eq!(filtered[0].windows.len(), 1);
-        assert_eq!(filtered[0].windows[0].panes.len(), 1);
-        assert_eq!(filtered[0].windows[0].panes[0].pane_id, "%2");
+        // Not again until the thread reports back, even once due.
+        state.timers.last_bg_shell_sweep = None;
+        state.sweep_dead_bg_shells_if_due(&mut sessions, None);
+        assert!(state.take_bg_shell_sweep_request().is_none());
+
+        state.bg_shell_sweep_done();
+        state.sweep_dead_bg_shells_if_due(&mut sessions, None);
+        assert!(state.take_bg_shell_sweep_request().is_some());
     }
 
     #[test]
-    fn filter_sessions_to_live_agent_panes_drops_empty_sessions() {
+    fn bg_shell_sweep_is_not_requested_without_background_shells() {
+        let mut state = AppState::new("%99".into());
+        let mut sessions = test_session(vec![test_pane("%1")]);
+        state.sweep_dead_bg_shells_if_due(&mut sessions, None);
+        assert!(state.take_bg_shell_sweep_request().is_none());
+    }
+
+    // ─── port scan ──────────────────────────────────────────────────
+
+    #[test]
+    fn port_scan_is_requested_once_until_its_result_arrives() {
+        let mut state = AppState::new("%99".into());
         let sessions = test_session(vec![test_pane("%1")]);
-        let live = HashSet::new();
 
-        let filtered = AppState::filter_sessions_to_live_agent_panes(sessions, &live);
+        state.queue_port_scan_if_due(&sessions);
+        let request = state.take_port_scan_request().expect("first scan is due");
+        assert_eq!(request[0].windows[0].panes[0].pane_id, "%1");
 
-        assert!(filtered.is_empty());
+        // Still running: nothing new is asked for.
+        state.timers.last_port_refresh = Instant::now() - PORT_REFRESH_INTERVAL;
+        state.queue_port_scan_if_due(&sessions);
+        assert!(state.take_port_scan_request().is_none());
+
+        // Reported back, and the interval has passed: due again.
+        state.apply_port_scan(crate::port::PortScan::default());
+        state.queue_port_scan_if_due(&sessions);
+        assert!(state.take_port_scan_request().is_some());
+    }
+
+    #[test]
+    fn port_scan_waits_for_the_interval_and_for_panes() {
+        let mut state = AppState::new("%99".into());
+        state.queue_port_scan_if_due(&[]);
+        assert!(state.take_port_scan_request().is_none());
+
+        let sessions = test_session(vec![test_pane("%1")]);
+        state.queue_port_scan_if_due(&sessions);
+        assert!(state.take_port_scan_request().is_some());
+        state.apply_port_scan(crate::port::PortScan::default());
+
+        state.queue_port_scan_if_due(&sessions);
+        assert!(state.take_port_scan_request().is_none());
+    }
+
+    #[test]
+    fn apply_port_scan_sets_ports_and_clears_dead_agents() {
+        let _guard = tmux::test_mock::install();
+        let mut state = AppState::new("%99".into());
+        state.pane_state_mut("%99902").ports = vec![1234];
+        let scan = crate::port::PortScan {
+            pane_ids: vec!["%99901".into(), "%99902".into()],
+            snapshot: Some(crate::port::PaneProcessSnapshot {
+                ports_by_pane: HashMap::from([("%99901".to_string(), vec![3000])]),
+                command_by_pane: HashMap::from([("%99901".to_string(), "vite".to_string())]),
+                live_agent_panes: HashSet::from(["%99901".to_string()]),
+            }),
+        };
+
+        assert!(state.apply_port_scan(scan), "a dead agent was cleared");
+
+        let live = state.pane_state("%99901").unwrap();
+        assert_eq!(live.ports, vec![3000]);
+        assert_eq!(live.command.as_deref(), Some("vite"));
+        assert!(state.pane_state("%99902").is_none());
+    }
+
+    #[test]
+    fn a_failed_port_scan_clears_nothing() {
+        let mut state = AppState::new("%99".into());
+        state.pane_state_mut("%1").ports = vec![1234];
+        let scan = crate::port::PortScan {
+            pane_ids: vec!["%1".into()],
+            snapshot: None,
+        };
+
+        assert!(!state.apply_port_scan(scan));
+        assert_eq!(state.pane_state("%1").unwrap().ports, vec![1234]);
     }
 
     // ─── refresh_session_names ──────────────────────────────────────

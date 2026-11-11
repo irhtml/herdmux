@@ -1,3 +1,6 @@
+use std::collections::{HashMap, HashSet};
+use std::time::{Duration, Instant};
+
 use indexmap::IndexMap;
 
 use crate::git::run_git;
@@ -78,28 +81,67 @@ pub fn resolve_pane_git_info(path: &str) -> PaneGitInfo {
     }
 }
 
+/// How long a path's git info is reused before git is asked again. The
+/// sidebar groups panes every second, and a `git rev-parse` per distinct
+/// path each time adds up; a branch switch shows within this delay.
+const GIT_INFO_TTL: Duration = Duration::from_secs(3);
+
+/// Git info per pane path, kept between [`group_panes_by_repo_cached`]
+/// calls for [`GIT_INFO_TTL`].
+#[derive(Debug, Default)]
+pub struct GitInfoCache {
+    entries: HashMap<String, (Instant, PaneGitInfo)>,
+}
+
+impl GitInfoCache {
+    /// The cached info for `path` while it is fresh at `now`, otherwise
+    /// whatever `resolve` returns, which is then cached.
+    fn get_or_resolve(
+        &mut self,
+        path: &str,
+        now: Instant,
+        resolve: impl FnOnce(&str) -> PaneGitInfo,
+    ) -> PaneGitInfo {
+        if let Some((at, info)) = self.entries.get(path)
+            && now.duration_since(*at) < GIT_INFO_TTL
+        {
+            return info.clone();
+        }
+        let info = resolve(path);
+        self.entries.insert(path.to_string(), (now, info.clone()));
+        info
+    }
+
+    /// Forget paths no pane is in any more.
+    fn retain_paths(&mut self, seen: &HashSet<&str>) {
+        self.entries.retain(|path, _| seen.contains(path.as_str()));
+    }
+}
+
 /// Group all panes across all sessions by repo root.
 /// Returns groups sorted alphabetically by display name (case-insensitive),
 /// so the order is stable regardless of which pane is encountered first.
 pub fn group_panes_by_repo(sessions: &[crate::tmux::SessionInfo]) -> Vec<RepoGroup> {
+    group_panes_by_repo_cached(sessions, &mut GitInfoCache::default())
+}
+
+/// [`group_panes_by_repo`] with the per-path git info reused from `cache`
+/// across calls.
+pub fn group_panes_by_repo_cached(
+    sessions: &[crate::tmux::SessionInfo],
+    cache: &mut GitInfoCache,
+) -> Vec<RepoGroup> {
     let mut groups: IndexMap<String, RepoGroup> = IndexMap::new();
-    let mut git_cache: std::collections::HashMap<String, PaneGitInfo> =
-        std::collections::HashMap::new();
+    let now = Instant::now();
+    let mut seen: HashSet<&str> = HashSet::new();
 
     for session in sessions {
         for window in &session.windows {
             for pane in &window.panes {
-                // Cache the base git info per path. `get` first avoids a key
-                // clone on cache hits; misses fall through to `insert` which
-                // owns the key plus the (expensive) git-command lookup.
-                let mut git_info = match git_cache.get(pane.path.as_str()) {
-                    Some(cached) => cached.clone(),
-                    None => {
-                        let resolved = resolve_pane_git_info(&pane.path);
-                        git_cache.insert(pane.path.clone(), resolved.clone());
-                        resolved
-                    }
-                };
+                // The base git info costs a git command per path, so it
+                // comes from the cache while fresh.
+                seen.insert(pane.path.as_str());
+                let mut git_info = cache.get_or_resolve(&pane.path, now, resolve_pane_git_info);
 
                 // Override with hook-provided worktree info (Claude Code
                 // provides this; Codex does not, so the git-command base
@@ -141,6 +183,8 @@ pub fn group_panes_by_repo(sessions: &[crate::tmux::SessionInfo]) -> Vec<RepoGro
         }
     }
 
+    cache.retain_paths(&seen);
+
     let mut result: Vec<RepoGroup> = groups.into_values().collect();
     result.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
     result
@@ -159,6 +203,43 @@ fn resolve_git_path(base: &str, git_path: &str) -> std::path::PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn info_on(branch: &str) -> PaneGitInfo {
+        PaneGitInfo {
+            branch: Some(branch.into()),
+            ..PaneGitInfo::default()
+        }
+    }
+
+    #[test]
+    fn git_info_cache_reuses_a_fresh_entry_and_resolves_again_once_stale() {
+        let mut cache = GitInfoCache::default();
+        let start = Instant::now();
+        let first = cache.get_or_resolve("/repo", start, |_| info_on("main"));
+        assert_eq!(first.branch.as_deref(), Some("main"));
+
+        let fresh = cache.get_or_resolve("/repo", start + GIT_INFO_TTL / 2, |_| {
+            panic!("a fresh entry must not ask git")
+        });
+        assert_eq!(fresh.branch.as_deref(), Some("main"));
+
+        let stale = cache.get_or_resolve("/repo", start + GIT_INFO_TTL, |_| info_on("feature"));
+        assert_eq!(stale.branch.as_deref(), Some("feature"));
+    }
+
+    #[test]
+    fn git_info_cache_forgets_paths_without_panes() {
+        let mut cache = GitInfoCache::default();
+        let now = Instant::now();
+        cache.get_or_resolve("/kept", now, |_| info_on("main"));
+        cache.get_or_resolve("/gone", now, |_| info_on("main"));
+
+        cache.retain_paths(&HashSet::from(["/kept"]));
+
+        cache.get_or_resolve("/kept", now, |_| panic!("still cached"));
+        let again = cache.get_or_resolve("/gone", now, |_| info_on("other"));
+        assert_eq!(again.branch.as_deref(), Some("other"));
+    }
 
     /// A throwaway main checkout with one commit, so the tests do not depend
     /// on where this source tree is checked out (a linked worktree is not a

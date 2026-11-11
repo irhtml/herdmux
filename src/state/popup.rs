@@ -782,8 +782,8 @@ mod tests {
             })
             .collect::<Vec<_>>()
             .join("\n");
-        insta::assert_snapshot!(output, @r"
-         ≡0  ◆0  ●0  ◎0  ◐0  ○0  ✕0
+        insta::assert_snapshot!(output, @"
+         ≡0
                                      — ▾
 
 

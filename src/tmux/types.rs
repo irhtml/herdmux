@@ -67,6 +67,20 @@ impl PaneInfo {
     pub fn needs_user(&self) -> bool {
         self.status == PaneStatus::Waiting || self.has_unread_reply()
     }
+
+    /// How much the agent wants the user, highest first: failed, waiting
+    /// on the user, replied unread, working, resting. Orders the priority
+    /// list and picks the state a repository header shows.
+    pub fn urgency(&self) -> u8 {
+        match self.status {
+            PaneStatus::Error => 4,
+            PaneStatus::Waiting => 3,
+            _ if self.attention => 3,
+            _ if self.has_unread_reply() => 2,
+            PaneStatus::Running | PaneStatus::Background => 1,
+            PaneStatus::Idle | PaneStatus::Unknown => 0,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default)]

@@ -24,7 +24,7 @@ Shift+Tab: Switch Activity/Git/MRs\n\
 \n\
 Agent list\n\
 v: Toggle compact/full rows\n\
-o: Toggle repo/recent order\n\
+o: Cycle repo/recent/priority order\n\
 p: Pin/unpin selected agent\n\
 n: Spawn worktree and agent\n\
 x: Remove spawned pane/worktree\n\

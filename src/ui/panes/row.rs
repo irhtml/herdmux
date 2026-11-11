@@ -26,6 +26,7 @@ use status::status_row;
 
 pub(super) use branch::sidebar_remove_marker_col;
 pub(super) use parked::render_parked_lines;
+pub(super) use status::row_icon;
 
 /// What the agent list knows about a row beyond the pane itself.
 #[derive(Debug, Default, Clone, Copy)]
@@ -108,12 +109,16 @@ pub(super) fn render_compact_lines(
 ) -> Vec<Line<'static>> {
     let unread = pane.has_unread_reply();
     let (marker_char, marker_style) = head_marker(pane, active, theme);
+    let bg = active.then_some(theme.focus_bg);
     let marker_ctx = RowCtx {
         marker_char,
-        marker_style,
+        marker_style: match bg {
+            Some(c) => marker_style.bg(c),
+            None => marker_style,
+        },
         inner_width: width.saturating_sub(2),
         theme,
-        bg: None,
+        bg,
         active,
         unread,
     };
@@ -130,6 +135,7 @@ pub(super) fn render_compact_lines(
         let plain_ctx = RowCtx {
             marker_char,
             marker_style,
+            bg: None,
             ..marker_ctx
         };
         out.push(snippet_row(snippet, &plain_ctx));
@@ -152,8 +158,11 @@ pub(super) fn render_pane_lines(
     now: u64,
     extras: &RowExtras<'_>,
 ) -> Vec<Line<'static>> {
+    // The cursor row wins over the tint of the agent focused in tmux.
     let bg = if selected {
         Some(theme.selection_bg)
+    } else if active {
+        Some(theme.focus_bg)
     } else {
         None
     };

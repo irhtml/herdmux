@@ -15,16 +15,65 @@ pub(super) const PIN_GLYPH: &str = "★";
 /// Longest repository name shown on a row that is not under its header.
 pub(super) const ROW_REPO_MAX_WIDTH: usize = 16;
 
-/// Right-hand time label of an agent row: the running time of the current
-/// turn while the agent works, otherwise how long ago it was last active.
+/// Width a name may claim before the time label keeps its status word.
+const NAME_SHARE: usize = 24;
+
+/// Right-hand time of an agent row, without a status word: the running time
+/// of the current turn while the agent works, otherwise how long ago it was
+/// last active.
+fn short_time_label(pane: &crate::tmux::PaneInfo, last_active: Option<u64>, now: u64) -> String {
+    match last_active {
+        Some(at) if !pane.status.is_active() && at > 0 => age_label(now.saturating_sub(at)),
+        _ => elapsed_label(pane.started_at, now),
+    }
+}
+
+/// Right-hand time label of an agent row. A working agent reads
+/// `working 1m23s` and a resting one `9m ago`, so the two are told apart
+/// without reading the icon. `room` is the width left for the label once
+/// the name has its share; a label that does not fit loses its word.
 pub(super) fn time_label(
     pane: &crate::tmux::PaneInfo,
     last_active: Option<u64>,
     now: u64,
+    room: usize,
 ) -> String {
-    match last_active {
-        Some(at) if !pane.status.is_active() && at > 0 => age_label(now.saturating_sub(at)),
-        _ => elapsed_label(pane.started_at, now),
+    let short = short_time_label(pane, last_active, now);
+    if short.is_empty() {
+        return short;
+    }
+    let long = match pane.status {
+        PaneStatus::Running => format!("working {short}"),
+        PaneStatus::Background => format!("background {short}"),
+        PaneStatus::Waiting => format!("waiting {short}"),
+        _ if last_active.is_some_and(|at| at > 0) => format!("{short} ago"),
+        _ => return short,
+    };
+    if display_width(&long) <= room {
+        long
+    } else {
+        short
+    }
+}
+
+/// Width left for the time label of a row whose name is `name_width` wide
+/// and whose other fixed parts take `fixed_width` (the gap before the label
+/// included).
+pub(super) fn time_label_room(inner_width: usize, fixed_width: usize, name_width: usize) -> usize {
+    inner_width.saturating_sub(fixed_width + name_width.min(NAME_SHARE))
+}
+
+/// Color of the time label: the status color while the agent works, so the
+/// label stands out from the muted age of a resting agent.
+pub(super) fn time_label_color(
+    pane: &crate::tmux::PaneInfo,
+    theme: &crate::ui::colors::ColorTheme,
+    resting: Color,
+) -> Color {
+    if pane.status.is_active() {
+        theme.status_color(&pane.status, pane.attention)
+    } else {
+        resting
     }
 }
 
@@ -46,14 +95,8 @@ pub(super) fn status_row(
         &pane.session_name
     };
     let badge = pane.permission_mode.badge();
-    let elapsed = time_label(pane, extras.last_active, now);
-
     let title_fg = theme.agent_color(&pane.agent);
-    let elapsed_fg = if pane.status.is_active() {
-        theme.text_active
-    } else {
-        theme.text_muted
-    };
+    let elapsed_fg = time_label_color(pane, theme, theme.text_muted);
 
     let pin = if pane.pinned {
         format!(" {PIN_GLYPH}")
@@ -71,6 +114,12 @@ pub(super) fn status_row(
         + badge_extra
         + display_width(badge)
         + display_width(&repo);
+    let elapsed = time_label(
+        pane,
+        extras.last_active,
+        now,
+        time_label_room(ctx.inner_width, fixed_width + 1, display_width(title_raw)),
+    );
     // User-supplied session names (set via `/rename`) can be arbitrarily
     // long; cap the title to the space left after reserving room for the
     // icon, badge, and elapsed label so they stay visible instead of
@@ -138,7 +187,7 @@ pub(super) fn status_row(
 
 /// Icon and color of a row's status. An idle or background agent whose
 /// reply waits for the user shows the unread icon; an error keeps its own.
-pub(super) fn row_icon<'a>(
+pub(in crate::ui::panes) fn row_icon<'a>(
     pane: &crate::tmux::PaneInfo,
     spinner_frame: usize,
     icons: &'a StatusIcons,

@@ -12,7 +12,7 @@ The sidebar renders one row per agent pane across all tmux sessions and windows.
 
 ## Filter bar
 
-The top row of the sidebar filters the agent list by status. Each entry is an icon + live count; selecting one hides rows whose status doesn't match.
+The top row of the sidebar filters the agent list by status. Each entry is an icon + live count; selecting one hides rows whose status doesn't match. Entries with a count of zero are left out, except `≡` and the selected one, so every number on the row says something.
 
 ### Status filter
 
@@ -24,7 +24,7 @@ The top row of the sidebar filters the agent list by status. Each entry is an ic
 - `○N`: idle
 - `✕N`: error
 
-Cycle with `h` / `l` (or `←` / `→`), or click an entry. `Tab` advances through the filter one step at a time. When the row does not fit the sidebar, the entries sit one space apart and empty ones are left out, except `≡` and the selected one.
+Cycle with `h` / `l` (or `←` / `→`), or click an entry. `Tab` advances through the filter one step at a time. A filter that is left out can still be reached with the keys. When the row does not fit the sidebar, the entries sit one space apart.
 
 ### Inbox
 
@@ -83,7 +83,9 @@ billing                                      +
 
 ### Order (`o`)
 
-By default agents are grouped under their repository, and the most recently active agent comes first: the repository with the latest activity sits at the top, and inside each repository the agents are listed newest first. A working agent counts as active now. `o` switches every sidebar between these groups and one list ordered by last activity (`@sidebar_sort`). Rows outside their repository group show the repository name.
+By default agents are grouped under their repository, and the most recently active agent comes first: the repository with the latest activity sits at the top, and inside each repository the agents are listed newest first. A working agent counts as active now. `o` steps every sidebar through three orders (`@sidebar_sort`): these groups, one list ordered by last activity, and one list with the agents that need you first (failed, waiting on you, replied unread, working, resting; the most recent first within each). Rows outside their repository group show the repository name.
+
+A repository header with more than one agent shows the status icon of the agent that most needs you, in the same order, so a group whose rows are scrolled away still says whether it wants attention. A group whose agents all rest shows no icon.
 
 ### Stale agents
 
@@ -145,7 +147,7 @@ Current Git branch for the pane's cwd. Claude updates dynamically through the `C
 
 ### Elapsed time / last active
 
-While the agent works or waits, the time since the last user prompt (`1m2s`). Once it is idle, how long ago it was last active (`12m`, `3h`, `2d`). Last active is the latest turn boundary the hooks recorded (`@pane_activity_at`) or the newest message in Claude's transcript, so a session resumed after a reboot keeps its real age.
+While the agent works or waits, the time since the last user prompt, with the state in front and in the status color (`working 1m2s`, `waiting 47s`, `background 12m47s`). Once it is idle, how long ago it was last active, muted (`12m ago`, `3h ago`, `2d ago`). On a row too narrow for both the name and the words, only the time is shown. Last active is the latest turn boundary the hooks recorded (`@pane_activity_at`) or the newest message in Claude's transcript, so a session resumed after a reboot keeps its real age.
 
 ### Task progress
 

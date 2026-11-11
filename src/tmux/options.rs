@@ -152,6 +152,7 @@ pub const SIDEBAR_COLOR_SESSION: &str = "@sidebar_color_session";
 pub const SIDEBAR_COLOR_PORT: &str = "@sidebar_color_port";
 pub const SIDEBAR_COLOR_WAIT_REASON: &str = "@sidebar_color_wait_reason";
 pub const SIDEBAR_COLOR_SELECTION: &str = "@sidebar_color_selection";
+pub const SIDEBAR_COLOR_FOCUS: &str = "@sidebar_color_focus";
 pub const SIDEBAR_COLOR_BRANCH: &str = "@sidebar_color_branch";
 pub const SIDEBAR_COLOR_TASK_PROGRESS: &str = "@sidebar_color_task_progress";
 pub const SIDEBAR_COLOR_SUBAGENT: &str = "@sidebar_color_subagent";

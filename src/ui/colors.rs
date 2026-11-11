@@ -32,6 +32,8 @@ pub struct ColorTheme {
     pub port: Color,
     pub wait_reason: Color,
     pub selection_bg: Color,
+    /// Background of the head lines of the agent focused in tmux.
+    pub focus_bg: Color,
     pub branch: Color,
     pub badge_danger: Color,
     pub badge_auto: Color,
@@ -77,6 +79,7 @@ impl Default for ColorTheme {
             port: Color::Indexed(246),
             wait_reason: Color::Indexed(221),
             selection_bg: Color::Indexed(239),
+            focus_bg: Color::Indexed(236),
             branch: Color::Indexed(109),
             badge_danger: Color::Indexed(167),
             badge_auto: Color::Indexed(221),
@@ -130,6 +133,7 @@ impl ColorTheme {
         theme.port = read(tmux::SIDEBAR_COLOR_PORT, theme.port);
         theme.wait_reason = read(tmux::SIDEBAR_COLOR_WAIT_REASON, theme.wait_reason);
         theme.selection_bg = read(tmux::SIDEBAR_COLOR_SELECTION, theme.selection_bg);
+        theme.focus_bg = read(tmux::SIDEBAR_COLOR_FOCUS, theme.focus_bg);
         theme.branch = read(tmux::SIDEBAR_COLOR_BRANCH, theme.branch);
         theme.task_progress = read(tmux::SIDEBAR_COLOR_TASK_PROGRESS, theme.task_progress);
         theme.subagent = read(tmux::SIDEBAR_COLOR_SUBAGENT, theme.subagent);

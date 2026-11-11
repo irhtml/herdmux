@@ -18,7 +18,7 @@ description: Every shortcut in the sidebar, the agent search, the worktree spawn
 | `s`            | Toggle between this session's agents and every session's      |
 | `/`            | Search agents in every session                                |
 | `v`            | Toggle compact and full rows                                  |
-| `o`            | Toggle repository groups and most-recent-first order          |
+| `o`            | Cycle repository groups, most-recent-first, needs-you-first   |
 | `p`            | Pin or unpin the selected agent                               |
 | `z`            | Park the selected agent (see [Park an agent](/features/park/)) |
 | `Enter`        | Jump to the selected pane                                     |

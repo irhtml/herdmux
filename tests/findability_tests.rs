@@ -75,17 +75,17 @@ fn compact_view_shows_one_line_per_agent_and_opens_the_cursor_row() {
 
     let output = render_to_string(&mut state, 44, 20);
     insta::assert_snapshot!(output, @"
-     ≡4  ◆0  ●1  ◎0  ◐0  ○3  ✕0
+     ≡4  ●1  ○3
                                              — ▾
-    storefront
-      ● PR 42 client impact                  23s
-      ○ PHP CVE research                      3h
+    storefront ●
+      ● PR 42 client impact          working 23s
+      ○ PHP CVE research                  3h ago
     billing
-      ○ claude                                2h
+      ○ claude                            2h ago
         Dockerfile security fix
         Waiting for prompt…
     checkout-api
-      ○ PHP 8.3 upgrade                       1d
+      ○ PHP 8.3 upgrade                   1d ago
     ");
 }
 
@@ -98,17 +98,17 @@ fn compact_view_opens_the_focused_agent_when_the_sidebar_is_not_focused() {
 
     let output = render_to_string(&mut state, 44, 20);
     insta::assert_snapshot!(output, @"
-     ≡4  ◆0  ●1  ◎0  ◐0  ○3  ✕0
+     ≡4  ●1  ○3
                                              — ▾
-    storefront
-      ● PR 42 client impact                  23s
-      ○ PHP CVE research                      3h
+    storefront ●
+      ● PR 42 client impact          working 23s
+      ○ PHP CVE research                  3h ago
     billing
-    ┃ ○ claude                                2h
+    ┃ ○ claude                            2h ago
         Dockerfile security fix
         Waiting for prompt…
     checkout-api
-      ○ PHP 8.3 upgrade                       1d
+      ○ PHP 8.3 upgrade                   1d ago
     ");
 }
 
@@ -124,14 +124,14 @@ fn recent_order_with_a_pinned_agent() {
 
     let output = render_to_string(&mut state, 44, 20);
     insta::assert_snapshot!(output, @"
-     ≡4  ◆0  ●1  ◎0  ◐0  ○3  ✕0
+     ≡4  ●1  ○3
                                              — ▾
     ★ pinned
-      ○ ★ PHP 8.3 upgrade        checkout-api 1d
+      ○ ★ PHP 8.3 upgrade    checkout-api 1d ago
     recent
       ● PR 42 client impact       storefront 23s
-      ○ Dockerfile security fix       billing 2h
-      ○ PHP CVE research           storefront 3h
+      ○ Dockerfile security fix   billing 2h ago
+      ○ PHP CVE research       storefront 3h ago
     ");
 }
 
@@ -145,21 +145,21 @@ fn full_view_pinned_group_names_the_repo() {
 
     let output = render_to_string(&mut state, 44, 30);
     insta::assert_snapshot!(output, @"
-     ≡4  ◆0  ●1  ◎0  ◐0  ○3  ✕0
+     ≡4  ●1  ○3
                                              — ▾
     ★ pinned
-      ○ ★ claude · billing                    2h
+      ○ ★ claude · billing                2h ago
         Dockerfile security fix
         Waiting for prompt…
-    storefront
-      ● claude                               23s
+    storefront ●
+      ● claude                       working 23s
         PR 42 client impact
         investigate PR 42
-      ○ claude                                3h
+      ○ claude                            3h ago
         PHP CVE research
         Waiting for prompt…
     checkout-api
-      ○ claude                                1d
+      ○ claude                            1d ago
         PHP 8.3 upgrade
         Waiting for prompt…
     ");
@@ -192,12 +192,12 @@ fn search_lists_matches_from_prompt_history_with_a_snippet() {
 
     let output = render_to_string(&mut state, 44, 20);
     insta::assert_snapshot!(output, @"
-     ≡4  ◆0  ●1  ◎0  ◐0  ○3  ✕0
+     ≡4  ●1  ○3
     / dockerfile█                              2
-      ○ claude · billing                      2h
+      ○ claude · billing                  2h ago
         Dockerfile security fix
         Waiting for prompt…
-      ○ PHP CVE research           storefront 3h
+      ○ PHP CVE research       storefront 3h ago
         ↳ rebuild the dockerfile on php 8.3
     ");
 }
@@ -214,7 +214,7 @@ fn search_with_no_match_says_so() {
 
     let output = render_to_string(&mut state, 44, 10);
     insta::assert_snapshot!(output, @"
-     ≡4  ◆0  ●1  ◎0  ◐0  ○3  ✕0
+     ≡4  ●1  ○3
     / kubernetes█                       no match
     ");
 }
@@ -244,10 +244,10 @@ fn full_row_uses_the_transcript_after_a_resume() {
 
     let output = render_to_string(&mut state, 44, 12);
     insta::assert_snapshot!(output, @"
-     ≡1  ◆0  ●0  ◎0  ◐0  ○1  ✕0
+     ≡1  ○1
                                              — ▾
     checkout-api
-      ○ claude auto                           5h
+      ○ claude auto                       5h ago
         PHP 8.3 upgrade
       ◇ we need to update this project to use
         php 8.3
@@ -267,11 +267,11 @@ fn stale_rows_are_dimmed() {
 
     let output = render_to_styled_string(&mut state, 30, 5);
     insta::assert_snapshot!(output, @"
-     ≡[fg:111]2[fg:255]  ◆[fg:245]0[fg:245]  ●[fg:245]0[fg:245]  ◎[fg:245]0[fg:245]  ◐[fg:245]0[fg:245]  ○[fg:245]2[fg:255]  ✕[fg:245]0[fg:245]
+     ≡[fg:111]2[fg:255]  ○[fg:245]2[fg:255]
                                —[fg:252] ▾[fg:252]
     c[fg:255]h[fg:255]e[fg:255]c[fg:255]k[fg:255]o[fg:255]u[fg:255]t[fg:255]-[fg:255]a[fg:255]p[fg:255]i[fg:255]
-      ○[fg:110] [fg:255]f[fg:255]r[fg:255]e[fg:255]s[fg:255]h[fg:255]                   [fg:252]1[fg:252]m[fg:252]
-      ○[fg:110] [fg:243]o[fg:243]l[fg:243]d[fg:243]                     [fg:243]1[fg:243]d[fg:243]
+      ○[fg:110] [fg:255]f[fg:255]r[fg:255]e[fg:255]s[fg:255]h[fg:255]               [fg:252]1[fg:252]m[fg:252] [fg:252]a[fg:252]g[fg:252]o[fg:252]
+      ○[fg:110] [fg:243]o[fg:243]l[fg:243]d[fg:243]                 [fg:243]1[fg:243]d[fg:243] [fg:243]a[fg:243]g[fg:243]o[fg:243]
     ");
 }
 
@@ -285,13 +285,13 @@ fn picker_shows_the_search_line_and_every_agent() {
 
     let output = render_to_string(&mut state, 60, 16);
     insta::assert_snapshot!(output, @"
-     ≡4  ◆0  ●1  ◎0  ◐0  ○3  ✕0
+     ≡4  ●1  ○3
     / █                                                        4
-      ● claude · storefront                                  23s
+      ● claude · storefront                          working 23s
         PR 42 client impact
         investigate PR 42
-      ○ Dockerfile security fix                       billing 2h
-      ○ PHP CVE research                           storefront 3h
-      ○ PHP 8.3 upgrade                          checkout-api 1d
+      ○ Dockerfile security fix                   billing 2h ago
+      ○ PHP CVE research                       storefront 3h ago
+      ○ PHP 8.3 upgrade                      checkout-api 1d ago
     ");
 }

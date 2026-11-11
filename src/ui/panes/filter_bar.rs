@@ -356,7 +356,8 @@ mod tests {
             .filter(|span| !span.content.as_ref().trim().is_empty())
             .collect();
 
-        assert_eq!(cells.len(), 14);
+        // Empty entries are left out: " ≡2  ●1  ○1".
+        assert_eq!(cells.len(), 6);
 
         assert_eq!(cells[0].content.as_ref(), "≡");
         assert_eq!(cells[0].style.fg, Some(theme.filter_inactive));
@@ -365,42 +366,18 @@ mod tests {
         assert_eq!(cells[1].content.as_ref(), "2");
         assert_eq!(cells[1].style.fg, Some(theme.text_active));
 
-        assert_eq!(cells[2].content.as_ref(), "◆");
-        assert_eq!(cells[2].style.fg, Some(theme.filter_inactive));
+        assert_eq!(cells[2].content.as_ref(), "●");
+        assert_eq!(cells[2].style.fg, Some(theme.status_running));
+        assert!(!cells[2].style.add_modifier.contains(Modifier::UNDERLINED));
 
-        assert_eq!(cells[3].content.as_ref(), "0");
-        assert_eq!(cells[3].style.fg, Some(theme.filter_inactive));
+        assert_eq!(cells[3].content.as_ref(), "1");
+        assert_eq!(cells[3].style.fg, Some(theme.text_active));
 
-        assert_eq!(cells[4].content.as_ref(), "●");
-        assert_eq!(cells[4].style.fg, Some(theme.status_running));
-        assert!(!cells[4].style.add_modifier.contains(Modifier::UNDERLINED));
+        assert_eq!(cells[4].content.as_ref(), "○");
+        assert_eq!(cells[4].style.fg, Some(theme.filter_inactive));
 
         assert_eq!(cells[5].content.as_ref(), "1");
         assert_eq!(cells[5].style.fg, Some(theme.text_active));
-
-        assert_eq!(cells[6].content.as_ref(), "◎");
-        assert_eq!(cells[6].style.fg, Some(theme.filter_inactive));
-
-        assert_eq!(cells[7].content.as_ref(), "0");
-        assert_eq!(cells[7].style.fg, Some(theme.filter_inactive));
-
-        assert_eq!(cells[8].content.as_ref(), "◐");
-        assert_eq!(cells[8].style.fg, Some(theme.filter_inactive));
-
-        assert_eq!(cells[9].content.as_ref(), "0");
-        assert_eq!(cells[9].style.fg, Some(theme.filter_inactive));
-
-        assert_eq!(cells[10].content.as_ref(), "○");
-        assert_eq!(cells[10].style.fg, Some(theme.filter_inactive));
-
-        assert_eq!(cells[11].content.as_ref(), "1");
-        assert_eq!(cells[11].style.fg, Some(theme.text_active));
-
-        assert_eq!(cells[12].content.as_ref(), "✕");
-        assert_eq!(cells[12].style.fg, Some(theme.filter_inactive));
-
-        assert_eq!(cells[13].content.as_ref(), "0");
-        assert_eq!(cells[13].style.fg, Some(theme.filter_inactive));
     }
 
     #[test]

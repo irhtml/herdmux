@@ -73,7 +73,7 @@ pub fn parse_visible_sidebar_pids(output: &str) -> Vec<i32> {
 
 /// Tell every sidebar on screen to refresh now (SIGUSR1) instead of on its
 /// next one-second tick. Called after a change the sidebar shows: an agent
-/// hook that moved a pane's status, or a cleared unread mark.
+/// hook that moved a pane's status, or a focus change (`mark-read`).
 pub fn notify_sidebars() {
     // Unit tests must not signal the sidebars of the developer's tmux.
     if cfg!(test) {
@@ -127,13 +127,7 @@ pub fn mark_window_read(window: &str) {
         .into_iter()
         .map(|pane| vec!["set", "-t", pane, "-p", "-u", PANE_UNREAD])
         .collect();
-    if commands.is_empty() {
-        return;
-    }
     let _ = run_tmux_batch(&commands);
-    // The select hook's refresh may have read the mark before it was
-    // cleared; without this the row stays marked until the next tick.
-    notify_sidebars();
 }
 
 #[cfg(test)]

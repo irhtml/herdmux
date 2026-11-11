@@ -15,7 +15,7 @@ use super::AppState;
 /// nothing they computed was on a screen. The per-second tick still probes
 /// visibility with one trivial `display-message`, so a hidden sidebar is back
 /// on the 1s cadence within a second of a client viewing it, and SIGUSR1
-/// from the select-window hook makes that instant.
+/// from the focus hooks (`mark-read`) makes that instant.
 pub const HIDDEN_SYNC_INTERVAL: Duration = Duration::from_secs(10);
 
 /// Hidden ticks after which a sidebar re-reads the shared filters before

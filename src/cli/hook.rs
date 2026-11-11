@@ -38,7 +38,21 @@ pub(crate) fn cmd_hook(args: &[String]) -> i32 {
         return 0;
     };
 
-    handle_event(&pane, agent_name, event)
+    // Tool activity is frequent and mostly feeds the activity tab, which
+    // can wait for the sidebar's own tick; its handler signals by itself
+    // when a tool call moves the pane's status. Everything else changes
+    // what a row shows, so the sidebar on screen is told to refresh now.
+    let notify = !matches!(
+        event,
+        AgentEvent::ActivityLog { .. }
+            | AgentEvent::TaskCreated { .. }
+            | AgentEvent::WorktreeCreate
+    );
+    let code = handle_event(&pane, agent_name, event);
+    if notify {
+        crate::tmux::notify_sidebars();
+    }
+    code
 }
 
 // ─── event handler ──────────────────────────────────────────────────────────

@@ -49,7 +49,7 @@ pub use types::{
     AgentType, CLAUDE_AGENT, CODEX_AGENT, OPENCODE_AGENT, PaneInfo, PaneStatus, PermissionMode,
     SessionInfo, WindowInfo, WorktreeMetadata,
 };
-pub use visibility::{mark_window_read, pane_on_screen};
+pub use visibility::{mark_window_read, notify_sidebars, pane_on_screen};
 
 #[cfg(test)]
 pub use options::test_mock;

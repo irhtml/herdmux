@@ -45,6 +45,50 @@ pub fn parse_window_panes(output: &str) -> Vec<WindowPane> {
         .collect()
 }
 
+/// One line per pane, for [`notify_sidebars`].
+const SIDEBAR_PIDS_FORMAT: &str =
+    "#{@pane_role}|#{@sidebar_pid}|#{window_active}|#{session_attached}|#{window_active_clients}";
+
+/// Pids of the sidebars an attached client shows, from
+/// `list-panes -a -F SIDEBAR_PIDS_FORMAT` output. Hidden sidebars are left
+/// out: they re-sync when their window is selected.
+pub fn parse_visible_sidebar_pids(output: &str) -> Vec<i32> {
+    output
+        .lines()
+        .filter_map(|line| {
+            let f: Vec<&str> = line.split('|').collect();
+            if f.len() < 4 || f[0] != "sidebar" {
+                return None;
+            }
+            let shown = match f.get(4).and_then(|s| s.trim().parse::<u32>().ok()) {
+                Some(clients) => clients > 0,
+                None => f[2] == "1" && f[3].trim().parse::<u32>().is_ok_and(|n| n > 0),
+            };
+            let pid = f[1].trim().parse::<i32>().ok()?;
+            // Never 0, 1 or a negative pid: those address process groups.
+            (shown && pid > 1).then_some(pid)
+        })
+        .collect()
+}
+
+/// Tell every sidebar on screen to refresh now (SIGUSR1) instead of on its
+/// next one-second tick. Called after a change the sidebar shows: an agent
+/// hook that moved a pane's status, or a cleared unread mark.
+pub fn notify_sidebars() {
+    // Unit tests must not signal the sidebars of the developer's tmux.
+    if cfg!(test) {
+        return;
+    }
+    if let Some(out) = run_tmux(&["list-panes", "-a", "-F", SIDEBAR_PIDS_FORMAT]) {
+        for pid in parse_visible_sidebar_pids(&out) {
+            // SAFETY: plain syscall; a pid that is gone only returns ESRCH.
+            unsafe {
+                libc::kill(pid, libc::SIGUSR1);
+            }
+        }
+    }
+}
+
 /// Panes of the window that holds `target` (a pane or window id).
 fn window_panes(target: &str) -> Vec<WindowPane> {
     run_tmux(&["list-panes", "-t", target, "-F", WINDOW_PANES_FORMAT])
@@ -83,7 +127,13 @@ pub fn mark_window_read(window: &str) {
         .into_iter()
         .map(|pane| vec!["set", "-t", pane, "-p", "-u", PANE_UNREAD])
         .collect();
+    if commands.is_empty() {
+        return;
+    }
     let _ = run_tmux_batch(&commands);
+    // The select hook's refresh may have read the mark before it was
+    // cleared; without this the row stays marked until the next tick.
+    notify_sidebars();
 }
 
 #[cfg(test)]
@@ -147,6 +197,25 @@ mod tests {
         let panes = parse_window_panes(&out);
         assert_eq!(panes.len(), 1);
         assert_eq!(panes[0].pane_id, "%1");
+    }
+
+    #[test]
+    fn only_sidebars_on_screen_are_notified() {
+        let out = [
+            "sidebar|101|1|1|1",
+            "sidebar|102|0|1|0",
+            "|103|1|1|1",
+            "sidebar||1|1|1",
+            "sidebar|1|1|1|1",
+        ]
+        .join("\n");
+        assert_eq!(parse_visible_sidebar_pids(&out), vec![101]);
+    }
+
+    #[test]
+    fn old_tmux_notifies_sidebars_of_attached_current_windows() {
+        let out = ["sidebar|101|1|2|", "sidebar|102|0|2|", "sidebar|103|1|0|"].join("\n");
+        assert_eq!(parse_visible_sidebar_pids(&out), vec![101]);
     }
 
     #[test]

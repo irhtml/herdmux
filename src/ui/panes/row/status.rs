@@ -1,5 +1,5 @@
 use ratatui::{
-    style::{Color, Style},
+    style::{Color, Modifier, Style},
     text::{Line, Span},
 };
 
@@ -98,9 +98,13 @@ pub(super) fn status_row(
             ctx.apply_bg(Style::default().fg(theme.accent)),
         ));
     }
+    let mut title_style = Style::default().fg(title_fg);
+    if ctx.unread {
+        title_style = title_style.add_modifier(Modifier::BOLD);
+    }
     left_spans.push(Span::styled(
         format!(" {}", title),
-        ctx.apply_bg(Style::default().fg(title_fg)),
+        ctx.apply_bg(title_style),
     ));
     if !badge.is_empty() {
         let badge_color = match pane.permission_mode {

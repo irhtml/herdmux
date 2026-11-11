@@ -28,7 +28,7 @@ Cycle with `h` / `l` (or `←` / `→`), or click an entry. `Tab` advances throu
 
 ### Inbox
 
-`◆` lists the agents that wait for you: an agent waiting on you (a permission prompt or a question), and an agent whose reply you have not seen. A reply counts as unseen when the agent ended its turn, or failed, while no attached terminal showed its window. Its row shows `◆` instead of `○` (an error keeps `✕`) and is never dimmed as stale.
+`◆` lists the agents that wait for you: an agent waiting on you (a permission prompt or a question), and an agent whose reply you have not seen. A reply counts as unseen when the agent ended its turn, or failed, while no attached terminal showed its window. Its row shows `◆` instead of `○` (an error keeps `✕`), a `▌` stripe down its left edge, a bold name and a bright reply preview, and is never dimmed as stale.
 
 The mark clears when the window comes on screen in any attached terminal: every agent the window shows counts as seen (only the zoomed pane of a zoomed window). Typing a prompt into the agent also clears it. When another agent reads the reply with `herdmux agent prompt --wait` or `herdmux agent read`, the mark clears too, so delegated work does not fill your inbox.
 

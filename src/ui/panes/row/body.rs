@@ -234,7 +234,7 @@ pub(super) fn prompt_rows(
     let theme = ctx.theme;
     let prompt_color = if stale {
         theme.stale
-    } else if ctx.active {
+    } else if ctx.active || ctx.unread {
         theme.text_active
     } else {
         theme.text_inactive

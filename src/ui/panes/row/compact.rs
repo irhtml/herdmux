@@ -1,5 +1,5 @@
 use ratatui::{
-    style::Style,
+    style::{Modifier, Style},
     text::{Line, Span},
 };
 
@@ -103,10 +103,11 @@ pub(super) fn compact_row(
         theme.text_active
     };
     left_width += 1 + display_width(&label);
-    left_spans.push(Span::styled(
-        format!(" {label}"),
-        ctx.apply_bg(Style::default().fg(label_fg)),
-    ));
+    let mut label_style = Style::default().fg(label_fg);
+    if ctx.unread {
+        label_style = label_style.add_modifier(Modifier::BOLD);
+    }
+    left_spans.push(Span::styled(format!(" {label}"), ctx.apply_bg(label_style)));
 
     ctx.row_line_split(left_spans, left_width, right_spans, right_width)
 }

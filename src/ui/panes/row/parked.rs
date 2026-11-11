@@ -36,6 +36,7 @@ pub(in crate::ui::panes) fn render_parked_lines(
         theme,
         bg,
         active: false,
+        unread: false,
     };
     let muted = ctx.apply_bg(Style::default().fg(theme.text_muted));
 

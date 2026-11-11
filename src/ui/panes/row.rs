@@ -17,7 +17,9 @@ use body::{
 };
 use branch::branch_ports_row;
 use compact::compact_row;
-use ctx::{RowCtx, SELECTION_MARKER};
+#[cfg(test)]
+use ctx::SELECTION_MARKER;
+use ctx::{RowCtx, detail_marker, head_marker};
 #[cfg(test)]
 use status::running_icon_for;
 use status::status_row;
@@ -104,17 +106,16 @@ pub(super) fn render_compact_lines(
     now: u64,
     extras: &RowExtras<'_>,
 ) -> Vec<Line<'static>> {
+    let unread = pane.has_unread_reply();
+    let (marker_char, marker_style) = head_marker(pane, active, theme);
     let marker_ctx = RowCtx {
-        marker_char: if active { SELECTION_MARKER } else { " " },
-        marker_style: if active {
-            Style::default().fg(theme.accent)
-        } else {
-            Style::default()
-        },
+        marker_char,
+        marker_style,
         inner_width: width.saturating_sub(2),
         theme,
         bg: None,
         active,
+        unread,
     };
     let mut out = vec![compact_row(
         pane,
@@ -125,9 +126,10 @@ pub(super) fn render_compact_lines(
         extras,
     )];
     if let Some(snippet) = extras.snippet {
+        let (marker_char, marker_style) = detail_marker(pane, theme);
         let plain_ctx = RowCtx {
-            marker_char: " ",
-            marker_style: Style::default(),
+            marker_char,
+            marker_style,
             ..marker_ctx
         };
         out.push(snippet_row(snippet, &plain_ctx));
@@ -165,25 +167,28 @@ pub(super) fn render_pane_lines(
     // deeper details like task progress or prompt wrapping. The sidebar
     // cursor position (`selected`) still paints the full pane with the
     // selection background.
+    // An unread reply paints a stripe in the same column, down every line
+    // of the agent, so it reads as one block from the corner of the eye.
+    let unread = pane.has_unread_reply();
+    let (marker_char, marker_style) = head_marker(pane, active, theme);
     let marker_ctx = RowCtx {
-        marker_char: if active { SELECTION_MARKER } else { " " },
-        marker_style: if active {
-            apply_bg(Style::default().fg(theme.accent))
-        } else {
-            apply_bg(Style::default())
-        },
+        marker_char,
+        marker_style: apply_bg(marker_style),
         inner_width: width.saturating_sub(2),
         theme,
         bg,
         active,
+        unread,
     };
+    let (marker_char, marker_style) = detail_marker(pane, theme);
     let plain_ctx = RowCtx {
-        marker_char: " ",
-        marker_style: Style::default(),
+        marker_char,
+        marker_style,
         inner_width: width.saturating_sub(2),
         theme,
         bg: None,
         active,
+        unread,
     };
 
     let digest = extras.digest;
@@ -317,6 +322,7 @@ mod tests {
             theme,
             bg: None,
             active,
+            unread: false,
         }
     }
 

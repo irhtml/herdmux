@@ -9,6 +9,41 @@ use crate::ui::text::pad_to;
 /// Left-edge marker character used for the currently selected pane.
 pub(super) const SELECTION_MARKER: &str = "┃";
 
+/// Left-edge stripe on every line of an agent whose reply is unread.
+pub(super) const UNREAD_MARKER: &str = "▌";
+
+/// Left marker of an agent's first lines: the selection marker for the
+/// pane focused in tmux, else the unread stripe, else a space.
+pub(super) fn head_marker(
+    pane: &crate::tmux::PaneInfo,
+    active: bool,
+    theme: &ColorTheme,
+) -> (&'static str, Style) {
+    if active {
+        (SELECTION_MARKER, Style::default().fg(theme.accent))
+    } else {
+        detail_marker(pane, theme)
+    }
+}
+
+/// Left marker of an agent's detail lines: the unread stripe or a space.
+pub(super) fn detail_marker(
+    pane: &crate::tmux::PaneInfo,
+    theme: &ColorTheme,
+) -> (&'static str, Style) {
+    if pane.has_unread_reply() {
+        // Same color as the row icon: an error keeps its own.
+        let color = if pane.status == crate::tmux::PaneStatus::Error {
+            theme.status_error
+        } else {
+            theme.status_waiting
+        };
+        (UNREAD_MARKER, Style::default().fg(color))
+    } else {
+        (" ", Style::default())
+    }
+}
+
 pub(super) struct RowCtx<'a> {
     /// 1-column left marker: `┃` when the pane is selected, otherwise a space.
     pub(super) marker_char: &'static str,
@@ -19,6 +54,8 @@ pub(super) struct RowCtx<'a> {
     pub(super) theme: &'a ColorTheme,
     pub(super) bg: Option<Color>,
     pub(super) active: bool,
+    /// The agent's reply is unread: its name is bold and its reply bright.
+    pub(super) unread: bool,
 }
 
 impl RowCtx<'_> {

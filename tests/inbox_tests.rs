@@ -69,9 +69,9 @@ fn unread_replies_show_the_unread_icon_and_count_in_the_inbox() {
     storefront
       ◐ schema migration
       ● load test                            30s
-      ◆ dev server
+    ▌ ◆ dev server
     billing
-      ◆ invoice rounding                      2h
+    ▌ ◆ invoice rounding                      2h
       ○ refund docs                           3h
     ");
 }
@@ -89,9 +89,9 @@ fn inbox_filter_lists_only_agents_that_need_the_user() {
                                              — ▾
     storefront
       ◐ schema migration
-      ◆ dev server
+    ▌ ◆ dev server
     billing
-      ◆ invoice rounding                      2h
+    ▌ ◆ invoice rounding                      2h
     ");
 }
 
@@ -112,9 +112,9 @@ fn full_rows_show_the_unread_icon_too() {
      ≡1  ◆1  ●0  ◎0  ◐0  ○1  ✕0
                                              — ▾
     billing
-      ◆ claude                                2h
-        invoice rounding
-        Waiting for prompt…
+    ▌ ◆ claude                                2h
+    ▌   invoice rounding
+    ▌   Waiting for prompt…
     ");
 }
 
@@ -134,7 +134,7 @@ fn an_unread_reply_is_never_dimmed_as_stale() {
      ≡[fg:111]2[fg:255]  ◆[fg:245]1[fg:255]  ●[fg:245]0[fg:245]  ◎[fg:245]0[fg:245]  ◐[fg:245]0[fg:245]  ○[fg:245]2[fg:255]  ✕[fg:245]0[fg:245]
                                  —[fg:252] ▾[fg:252]
     b[fg:255]i[fg:255]l[fg:255]l[fg:255]i[fg:255]n[fg:255]g[fg:255]
-      ◆[fg:221] [fg:255]o[fg:255]l[fg:255]d[fg:255] [fg:255]u[fg:255]n[fg:255]r[fg:255]e[fg:255]a[fg:255]d[fg:255]                [fg:252]1[fg:252]d[fg:252]
+    ▌[fg:221] ◆[fg:221] [fg:255,bold]o[fg:255,bold]l[fg:255,bold]d[fg:255,bold] [fg:255,bold]u[fg:255,bold]n[fg:255,bold]r[fg:255,bold]e[fg:255,bold]a[fg:255,bold]d[fg:255,bold]                [fg:252]1[fg:252]d[fg:252]
       ○[fg:110] [fg:243]o[fg:243]l[fg:243]d[fg:243] [fg:243]r[fg:243]e[fg:243]a[fg:243]d[fg:243]                  [fg:243]1[fg:243]d[fg:243]
     ");
 }

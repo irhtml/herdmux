@@ -50,6 +50,10 @@ pub fn run(
         transcript_sessions,
         digest_rx,
         transcripts_active,
+        port_requests,
+        port_rx,
+        bg_sweep_requests,
+        bg_sweep_rx,
     } = workers;
     // Last session list sent to the transcript thread, and the snapshot
     // it was computed from.
@@ -122,6 +126,30 @@ pub fn run(
                 Ordering::Relaxed,
             );
             last_refresh = std::time::Instant::now();
+        }
+
+        // The port scan runs off this thread; a tick only asks for it.
+        if let Some(sessions) = state.take_port_scan_request() {
+            let _ = port_requests.send(sessions);
+        }
+        while let Ok(scan) = port_rx.try_recv() {
+            // A cleared dead agent is still in the list until the next
+            // snapshot, so take one right away.
+            if state.apply_port_scan(scan) {
+                needs_refresh.store(true, Ordering::Relaxed);
+            }
+            needs_redraw = true;
+        }
+
+        if let Some(sessions) = state.take_bg_shell_sweep_request() {
+            let _ = bg_sweep_requests.send(sessions);
+        }
+        while let Ok(cleared) = bg_sweep_rx.try_recv() {
+            state.bg_shell_sweep_done();
+            // The sweep changed pane options; show them now.
+            if cleared {
+                needs_refresh.store(true, Ordering::Relaxed);
+            }
         }
 
         // Input can change focus before the periodic refresh, so compare

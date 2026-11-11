@@ -7,9 +7,10 @@ use std::time::Duration;
 
 use crate::git::{self, GitData};
 use crate::merge_request::{self, BranchRef, MergeRequest, MrCache, MrSummary};
+use crate::port::{self, PortScan};
 use crate::session;
 use crate::state::{AppState, BottomTab};
-use crate::tmux;
+use crate::tmux::{self, SessionInfo};
 use crate::transcript::{self, DigestUpdate, TranscriptIndex};
 use crate::version::{self, UpdateNotice};
 
@@ -29,6 +30,13 @@ pub(super) struct Workers {
     pub digest_rx: Receiver<Vec<DigestUpdate>>,
     /// Set while someone views the sidebar; the transcript thread rests otherwise.
     pub transcripts_active: Arc<AtomicBool>,
+    /// Sessions for the port thread to scan (`ps` + `lsof`).
+    pub port_requests: Sender<Vec<SessionInfo>>,
+    pub port_rx: Receiver<PortScan>,
+    /// Sessions for the sweep thread to check for dead background shells.
+    pub bg_sweep_requests: Sender<Vec<SessionInfo>>,
+    /// One message per finished sweep: whether a marker was cleared.
+    pub bg_sweep_rx: Receiver<bool>,
 }
 
 /// One publish of the MR poll thread.
@@ -101,6 +109,19 @@ pub(super) fn spawn(state: &AppState) -> Workers {
     std::thread::spawn(move || {
         transcript_poll_loop(&sessions_rx, &digest_tx, &transcripts_flag);
     });
+    let (port_requests, port_request_rx) = mpsc::channel::<Vec<SessionInfo>>();
+    let (port_tx, port_rx) = mpsc::channel::<PortScan>();
+    std::thread::spawn(move || {
+        process_scan_loop(&port_request_rx, &port_tx, port::scan_panes);
+    });
+    let (bg_sweep_requests, bg_sweep_request_rx) = mpsc::channel::<Vec<SessionInfo>>();
+    let (bg_sweep_tx, bg_sweep_rx) = mpsc::channel::<bool>();
+    std::thread::spawn(move || {
+        // The sweep needs a `ps` scan, which the UI thread must not wait for.
+        process_scan_loop(&bg_sweep_request_rx, &bg_sweep_tx, |sessions| {
+            crate::state::sweep_dead_bg_shells(&mut sessions.to_vec())
+        });
+    });
 
     Workers {
         git_rx,
@@ -114,6 +135,31 @@ pub(super) fn spawn(state: &AppState) -> Workers {
         transcript_sessions,
         digest_rx,
         transcripts_active,
+        port_requests,
+        port_rx,
+        bg_sweep_requests,
+        bg_sweep_rx,
+    }
+}
+
+/// Process-scan thread, one for the port scan and one for the
+/// background-shell sweep: runs each requested scan and sends the result
+/// back. A scan (`ps`, and `lsof` for ports) blocks for a few hundred
+/// milliseconds on a busy machine, which the UI thread must not wait for.
+/// The event loop asks for one scan at a time; if requests pile up anyway,
+/// only the newest is run.
+pub(super) fn process_scan_loop<T>(
+    requests: &Receiver<Vec<SessionInfo>>,
+    results: &Sender<T>,
+    scan: impl Fn(&[SessionInfo]) -> T,
+) {
+    while let Ok(mut sessions) = requests.recv() {
+        while let Ok(newer) = requests.try_recv() {
+            sessions = newer;
+        }
+        if results.send(scan(&sessions)).is_err() {
+            return;
+        }
     }
 }
 
@@ -353,6 +399,28 @@ fn git_poll_loop_with<FPath, FGit, FPr>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn process_scan_loop_scans_the_newest_request_and_stops_with_its_sender() {
+        let (requests, request_rx) = mpsc::channel::<Vec<SessionInfo>>();
+        let (results, result_rx) = mpsc::channel::<PortScan>();
+        let session = |name: &str| SessionInfo {
+            session_name: name.into(),
+            windows: vec![],
+        };
+        requests.send(vec![session("old")]).unwrap();
+        requests.send(vec![session("new")]).unwrap();
+        drop(requests);
+
+        process_scan_loop(&request_rx, &results, |sessions| PortScan {
+            pane_ids: sessions.iter().map(|s| s.session_name.clone()).collect(),
+            snapshot: None,
+        });
+
+        let scans: Vec<PortScan> = result_rx.try_iter().collect();
+        assert_eq!(scans.len(), 1);
+        assert_eq!(scans[0].pane_ids, vec!["new"]);
+    }
 
     fn mr_branch(name: &str) -> BranchRef {
         BranchRef {

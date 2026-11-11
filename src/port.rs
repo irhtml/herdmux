@@ -185,6 +185,31 @@ pub(crate) fn scan_session_process_snapshot(
     })
 }
 
+/// Result of one background port scan (see `process_scan_loop` in
+/// `app/workers.rs`).
+#[derive(Debug, Default, Clone)]
+pub struct PortScan {
+    /// Every pane the scan looked at, so panes without a live agent can be
+    /// told apart from panes that appeared after the scan started.
+    pub pane_ids: Vec<String>,
+    /// `None` when the scan could not run (`ps` or `lsof` failed).
+    pub snapshot: Option<PaneProcessSnapshot>,
+}
+
+/// Run the `ps` + `lsof` scan for `sessions`. Takes a few hundred
+/// milliseconds on a busy machine, so the TUI runs it off the UI thread.
+pub fn scan_panes(sessions: &[SessionInfo]) -> PortScan {
+    PortScan {
+        pane_ids: sessions
+            .iter()
+            .flat_map(|session| &session.windows)
+            .flat_map(|window| &window.panes)
+            .map(|pane| pane.pane_id.clone())
+            .collect(),
+        snapshot: scan_session_process_snapshot(sessions, None),
+    }
+}
+
 /// Scan listening TCP ports for panes in the provided sessions.
 /// The lookup starts from each pane's PID and walks the process tree, so it can
 /// pick up child dev servers spawned by an agent shell.

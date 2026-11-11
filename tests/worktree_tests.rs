@@ -298,6 +298,25 @@ fn spawn_cli_splits_originating_window_and_keeps_sidebar_and_siblings_unmarked()
     server.run(&["set", "-p", "-t", &sidebar, "@pane_role", "sidebar"]);
     server.run(&["set", "-g", "@agent-sidebar-default-agent", "true"]);
     let sidebar_width = server.run(&["display-message", "-p", "-t", &sidebar, "#{pane_width}"]);
+    // A new pane reports the tmux server's directory (here: this checkout)
+    // until its process has changed into its own. That takes a while where
+    // tmux first moves the process into a systemd scope, and a spawn in
+    // that window would add its worktree to the wrong repository.
+    let repo_real = repo.canonicalize().unwrap();
+    for pane in [&main, &sidebar] {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        loop {
+            let path = server.run(&["display-message", "-p", "-t", pane, "#{pane_current_path}"]);
+            if Path::new(&path).canonicalize().ok().as_ref() == Some(&repo_real) {
+                break;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "pane {pane} never entered {repo_str}: still in {path:?}"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+    }
     // Make another window current: the spawn must still target the origin, not tmux's default.
     server.run(&["new-window", "-t", "fixture", "sleep 60"]);
 
@@ -313,7 +332,11 @@ fn spawn_cli_splits_originating_window_and_keeps_sidebar_and_siblings_unmarked()
             "spawn: {}",
             String::from_utf8_lossy(&output.stderr)
         );
-        assert!(repo.join(".worktrees").join(task).is_dir());
+        assert!(
+            repo.join(".worktrees").join(task).is_dir(),
+            "spawn {task} left no worktree in {repo_str}: {}",
+            String::from_utf8_lossy(&output.stdout)
+        );
     }
     assert_eq!(
         server

@@ -5,7 +5,9 @@ use ratatui::{
 
 use super::RowExtras;
 use super::ctx::RowCtx;
-use super::status::{PIN_GLYPH, ROW_REPO_MAX_WIDTH, row_icon, time_label};
+use super::status::{
+    PIN_GLYPH, ROW_REPO_MAX_WIDTH, row_icon, time_label, time_label_color, time_label_room,
+};
 use crate::tmux::PaneInfo;
 use crate::ui::icons::StatusIcons;
 use crate::ui::text::{display_width, truncate_to_width};
@@ -47,11 +49,32 @@ pub(super) fn compact_row(
     let theme = ctx.theme;
     let (icon, icon_color) = row_icon(pane, spinner_frame, icons, theme);
 
-    let time = time_label(pane, extras.last_active, now);
     let repo = extras
         .repo
         .map(|r| truncate_to_width(r, ROW_REPO_MAX_WIDTH))
         .unwrap_or_default();
+    let label = label_text(pane, extras);
+    // Icon, pin, the gap before the name, the repository and the gap
+    // before the time.
+    let fixed_width = display_width(icon)
+        + if pane.pinned {
+            1 + display_width(PIN_GLYPH)
+        } else {
+            0
+        }
+        + 1
+        + if repo.is_empty() {
+            0
+        } else {
+            1 + display_width(&repo)
+        }
+        + 1;
+    let time = time_label(
+        pane,
+        extras.last_active,
+        now,
+        time_label_room(ctx.inner_width, fixed_width, display_width(&label)),
+    );
     let muted = if extras.stale {
         theme.stale
     } else {
@@ -67,11 +90,7 @@ pub(super) fn compact_row(
     if !time.is_empty() {
         let text = format!(" {time}");
         right_width += display_width(&text);
-        let fg = if pane.status.is_active() {
-            theme.text_active
-        } else {
-            muted
-        };
+        let fg = time_label_color(pane, theme, muted);
         right_spans.push(Span::styled(text, ctx.apply_bg(Style::default().fg(fg))));
     }
 
@@ -96,7 +115,7 @@ pub(super) fn compact_row(
         (right_spans, right_width)
     };
     let label_budget = ctx.inner_width.saturating_sub(left_width + 1 + right_width);
-    let label = truncate_to_width(&label_text(pane, extras), label_budget);
+    let label = truncate_to_width(&label, label_budget);
     let label_fg = if extras.stale {
         theme.stale
     } else {

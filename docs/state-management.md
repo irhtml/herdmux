@@ -18,7 +18,7 @@ sidebar has been hidden for 2+ ticks (see [Refresh Cadence](#refresh-cadence)).
 | `repo_filter` | `@sidebar_repo_filter` | User input (repo popup) | Repository filter (All or specific repo) |
 | `session_scope` | `@sidebar_session_scope` | User input (`s` key) | When on, each sidebar lists only the agents of its own tmux session. Ignored while the search is open |
 | `view` | `@sidebar_view` | User input (`v` key) | `ViewMode`: `full` rows, or `compact` rows where only the cursor row (or the focused agent when the sidebar lacks the keyboard) shows details |
-| `sort` | `@sidebar_sort` | User input (`o` key) | `SortMode`: `repo` groups, or `recent` (one list). Both order by last activity: repositories by their latest agent, agents newest first. Pinned agents lead either way |
+| `sort` | `@sidebar_sort` | User input (`o` key) | `SortMode`: `repo` groups, `recent` (one list), or `priority` (one list, the agents that need the user first, then by last activity). `repo` and `recent` order by last activity: repositories by their latest agent, agents newest first. Pinned agents lead either way |
 
 Each field has a corresponding `last_saved_*` to prevent sync conflicts — only overwrites tmux if the local write succeeded.
 
@@ -245,7 +245,7 @@ TUI main loop (app::run in app.rs; submodules app/{setup,workers,input,render})
   → refresh() every 1s
     → query_sessions() (tmux.rs)     ← reads @pane_* via `tmux list-panes -a`
     → group_panes_by_repo_cached() (group.rs) ← git info per path, reused for 3s
-    → rebuild_row_targets()          ← list_items(): pins, repo/recent order,
+    → rebuild_row_targets()          ← list_items(): pins, repo/recent/priority order,
                                         GlobalState filters, or search hits
     → refresh_activity_data()        ← reads /tmp activity logs
     → refresh_task_progress()        ← updates PaneRuntimeState.task_progress

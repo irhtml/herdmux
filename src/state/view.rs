@@ -43,6 +43,9 @@ pub enum SortMode {
     Repo,
     /// One list, most recently active agent first.
     Recent,
+    /// One list, the agents that need the user first: failed, waiting,
+    /// replied unread, working, resting. Ties go to the most recent.
+    Priority,
 }
 
 impl SortMode {
@@ -50,6 +53,7 @@ impl SortMode {
         match self {
             Self::Repo => "repo",
             Self::Recent => "recent",
+            Self::Priority => "priority",
         }
     }
 
@@ -57,6 +61,7 @@ impl SortMode {
     pub fn from_label(s: &str) -> Self {
         match s {
             "recent" => Self::Recent,
+            "priority" => Self::Priority,
             _ => Self::Repo,
         }
     }
@@ -64,7 +69,8 @@ impl SortMode {
     pub fn toggled(self) -> Self {
         match self {
             Self::Repo => Self::Recent,
-            Self::Recent => Self::Repo,
+            Self::Recent => Self::Priority,
+            Self::Priority => Self::Repo,
         }
     }
 }
@@ -78,12 +84,13 @@ mod tests {
         for mode in [ViewMode::Full, ViewMode::Compact] {
             assert_eq!(ViewMode::from_label(mode.as_str()), mode);
         }
-        for mode in [SortMode::Repo, SortMode::Recent] {
+        for mode in [SortMode::Repo, SortMode::Recent, SortMode::Priority] {
             assert_eq!(SortMode::from_label(mode.as_str()), mode);
         }
         assert_eq!(ViewMode::from_label(""), ViewMode::Full);
         assert_eq!(SortMode::from_label("bogus"), SortMode::Repo);
         assert_eq!(ViewMode::Full.toggled(), ViewMode::Compact);
-        assert_eq!(SortMode::Recent.toggled(), SortMode::Repo);
+        assert_eq!(SortMode::Recent.toggled(), SortMode::Priority);
+        assert_eq!(SortMode::Priority.toggled(), SortMode::Repo);
     }
 }

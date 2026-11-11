@@ -47,6 +47,10 @@ pub(super) fn collect(state: &AppState, width: u16) -> CollectedRows {
                         "recent",
                         Style::default().fg(theme.text_muted),
                     )),
+                    HeaderKind::Priority => Line::from(Span::styled(
+                        "priority",
+                        Style::default().fg(theme.text_muted),
+                    )),
                     HeaderKind::Parked => Line::from(Span::styled(
                         "parked",
                         Style::default().fg(theme.text_muted),
@@ -187,24 +191,41 @@ fn repo_header(
         .panes
         .iter()
         .find_map(|(_, git)| git.repo_root.clone());
+    // The state of the agent that most needs the user, so a group whose
+    // rows are scrolled away still says whether it wants attention. A lone
+    // agent sits right below its header and resting agents say nothing.
+    let rollup = (group.panes.len() > 1)
+        .then(|| {
+            group
+                .panes
+                .iter()
+                .map(|(p, _)| p)
+                .max_by_key(|p| p.urgency())
+        })
+        .flatten()
+        .filter(|p| p.urgency() > 0)
+        .map(|p| row::row_icon(p, state.spinner_frame, &state.icons, theme));
+    let rollup_width = rollup.map_or(0, |(icon, _)| 1 + display_width(icon));
+    let mut title_spans = vec![Span::styled(
+        title.clone(),
+        Style::default().fg(title_color),
+    )];
+    if let Some((icon, color)) = rollup {
+        title_spans.push(Span::styled(format!(" {icon}"), Style::default().fg(color)));
+    }
     let spans: Vec<Span<'static>> = if let Some(ref root) = repo_root {
-        let title_w = display_width(title);
+        let title_w = display_width(title) + rollup_width;
         let pad_width = width
             .saturating_sub(title_w)
             .saturating_sub(SPAWN_BUTTON.len());
         collected
             .pending_spawn
             .push((collected.lines.len(), group.name.clone(), root.clone()));
-        vec![
-            Span::styled(title.clone(), Style::default().fg(title_color)),
-            Span::raw(" ".repeat(pad_width)),
-            Span::styled(SPAWN_BUTTON, Style::default().fg(title_color)),
-        ]
+        title_spans.push(Span::raw(" ".repeat(pad_width)));
+        title_spans.push(Span::styled(SPAWN_BUTTON, Style::default().fg(title_color)));
+        title_spans
     } else {
-        vec![Span::styled(
-            title.clone(),
-            Style::default().fg(title_color),
-        )]
+        title_spans
     };
     Line::from(spans)
 }

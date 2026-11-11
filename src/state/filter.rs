@@ -194,9 +194,10 @@ impl AppState {
     }
 
     /// Lay out the filter row for a sidebar `width` columns wide (`0`: no
-    /// limit). Shared by the renderer and the click handler. When the row
-    /// does not fit with two-space gaps, it uses single spaces and drops
-    /// empty entries other than All and the selected one.
+    /// limit). Shared by the renderer and the click handler. Empty entries
+    /// other than All and the selected one are left out, so every count on
+    /// the row says something. When the row does not fit with two-space
+    /// gaps, it uses single spaces.
     pub fn filter_items(&self, width: u16) -> Vec<FilterItem> {
         let counts = self.status_counts();
         let mut entries: Vec<(StatusFilter, usize, usize)> = StatusFilter::VARIANTS
@@ -211,13 +212,13 @@ impl AppState {
         let row_width = |entries: &[(StatusFilter, usize, usize)], gap: usize| {
             1 + entries.iter().map(|e| e.2).sum::<usize>() + gap * entries.len().saturating_sub(1)
         };
+        let selected = self.global.status_filter;
+        entries.retain(|&(filter, count, _)| {
+            count > 0 || filter == StatusFilter::All || filter == selected
+        });
         let mut gap = 2;
         if width > 0 && row_width(&entries, gap) > width as usize {
             gap = 1;
-            let selected = self.global.status_filter;
-            entries.retain(|&(filter, count, _)| {
-                count > 0 || filter == StatusFilter::All || filter == selected
-            });
         }
         let mut x = 1;
         entries
@@ -498,8 +499,23 @@ mod tests {
 
     #[test]
     fn filter_items_use_two_space_gaps_when_they_fit() {
-        let state = AppState::new("%99".into());
-        // " ≡0  ◆0  ●0  ◎0  ◐0  ○0  ✕0" is 27 columns.
+        let mut state = AppState::new("%99".into());
+        state.repo_groups = vec![RepoGroup {
+            name: "app".into(),
+            has_focus: true,
+            panes: [
+                PaneStatus::Running,
+                PaneStatus::Background,
+                PaneStatus::Waiting,
+                PaneStatus::Idle,
+                PaneStatus::Error,
+            ]
+            .into_iter()
+            .enumerate()
+            .map(|(i, status)| (test_pane(&format!("%{i}"), status), PaneGitInfo::default()))
+            .collect(),
+        }];
+        // " ≡5  ◆1  ●1  ◎1  ◐1  ○1  ✕1" is 27 columns.
         assert_eq!(
             layout(&state, 27),
             vec![
@@ -516,7 +532,18 @@ mod tests {
     }
 
     #[test]
-    fn narrow_filter_items_drop_empty_entries_but_keep_all_and_the_selection() {
+    fn filter_items_leave_out_empty_entries_but_keep_all_and_the_selection() {
+        let mut state = AppState::new("%99".into());
+        assert_eq!(layout(&state, 0), vec![(StatusFilter::All, 1, 2)]);
+        state.global.status_filter = StatusFilter::Waiting;
+        assert_eq!(
+            layout(&state, 0),
+            vec![(StatusFilter::All, 1, 2), (StatusFilter::Waiting, 5, 2)]
+        );
+    }
+
+    #[test]
+    fn narrow_filter_items_use_single_space_gaps() {
         let mut state = AppState::new("%99".into());
         state.repo_groups = vec![RepoGroup {
             name: "app".into(),
@@ -525,7 +552,7 @@ mod tests {
         }];
         state.global.status_filter = StatusFilter::Error;
         assert_eq!(
-            layout(&state, 21),
+            layout(&state, 10),
             vec![
                 (StatusFilter::All, 1, 2),
                 (StatusFilter::Idle, 4, 2),

@@ -115,20 +115,19 @@ fn snapshot_git_status_tab_ui() {
     state.git.diff_stat = Some((42, 15));
 
     let output = render_to_string(&mut state, 28, 24);
-    insta::assert_snapshot!(output, @r"
-     ≡1  ◆0  ●1  ◎0  ◐0  ○0  ✕0
+    insta::assert_snapshot!(output, @"
+     ≡1  ●1
     ⓘ                        — ▾
     project
-    ╭ Activity │ Git │ MRs ────╮
-    │feature/sidebar       ↑2↓1│
-    │+42/-15            3 files│
-    │──────────────────────────│
-    │Unstaged (2)              │
-    │M src/ui/panes.rs  +30/-10│
-    │M src/state.rs      +12/-5│
-    │Untracked (1)             │
-    │? new_file.rs             │
-    ╰──────────────────────────╯
+    ─ Activity │ Git │ MRs ─────
+    feature/sidebar         ↑2↓1
+    +42/-15              3 files
+    ────────────────────────────
+    Unstaged (2)
+    M src/ui/panes.rs    +30/-10
+    M src/state.rs        +12/-5
+    Untracked (1)
+    ? new_file.rs
     ");
 }
 
@@ -154,13 +153,12 @@ fn snapshot_git_clean_ui() {
     // No git changes
 
     let output = render_to_string(&mut state, 28, 24);
-    insta::assert_snapshot!(output, @r"
-     ≡1  ◆0  ●1  ◎0  ◐0  ○0  ✕0
+    insta::assert_snapshot!(output, @"
+     ≡1  ●1
     ⓘ                        — ▾
     project
-    ╭ Activity │ Git │ MRs ────╮
-    │    Working tree clean    │
-    ╰──────────────────────────╯
+    ─ Activity │ Git │ MRs ─────
+         Working tree clean
     ");
 }
 
@@ -190,14 +188,13 @@ fn snapshot_activity_tab_active_ui() {
     }];
 
     let output = render_to_string(&mut state, 28, 24);
-    insta::assert_snapshot!(output, @r"
-     ≡1  ◆0  ●1  ◎0  ◐0  ○0  ✕0
+    insta::assert_snapshot!(output, @"
+     ≡1  ●1
     ⓘ                        — ▾
     project
-    ╭ Activity │ Git │ MRs ────╮
-    │10:32                 Edit│
-    │  src/main.rs             │
-    ╰──────────────────────────╯
+    ─ Activity │ Git │ MRs ─────
+    10:32                   Edit
+      src/main.rs
     ");
 }
 
@@ -229,14 +226,13 @@ fn activity_tab_leaves_one_blank_row_above_entries() {
     // The inline snapshot locks in the blank-row spacer: after the `╭ Activity │ Git ╮`
     // title row, the first row must be empty and the timestamp/tool row must appear
     // one row further down.
-    insta::assert_snapshot!(render_to_string(&mut state, 28, 24), @r"
-     ≡1  ◆0  ●1  ◎0  ◐0  ○0  ✕0
+    insta::assert_snapshot!(render_to_string(&mut state, 28, 24), @"
+     ≡1  ●1
     ⓘ                        — ▾
     project
-    ╭ Activity │ Git │ MRs ────╮
-    │10:32                 Edit│
-    │  src/main.rs             │
-    ╰──────────────────────────╯
+    ─ Activity │ Git │ MRs ─────
+    10:32                   Edit
+      src/main.rs
     ");
 }
 
@@ -270,12 +266,11 @@ fn snapshot_activity_long_tool_keeps_one_space_gap() {
     }];
 
     let output = render_to_string(&mut state, 28, 14);
-    insta::assert_snapshot!(output, @r"
-     ≡1  ◆0  ●1  ◎0  ◐0  ○0  ✕0
-    ╭ Activity │ Git │ MRs ────╮
-    │10:32 mcp__context7__query│
-    │  rust                    │
-    ╰──────────────────────────╯
+    insta::assert_snapshot!(output, @"
+     ≡1  ●1
+    ─ Activity │ Git │ MRs ─────
+    10:32 mcp__context7__query-d
+      rust
     ");
 }
 
@@ -302,12 +297,11 @@ fn snapshot_tab_bar_renders_both_labels() {
     }];
 
     let output = render_to_string(&mut state, 28, 14);
-    insta::assert_snapshot!(output, @r"
-     ≡1  ◆0  ●0  ◎0  ◐0  ○1  ✕0
-    ╭ Activity │ Git │ MRs ────╮
-    │10:32                 Edit│
-    │  test                    │
-    ╰──────────────────────────╯
+    insta::assert_snapshot!(output, @"
+     ≡1  ○1
+    ─ Activity │ Git │ MRs ─────
+    10:32                   Edit
+      test
     ");
 }
 
@@ -355,20 +349,19 @@ fn snapshot_git_full_info_ui() {
 
     // Use plain render since elapsed time varies
     let output = render_to_string(&mut state, 28, 24);
-    insta::assert_snapshot!(output, @r"
-     ≡1  ◆0  ●1  ◎0  ◐0  ○0  ✕0
+    insta::assert_snapshot!(output, @"
+     ≡1  ●1
     ⓘ                        — ▾
     project
-    ╭ Activity │ Git │ MRs ────╮
-    │main                      │
-    │+120/-30           3 files│
-    │──────────────────────────│
-    │Unstaged (2)              │
-    │M src/state.rs     +42/-10│
-    │M src/ui/bottom.rs +85/-20│
-    │Untracked (1)             │
-    │? new_file.rs             │
-    ╰──────────────────────────╯
+    ─ Activity │ Git │ MRs ─────
+    main
+    +120/-30             3 files
+    ────────────────────────────
+    Unstaged (2)
+    M src/state.rs       +42/-10
+    M src/ui/bottom.rs   +85/-20
+    Untracked (1)
+    ? new_file.rs
     ");
 }
 
@@ -395,14 +388,13 @@ fn snapshot_git_diff_summary_tight_ui() {
     state.git.diff_stat = Some((10, 3));
 
     let plain = render_to_string(&mut state, 28, 14);
-    insta::assert_snapshot!(plain, @r"
-     ≡1  ◆0  ●1  ◎0  ◐0  ○0  ✕0
-    ╭ Activity │ Git │ MRs ────╮
-    │main                      │
-    │+10/-3             0 files│
-    │──────────────────────────│
-    │    Working tree clean    │
-    ╰──────────────────────────╯
+    insta::assert_snapshot!(plain, @"
+     ≡1  ●1
+    ─ Activity │ Git │ MRs ─────
+    main
+    +10/-3               0 files
+    ────────────────────────────
+         Working tree clean
     ");
 }
 
@@ -436,15 +428,14 @@ fn snapshot_git_staged_file_diff_right_ui() {
     }];
 
     let plain = render_to_string(&mut state, 28, 18);
-    insta::assert_snapshot!(plain, @r"
-     ≡1  ◆0  ●1  ◎0  ◐0  ○0  ✕0
-    ╭ Activity │ Git │ MRs ────╮
-    │main                      │
-    │+10/-2             1 files│
-    │──────────────────────────│
-    │Staged (1)                │
-    │M app.rs            +10/-2│
-    ╰──────────────────────────╯
+    insta::assert_snapshot!(plain, @"
+     ≡1  ●1
+    ─ Activity │ Git │ MRs ─────
+    main
+    +10/-2               1 files
+    ────────────────────────────
+    Staged (1)
+    M app.rs              +10/-2
     ");
 }
 
@@ -478,15 +469,14 @@ fn snapshot_git_unstaged_long_name_diff_right_ui() {
     }];
 
     let plain = render_to_string(&mut state, 28, 18);
-    insta::assert_snapshot!(plain, @r"
-     ≡1  ◆0  ●1  ◎0  ◐0  ○0  ✕0
-    ╭ Activity │ Git │ MRs ────╮
-    │main                      │
-    │+150/-50           1 files│
-    │──────────────────────────│
-    │Unstaged (1)              │
-    │M very-long-file… +150/-50│
-    ╰──────────────────────────╯
+    insta::assert_snapshot!(plain, @"
+     ≡1  ●1
+    ─ Activity │ Git │ MRs ─────
+    main
+    +150/-50             1 files
+    ────────────────────────────
+    Unstaged (1)
+    M very-long-filena… +150/-50
     ");
 }
 
@@ -529,18 +519,17 @@ fn snapshot_git_long_filename_truncated_ui() {
 
     // Verify the long filename is truncated (contains ellipsis)
     let plain = render_to_string(&mut state, 28, 24);
-    insta::assert_snapshot!(plain, @r"
-     ≡1  ◆0  ●1  ◎0  ◐0  ○0  ✕0
+    insta::assert_snapshot!(plain, @"
+     ≡1  ●1
     ⓘ                        — ▾
     project
-    ╭ Activity │ Git │ MRs ────╮
-    │main                      │
-    │                   2 files│
-    │──────────────────────────│
-    │Unstaged (2)              │
-    │M very-long-file… +150/-50│
-    │M short.rs           +8/-2│
-    ╰──────────────────────────╯
+    ─ Activity │ Git │ MRs ─────
+    main
+                         2 files
+    ────────────────────────────
+    Unstaged (2)
+    M very-long-filena… +150/-50
+    M short.rs             +8/-2
     ");
 }
 
@@ -618,24 +607,23 @@ fn snapshot_git_more_than_5_files() {
 
     // Verify file list rendering (scroll to see overflow)
     let plain = render_to_string(&mut state, 28, 40);
-    insta::assert_snapshot!(plain, @r"
-     ≡1  ◆0  ●1  ◎0  ◐0  ○0  ✕0
+    insta::assert_snapshot!(plain, @"
+     ≡1  ●1
     ⓘ                        — ▾
     project
     ┃ ● claude
-    ╭ Activity │ Git │ MRs ────╮
-    │main                      │
-    │                   7 files│
-    │──────────────────────────│
-    │Unstaged (7)              │
-    │M a.rs             +100/-0│
-    │M b.rs              +80/-0│
-    │M c.rs              +60/-0│
-    │M d.rs              +40/-0│
-    │M e.rs              +20/-0│
-    │M f.rs              +10/-0│
-    │M g.rs               +5/-0│
-    ╰──────────────────────────╯
+    ─ Activity │ Git │ MRs ─────
+    main
+                         7 files
+    ────────────────────────────
+    Unstaged (7)
+    M a.rs               +100/-0
+    M b.rs                +80/-0
+    M c.rs                +60/-0
+    M d.rs                +40/-0
+    M e.rs                +20/-0
+    M f.rs                +10/-0
+    M g.rs                 +5/-0
     ");
 
     // Setting `offset = 5` when the viewport can show all 8 content
@@ -645,24 +633,23 @@ fn snapshot_git_more_than_5_files() {
     // when the file list shrinks between frames.
     state.scrolls.git.offset = 5;
     let scrolled = render_to_string(&mut state, 28, 40);
-    insta::assert_snapshot!(scrolled, @r"
-     ≡1  ◆0  ●1  ◎0  ◐0  ○0  ✕0
+    insta::assert_snapshot!(scrolled, @"
+     ≡1  ●1
     ⓘ                        — ▾
     project
     ┃ ● claude
-    ╭ Activity │ Git │ MRs ────╮
-    │main                      │
-    │                   7 files│
-    │──────────────────────────│
-    │Unstaged (7)              │
-    │M a.rs             +100/-0│
-    │M b.rs              +80/-0│
-    │M c.rs              +60/-0│
-    │M d.rs              +40/-0│
-    │M e.rs              +20/-0│
-    │M f.rs              +10/-0│
-    │M g.rs               +5/-0│
-    ╰──────────────────────────╯
+    ─ Activity │ Git │ MRs ─────
+    main
+                         7 files
+    ────────────────────────────
+    Unstaged (7)
+    M a.rs               +100/-0
+    M b.rs                +80/-0
+    M c.rs                +60/-0
+    M d.rs                +40/-0
+    M e.rs                +20/-0
+    M f.rs                +10/-0
+    M g.rs                 +5/-0
     ");
 }
 
@@ -689,13 +676,12 @@ fn snapshot_git_branch_only_no_changes() {
     state.git.ahead_behind = Some((5, 0));
 
     let plain = render_to_string(&mut state, 38, 20);
-    insta::assert_snapshot!(plain, @r"
-     ≡1  ◆0  ●1  ◎0  ◐0  ○0  ✕0
-    ╭ Activity │ Git │ MRs ──────────────╮
-    │feature/long-branch-name          ↑5│
-    │────────────────────────────────────│
-    │         Working tree clean         │
-    ╰────────────────────────────────────╯
+    insta::assert_snapshot!(plain, @"
+     ≡1  ●1
+    ─ Activity │ Git │ MRs ───────────────
+    feature/long-branch-name            ↑5
+    ──────────────────────────────────────
+              Working tree clean
     ");
 }
 
@@ -724,32 +710,28 @@ fn snapshot_git_pr_number_ui() {
     state.git.diff_stat = Some((10, 3));
 
     let plain = render_to_string(&mut state, 28, 14);
-    insta::assert_snapshot!(plain, @r"
-     ≡1  ◆0  ●1  ◎0  ◐0  ○0  ✕0
-    ╭ Activity │ Git │ MRs ────╮
-    │feature/fix            #42│
-    │+10/-3             0 files│
-    │──────────────────────────│
-    │    Working tree clean    │
-    ╰──────────────────────────╯
+    insta::assert_snapshot!(plain, @"
+     ≡1  ●1
+    ─ Activity │ Git │ MRs ─────
+    feature/fix              #42
+    +10/-3               0 files
+    ────────────────────────────
+         Working tree clean
     ");
     // Styled snapshot locks in the PR link's underline + pr_link color (fg:117)
     // so future style regressions surface as a diff rather than a missed grep.
-    insta::assert_snapshot!(render_to_styled_string(&mut state, 28, 14), @r"
-     ≡[fg:111]1[fg:255]  ◆[fg:245]0[fg:245]  ●[fg:245]1[fg:255]  ◎[fg:245]0[fg:245]  ◐[fg:245]0[fg:245]  ○[fg:245]0[fg:245]  ✕[fg:245]0[fg:245]
+    insta::assert_snapshot!(render_to_styled_string(&mut state, 28, 14), @"
+     ≡[fg:111]1[fg:255]  ●[fg:245]1[fg:255]
 
-    ╭[fg:153] [fg:153]A[fg:252]c[fg:252]t[fg:252]i[fg:252]v[fg:252]i[fg:252]t[fg:252]y[fg:252] [fg:240]│[fg:240] [fg:240]G[fg:153]i[fg:153]t[fg:153] [fg:240]│[fg:240] [fg:240]M[fg:252]R[fg:252]s[fg:252] [fg:153]─[fg:153]─[fg:153]─[fg:153]─[fg:153]╮[fg:153]
-    │[fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153]│[fg:153]
-    │[fg:153]f[fg:255]e[fg:255]a[fg:255]t[fg:255]u[fg:255]r[fg:255]e[fg:255]/[fg:255]f[fg:255]i[fg:255]x[fg:255] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153]#[fg:117,underline]4[fg:117,underline]2[fg:117,underline]│[fg:153]
-    │[fg:153]+[fg:114]1[fg:114]0[fg:114]/[fg:252]-[fg:174]3[fg:174] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153]0[fg:252] [fg:252]f[fg:252]i[fg:252]l[fg:252]e[fg:252]s[fg:252]│[fg:153]
-    │[fg:153]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]│[fg:153]
-    │[fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153]│[fg:153]
-    │[fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153]│[fg:153]
-    │[fg:153] [fg:153] [fg:153] [fg:153] [fg:153]W[fg:252]o[fg:252]r[fg:252]k[fg:252]i[fg:252]n[fg:252]g[fg:252] [fg:252]t[fg:252]r[fg:252]e[fg:252]e[fg:252] [fg:252]c[fg:252]l[fg:252]e[fg:252]a[fg:252]n[fg:252] [fg:153] [fg:153] [fg:153] [fg:153]│[fg:153]
-    │[fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153]│[fg:153]
-    │[fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153]│[fg:153]
-    │[fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153] [fg:153]│[fg:153]
-    ╰[fg:153]─[fg:153]─[fg:153]─[fg:153]─[fg:153]─[fg:153]─[fg:153]─[fg:153]─[fg:153]─[fg:153]─[fg:153]─[fg:153]─[fg:153]─[fg:153]─[fg:153]─[fg:153]─[fg:153]─[fg:153]─[fg:153]─[fg:153]─[fg:153]─[fg:153]─[fg:153]─[fg:153]─[fg:153]─[fg:153]─[fg:153]╯[fg:153]
+    ─[fg:153] [fg:153]A[fg:252]c[fg:252]t[fg:252]i[fg:252]v[fg:252]i[fg:252]t[fg:252]y[fg:252] [fg:240]│[fg:240] [fg:240]G[fg:153]i[fg:153]t[fg:153] [fg:240]│[fg:240] [fg:240]M[fg:252]R[fg:252]s[fg:252] [fg:153]─[fg:153]─[fg:153]─[fg:153]─[fg:153]─[fg:153]
+
+    f[fg:255]e[fg:255]a[fg:255]t[fg:255]u[fg:255]r[fg:255]e[fg:255]/[fg:255]f[fg:255]i[fg:255]x[fg:255]              #[fg:117,underline]4[fg:117,underline]2[fg:117,underline]
+    +[fg:114]1[fg:114]0[fg:114]/[fg:252]-[fg:174]3[fg:174]               0[fg:252] [fg:252]f[fg:252]i[fg:252]l[fg:252]e[fg:252]s[fg:252]
+    ─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]
+
+
+
+         W[fg:252]o[fg:252]r[fg:252]k[fg:252]i[fg:252]n[fg:252]g[fg:252] [fg:252]t[fg:252]r[fg:252]e[fg:252]e[fg:252] [fg:252]c[fg:252]l[fg:252]e[fg:252]a[fg:252]n[fg:252]
     ");
 }
 
@@ -786,14 +768,13 @@ fn snapshot_git_pr_with_diff_ui() {
     state.git.diff_stat = Some((55, 20));
 
     let plain = render_to_string(&mut state, 28, 14);
-    insta::assert_snapshot!(plain, @r"
-     ≡1  ◆0  ●1  ◎0  ◐0  ○0  ✕0
-    ╭ Activity │ Git │ MRs ────╮
-    │main                  #123│
-    │+55/-20            0 files│
-    │──────────────────────────│
-    │    Working tree clean    │
-    ╰──────────────────────────╯
+    insta::assert_snapshot!(plain, @"
+     ≡1  ●1
+    ─ Activity │ Git │ MRs ─────
+    main                    #123
+    +55/-20              0 files
+    ────────────────────────────
+         Working tree clean
     ");
 }
 
@@ -816,17 +797,16 @@ fn snapshot_subagents_tree_ui() {
     state.rebuild_row_targets();
 
     let output = render_to_string(&mut state, 40, 28);
-    insta::assert_snapshot!(output, @r"
-     ≡1  ◆0  ●1  ◎0  ◐0  ○0  ✕0
+    insta::assert_snapshot!(output, @"
+     ≡1  ●1
     ⓘ                                    — ▾
     project
     ┃ ● claude
         ├ Explore #1
         ├ Plan #2
         └ Explore #2
-    ╭ Activity │ Git │ MRs ────────────────╮
-    │            No activity yet           │
-    ╰──────────────────────────────────────╯
+    ─ Activity │ Git │ MRs ─────────────────
+                 No activity yet
     ");
 }
 
@@ -853,16 +833,15 @@ fn snapshot_subagent_long_name_truncated_ui() {
 
     // Narrow width (28) to force truncation of long subagent names
     let output = render_to_string(&mut state, 28, 27);
-    insta::assert_snapshot!(output, @r"
-     ≡1  ◆0  ●1  ◎0  ◐0  ○0  ✕0
+    insta::assert_snapshot!(output, @"
+     ≡1  ●1
     ⓘ                        — ▾
     project
     ┃ ● claude
         ├ superpowers:code-revi…
         └ claude-code-guide #2
-    ╭ Activity │ Git │ MRs ────╮
-    │      No activity yet     │
-    ╰──────────────────────────╯
+    ─ Activity │ Git │ MRs ─────
+           No activity yet
     ");
 
     assert_right_border_intact(&output);
@@ -889,15 +868,14 @@ fn snapshot_activity_empty_centered_ui() {
     // No activity entries — should show centered "No activity yet"
 
     let output = render_to_string(&mut state, 28, 26);
-    insta::assert_snapshot!(output, @r"
-     ≡1  ◆0  ●0  ◎0  ◐0  ○1  ✕0
+    insta::assert_snapshot!(output, @"
+     ≡1  ○1
     ⓘ                        — ▾
     project
     ┃ ○ claude
         Waiting for prompt…
-    ╭ Activity │ Git │ MRs ────╮
-    │      No activity yet     │
-    ╰──────────────────────────╯
+    ─ Activity │ Git │ MRs ─────
+           No activity yet
     ");
 }
 
@@ -920,15 +898,14 @@ fn snapshot_git_clean_centered_ui() {
     // No git info — should show centered "Working tree clean"
 
     let output = render_to_string(&mut state, 28, 26);
-    insta::assert_snapshot!(output, @r"
-     ≡1  ◆0  ●0  ◎0  ◐0  ○1  ✕0
+    insta::assert_snapshot!(output, @"
+     ≡1  ○1
     ⓘ                        — ▾
     project
     ┃ ○ claude
         Waiting for prompt…
-    ╭ Activity │ Git │ MRs ────╮
-    │    Working tree clean    │
-    ╰──────────────────────────╯
+    ─ Activity │ Git │ MRs ─────
+         Working tree clean
     ");
 }
 
@@ -960,15 +937,14 @@ fn snapshot_git_branch_loaded_no_changes_shows_inline_clean() {
     state.git.branch = "main".into();
 
     let plain = render_to_string(&mut state, 28, 24);
-    insta::assert_snapshot!(plain, @r"
-     ≡1  ◆0  ●1  ◎0  ◐0  ○0  ✕0
+    insta::assert_snapshot!(plain, @"
+     ≡1  ●1
     ⓘ                        — ▾
     project
-    ╭ Activity │ Git │ MRs ────╮
-    │main                      │
-    │──────────────────────────│
-    │    Working tree clean    │
-    ╰──────────────────────────╯
+    ─ Activity │ Git │ MRs ─────
+    main
+    ────────────────────────────
+         Working tree clean
     ");
 }
 
@@ -995,13 +971,12 @@ fn snapshot_git_no_data_shows_centered_clean() {
     // No git data at all
 
     let output = render_to_string(&mut state, 28, 24);
-    insta::assert_snapshot!(output, @r"
-     ≡1  ◆0  ●1  ◎0  ◐0  ○0  ✕0
+    insta::assert_snapshot!(output, @"
+     ≡1  ●1
     ⓘ                        — ▾
     project
-    ╭ Activity │ Git │ MRs ────╮
-    │    Working tree clean    │
-    ╰──────────────────────────╯
+    ─ Activity │ Git │ MRs ─────
+         Working tree clean
     ");
 }
 
@@ -1030,13 +1005,12 @@ fn test_git_behind_only() {
     state.git.ahead_behind = Some((0, 3));
 
     let plain = render_to_string(&mut state, 28, 14);
-    insta::assert_snapshot!(plain, @r"
-     ≡1  ◆0  ●1  ◎0  ◐0  ○0  ✕0
-    ╭ Activity │ Git │ MRs ────╮
-    │main                    ↓3│
-    │──────────────────────────│
-    │    Working tree clean    │
-    ╰──────────────────────────╯
+    insta::assert_snapshot!(plain, @"
+     ≡1  ●1
+    ─ Activity │ Git │ MRs ─────
+    main                      ↓3
+    ────────────────────────────
+         Working tree clean
     ");
 }
 
@@ -1063,13 +1037,12 @@ fn test_git_ahead_and_behind() {
     state.git.ahead_behind = Some((2, 3));
 
     let plain = render_to_string(&mut state, 38, 14);
-    insta::assert_snapshot!(plain, @r"
-     ≡1  ◆0  ●1  ◎0  ◐0  ○0  ✕0
-    ╭ Activity │ Git │ MRs ──────────────╮
-    │main                            ↑2↓3│
-    │────────────────────────────────────│
-    │         Working tree clean         │
-    ╰────────────────────────────────────╯
+    insta::assert_snapshot!(plain, @"
+     ≡1  ●1
+    ─ Activity │ Git │ MRs ───────────────
+    main                              ↑2↓3
+    ──────────────────────────────────────
+              Working tree clean
     ");
 }
 
@@ -1098,14 +1071,13 @@ fn test_git_diff_insertions_only() {
     state.git.diff_stat = Some((25, 0));
 
     let plain = render_to_string(&mut state, 28, 14);
-    insta::assert_snapshot!(plain, @r"
-     ≡1  ◆0  ●1  ◎0  ◐0  ○0  ✕0
-    ╭ Activity │ Git │ MRs ────╮
-    │main                      │
-    │+25/-0             0 files│
-    │──────────────────────────│
-    │    Working tree clean    │
-    ╰──────────────────────────╯
+    insta::assert_snapshot!(plain, @"
+     ≡1  ●1
+    ─ Activity │ Git │ MRs ─────
+    main
+    +25/-0               0 files
+    ────────────────────────────
+         Working tree clean
     ");
 }
 
@@ -1132,14 +1104,13 @@ fn test_git_diff_deletions_only() {
     state.git.diff_stat = Some((0, 15));
 
     let plain = render_to_string(&mut state, 28, 14);
-    insta::assert_snapshot!(plain, @r"
-     ≡1  ◆0  ●1  ◎0  ◐0  ○0  ✕0
-    ╭ Activity │ Git │ MRs ────╮
-    │main                      │
-    │+0/-15             0 files│
-    │──────────────────────────│
-    │    Working tree clean    │
-    ╰──────────────────────────╯
+    insta::assert_snapshot!(plain, @"
+     ≡1  ●1
+    ─ Activity │ Git │ MRs ─────
+    main
+    +0/-15               0 files
+    ────────────────────────────
+         Working tree clean
     ");
 }
 
@@ -1173,15 +1144,14 @@ fn snapshot_branch_truncated_ui() {
     state.rebuild_row_targets();
 
     let plain = render_to_string(&mut state, 28, 30);
-    insta::assert_snapshot!(plain, @r"
-     ≡1  ◆0  ●1  ◎0  ◐0  ○0  ✕0
+    insta::assert_snapshot!(plain, @"
+     ≡1  ●1
     ⓘ                        — ▾
     dotfiles                   +
     ┃ ● claude
     ┃   feature/tmux-sidebar-da…
-    ╭ Activity │ Git │ MRs ────╮
-    │      No activity yet     │
-    ╰──────────────────────────╯
+    ─ Activity │ Git │ MRs ─────
+           No activity yet
     ");
 }
 
@@ -1233,23 +1203,22 @@ fn snapshot_git_staged_unstaged_untracked_ui() {
     state.git.untracked_files = vec!["debug.log".into()];
 
     let output = render_to_string(&mut state, 28, 30);
-    insta::assert_snapshot!(output, @r"
-     ≡1  ◆0  ●1  ◎0  ◐0  ○0  ✕0
+    insta::assert_snapshot!(output, @"
+     ≡1  ●1
     ⓘ                        — ▾
     project
     ┃ ● claude
-    ╭ Activity │ Git │ MRs ────╮
-    │main                    #5│
-    │+12/-3             4 files│
-    │──────────────────────────│
-    │Staged (2)                │
-    │M app.rs            +10/-2│
-    │A new.rs             +2/-0│
-    │Unstaged (1)              │
-    │M config.toml        +0/-1│
-    │Untracked (1)             │
-    │? debug.log               │
-    ╰──────────────────────────╯
+    ─ Activity │ Git │ MRs ─────
+    main                      #5
+    +12/-3               4 files
+    ────────────────────────────
+    Staged (2)
+    M app.rs              +10/-2
+    A new.rs               +2/-0
+    Unstaged (1)
+    M config.toml          +0/-1
+    Untracked (1)
+    ? debug.log
     ");
 }
 
@@ -1284,17 +1253,16 @@ fn snapshot_git_long_branch_with_pr_ui() {
     }];
 
     let output = render_to_string(&mut state, 28, 24);
-    insta::assert_snapshot!(output, @r"
-     ≡1  ◆0  ●1  ◎0  ◐0  ○0  ✕0
+    insta::assert_snapshot!(output, @"
+     ≡1  ●1
     ⓘ                        — ▾
     project
-    ╭ Activity │ Git │ MRs ────╮
-    │feature/very-long-br… #123│
-    │+5/-2              1 files│
-    │──────────────────────────│
-    │Unstaged (1)              │
-    │M main.rs            +5/-2│
-    ╰──────────────────────────╯
+    ─ Activity │ Git │ MRs ─────
+    feature/very-long-bran… #123
+    +5/-2                1 files
+    ────────────────────────────
+    Unstaged (1)
+    M main.rs              +5/-2
     ");
     assert_right_border_intact(&output);
 }
@@ -1329,17 +1297,16 @@ fn snapshot_git_staged_only_ui() {
     }];
 
     let output = render_to_string(&mut state, 28, 24);
-    insta::assert_snapshot!(output, @r"
-     ≡1  ◆0  ●1  ◎0  ◐0  ○0  ✕0
+    insta::assert_snapshot!(output, @"
+     ≡1  ●1
     ⓘ                        — ▾
     project
-    ╭ Activity │ Git │ MRs ────╮
-    │main                      │
-    │+20/-0             1 files│
-    │──────────────────────────│
-    │Staged (1)                │
-    │A new_feature.rs    +20/-0│
-    ╰──────────────────────────╯
+    ─ Activity │ Git │ MRs ─────
+    main
+    +20/-0               1 files
+    ────────────────────────────
+    Staged (1)
+    A new_feature.rs      +20/-0
     ");
 }
 
@@ -1374,24 +1341,23 @@ fn snapshot_git_many_files_more_indicator_ui() {
         .collect();
 
     let output = render_to_string(&mut state, 28, 30);
-    insta::assert_snapshot!(output, @r"
-     ≡1  ◆0  ●1  ◎0  ◐0  ○0  ✕0
+    insta::assert_snapshot!(output, @"
+     ≡1  ●1
     ⓘ                        — ▾
     project
     ┃ ● claude
-    ╭ Activity │ Git │ MRs ────╮
-    │dev                       │
-    │                   7 files│
-    │──────────────────────────│
-    │Unstaged (7)              │
-    │M f0.rs              +1/-0│
-    │M f1.rs              +1/-0│
-    │M f2.rs              +1/-0│
-    │M f3.rs              +1/-0│
-    │M f4.rs              +1/-0│
-    │M f5.rs              +1/-0│
-    │M f6.rs              +1/-0│
-    ╰──────────────────────────╯
+    ─ Activity │ Git │ MRs ─────
+    dev
+                         7 files
+    ────────────────────────────
+    Unstaged (7)
+    M f0.rs                +1/-0
+    M f1.rs                +1/-0
+    M f2.rs                +1/-0
+    M f3.rs                +1/-0
+    M f4.rs                +1/-0
+    M f5.rs                +1/-0
+    M f6.rs                +1/-0
     ");
     assert_right_border_intact(&output);
 }
@@ -1427,28 +1393,27 @@ fn snapshot_git_more_than_10_files_ui() {
         .collect();
 
     let output = render_to_string(&mut state, 28, 30);
-    insta::assert_snapshot!(output, @r"
-     ≡1  ◆0  ●1  ◎0  ◐0  ○0  ✕0
+    insta::assert_snapshot!(output, @"
+     ≡1  ●1
     ⓘ                        — ▾
     project
     ┃ ● claude
-    ╭ Activity │ Git │ MRs ────╮
-    │dev                       │
-    │                  12 files│
-    │──────────────────────────│
-    │Unstaged (12)             │
-    │M f0.rs              +1/-0│
-    │M f1.rs              +1/-0│
-    │M f2.rs              +1/-0│
-    │M f3.rs              +1/-0│
-    │M f4.rs              +1/-0│
-    │M f5.rs              +1/-0│
-    │M f6.rs              +1/-0│
-    │M f7.rs              +1/-0│
-    │M f8.rs              +1/-0│
-    │M f9.rs              +1/-0│
-    │                   +2 more│
-    ╰──────────────────────────╯
+    ─ Activity │ Git │ MRs ─────
+    dev
+                        12 files
+    ────────────────────────────
+    Unstaged (12)
+    M f0.rs                +1/-0
+    M f1.rs                +1/-0
+    M f2.rs                +1/-0
+    M f3.rs                +1/-0
+    M f4.rs                +1/-0
+    M f5.rs                +1/-0
+    M f6.rs                +1/-0
+    M f7.rs                +1/-0
+    M f8.rs                +1/-0
+    M f9.rs                +1/-0
+                         +2 more
     ");
     assert_right_border_intact(&output);
 }
@@ -1488,8 +1453,8 @@ fn snapshot_focused_group_active_border_styled() {
 
     // Styled snapshot locks in the focused group's accent color (fg:153) on
     // the active pane marker and the active bottom-panel border.
-    insta::assert_snapshot!(render_to_styled_string(&mut state, 28, 30), @r"
-     ≡[fg:111]2[fg:255]  ◆[fg:245]0[fg:245]  ●[fg:245]1[fg:255]  ◎[fg:245]0[fg:245]  ◐[fg:245]0[fg:245]  ○[fg:245]1[fg:255]  ✕[fg:245]0[fg:245]
+    insta::assert_snapshot!(render_to_styled_string(&mut state, 28, 30), @"
+     ≡[fg:111]2[fg:255]  ●[fg:245]1[fg:255]  ○[fg:245]1[fg:255]
     ⓘ[fg:221]                        —[fg:252] ▾[fg:252]
     d[fg:153]o[fg:153]t[fg:153]f[fg:153]i[fg:153]l[fg:153]e[fg:153]s[fg:153]
     ┃[fg:153,bg:239] [bg:239]●[fg:82,bg:239] [fg:174,bg:239]c[fg:174,bg:239]l[fg:174,bg:239]a[fg:174,bg:239]u[fg:174,bg:239]d[fg:174,bg:239]e[fg:174,bg:239] [bg:239] [bg:239] [bg:239] [bg:239] [bg:239] [bg:239] [bg:239] [bg:239] [bg:239] [bg:239] [bg:239] [bg:239] [bg:239] [bg:239] [bg:239] [bg:239] [bg:239] [bg:239]
@@ -1499,26 +1464,17 @@ fn snapshot_focused_group_active_border_styled() {
        [fg:244] [fg:244]W[fg:244]a[fg:244]i[fg:244]t[fg:244]i[fg:244]n[fg:244]g[fg:244] [fg:244]f[fg:244]o[fg:244]r[fg:244] [fg:244]p[fg:244]r[fg:244]o[fg:244]m[fg:244]p[fg:244]t[fg:244]…[fg:244]
 
 
-    ╭[fg:240] [fg:240]A[fg:153]c[fg:153]t[fg:153]i[fg:153]v[fg:153]i[fg:153]t[fg:153]y[fg:153] [fg:240]│[fg:240] [fg:240]G[fg:252]i[fg:252]t[fg:252] [fg:240]│[fg:240] [fg:240]M[fg:252]R[fg:252]s[fg:252] [fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]╮[fg:240]
-    │[fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240]│[fg:240]
-    │[fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240]│[fg:240]
-    │[fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240]│[fg:240]
-    │[fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240]│[fg:240]
-    │[fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240]│[fg:240]
-    │[fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240]│[fg:240]
-    │[fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240]│[fg:240]
-    │[fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240]│[fg:240]
-    │[fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240]N[fg:252]o[fg:252] [fg:252]a[fg:252]c[fg:252]t[fg:252]i[fg:252]v[fg:252]i[fg:252]t[fg:252]y[fg:252] [fg:252]y[fg:252]e[fg:252]t[fg:252] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240]│[fg:240]
-    │[fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240]│[fg:240]
-    │[fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240]│[fg:240]
-    │[fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240]│[fg:240]
-    │[fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240]│[fg:240]
-    │[fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240]│[fg:240]
-    │[fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240]│[fg:240]
-    │[fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240]│[fg:240]
-    │[fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240]│[fg:240]
-    │[fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240] [fg:240]│[fg:240]
-    ╰[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]╯[fg:240]
+    ─[fg:240] [fg:240]A[fg:153]c[fg:153]t[fg:153]i[fg:153]v[fg:153]i[fg:153]t[fg:153]y[fg:153] [fg:240]│[fg:240] [fg:240]G[fg:252]i[fg:252]t[fg:252] [fg:240]│[fg:240] [fg:240]M[fg:252]R[fg:252]s[fg:252] [fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]─[fg:240]
+
+
+
+
+
+
+
+
+
+           N[fg:252]o[fg:252] [fg:252]a[fg:252]c[fg:252]t[fg:252]i[fg:252]v[fg:252]i[fg:252]t[fg:252]y[fg:252] [fg:252]y[fg:252]e[fg:252]t[fg:252]
     ");
 }
 
@@ -1540,8 +1496,8 @@ fn test_pet_enabled_preserves_bottom_panel_border() {
     state.focus_state.sidebar_focused = false;
     state.pet_enabled = true;
 
-    insta::assert_snapshot!(render_to_string(&mut state, 40, 30), @r"
-     ≡1  ◆0  ●0  ◎0  ◐0  ○1  ✕0
+    insta::assert_snapshot!(render_to_string(&mut state, 40, 30), @"
+     ≡1  ○1
     ⓘ                                    — ▾
     project
     ┃ ○ claude
@@ -1549,8 +1505,7 @@ fn test_pet_enabled_preserves_bottom_panel_border() {
       ▄ ▄
      ▄▀▀▀▄                             ████
       ▀ ▀                           ██ █  █
-    ╭ Activity │ Git │ MRs ────────────────╮
-    │            No activity yet           │
-    ╰──────────────────────────────────────╯
+    ─ Activity │ Git │ MRs ─────────────────
+                 No activity yet
     ");
 }

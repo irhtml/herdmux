@@ -29,6 +29,9 @@ pub enum HeaderKind<'a> {
     /// The unpinned agents in the recent-first order, shown only when
     /// pinned agents come before them.
     Recent,
+    /// The unpinned agents in the needs-you-first order, shown only when
+    /// pinned agents come before them.
+    Priority,
     /// Parked sessions, after the live agents in the search results.
     Parked,
 }
@@ -197,7 +200,7 @@ impl AppState {
                     items.extend(rows.into_iter().map(ListItem::Pane));
                 }
             }
-            SortMode::Recent => {
+            sort @ (SortMode::Recent | SortMode::Priority) => {
                 let mut rows: Vec<PaneItem<'_>> = groups
                     .iter()
                     .flat_map(|g| g.panes.iter().map(move |(p, git)| (*g, p, git)))
@@ -205,8 +208,15 @@ impl AppState {
                     .map(|(g, p, git)| PaneItem::new(g, p, git, true))
                     .collect();
                 recent_first(&mut rows);
+                let header = if sort == SortMode::Priority {
+                    // Stable: agents of the same urgency stay newest first.
+                    rows.sort_by_key(|row| Reverse(row.pane.urgency()));
+                    HeaderKind::Priority
+                } else {
+                    HeaderKind::Recent
+                };
                 if has_pinned && !rows.is_empty() {
-                    items.push(ListItem::Header(HeaderKind::Recent));
+                    items.push(ListItem::Header(header));
                 }
                 items.extend(rows.into_iter().map(ListItem::Pane));
             }
@@ -256,7 +266,8 @@ impl AppState {
         self.global.save_view();
     }
 
-    /// Switch between repository groups and most-recent-first (the `o` key).
+    /// Step through the orders: repository groups, most recent first,
+    /// needs-you first (the `o` key).
     /// The cursor stays on the same agent.
     pub fn toggle_sort(&mut self) {
         let selected = self.selected_pane().map(|p| p.pane_id.clone());
@@ -431,6 +442,7 @@ mod tests {
                 ListItem::Header(HeaderKind::Repo(g)) => format!("[{}]", g.name),
                 ListItem::Header(HeaderKind::Pinned) => "[pinned]".into(),
                 ListItem::Header(HeaderKind::Recent) => "[recent]".into(),
+                ListItem::Header(HeaderKind::Priority) => "[priority]".into(),
                 ListItem::Header(HeaderKind::Parked) => "[parked]".into(),
                 ListItem::Pane(row) => row.pane.pane_id.clone(),
                 ListItem::Parked(row) => format!("parked {}", row.parked.session_id),

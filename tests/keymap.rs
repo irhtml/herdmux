@@ -26,7 +26,7 @@ fn keymap_wide() {
     │Shift+Tab: Switch Activity/Git/MRs                                            │
     │Agent list                                                                    │
     │v: Toggle compact/full rows                                                   │
-    │o: Toggle repo/recent order                                                   │
+    │o: Cycle repo/recent/priority order                                           │
     │p: Pin/unpin selected agent                                                   │
     │n: Spawn worktree and agent                                                   │
     │x: Remove spawned pane/worktree                                               │

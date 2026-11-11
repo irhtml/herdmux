@@ -65,12 +65,12 @@ fn the_picker_lists_parked_sessions_under_the_live_agents() {
     let mut state = picker(0);
     let output = render_to_string(&mut state, 60, 14);
     insta::assert_snapshot!(output, @"
-     ≡2  ◆0  ●0  ◎0  ◐0  ○2  ✕0
+     ≡2  ○2
     / █                                                        4
-      ○ claude · billing                                     10m
+      ○ claude · billing                                 10m ago
         invoice export
         Waiting for prompt…
-      ○ search ranking                             storefront 1h
+      ○ search ranking                         storefront 1h ago
     parked
       ◌ invoice totals                                billing 5h
       ◌ checkout retries                         checkout-api 1d
@@ -82,10 +82,10 @@ fn the_cursor_on_a_parked_session_shows_its_next_step() {
     let mut state = picker(2);
     let output = render_to_string(&mut state, 60, 14);
     insta::assert_snapshot!(output, @"
-     ≡2  ◆0  ●0  ◎0  ◐0  ○2  ✕0
+     ≡2  ○2
     / █                                                        4
-      ○ invoice export                               billing 10m
-      ○ search ranking                             storefront 1h
+      ○ invoice export                           billing 10m ago
+      ○ search ranking                         storefront 1h ago
     parked
       ◌ invoice totals                                billing 5h
         ↳ add the rounding test
@@ -101,7 +101,7 @@ fn a_parked_session_matches_on_its_handoff() {
     state.search.selected = 0;
     let output = render_to_string(&mut state, 44, 10);
     insta::assert_snapshot!(output, @"
-     ≡2  ◆0  ●0  ◎0  ◐0  ○2  ✕0
+     ≡2  ○2
     / rounding█                                1
     parked
       ◌ invoice totals                billing 5h
@@ -124,7 +124,7 @@ fn the_park_confirmation_fits_a_narrow_sidebar() {
     };
     let output = render_to_string(&mut state, 21, 14);
     insta::assert_snapshot!(output, @"
-     ≡1 ○1
+     ≡1  ○1
                       — ▾
     billing
     ╭ park invoice expo…╮
@@ -149,10 +149,10 @@ fn the_park_confirmation_in_a_wide_sidebar() {
     };
     let output = render_to_string(&mut state, 44, 14);
     insta::assert_snapshot!(output, @"
-     ≡1  ◆0  ●0  ◎0  ◐0  ○1  ✕0
+     ≡1  ○1
                                              — ▾
     billing
-      ○ clau╭ park invoice export ─────╮     10m
+      ○ clau╭ park invoice export ─────╮ 10m ago
         invo│[y] with handoff          │
         Wait│[s] no handoff            │
             │[n] cancel                │

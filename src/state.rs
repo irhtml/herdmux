@@ -306,6 +306,23 @@ mod tests {
         }
     }
 
+    /// One repository holding an agent of each given status.
+    fn group_with(statuses: &[PaneStatus]) -> RepoGroup {
+        RepoGroup {
+            name: "project".into(),
+            has_focus: true,
+            panes: statuses
+                .iter()
+                .enumerate()
+                .map(|(i, status)| {
+                    let mut pane = test_pane(&format!("%{}", i + 1));
+                    pane.status = status.clone();
+                    (pane, PaneGitInfo::default())
+                })
+                .collect(),
+        }
+    }
+
     fn write_activity_log(pane_id: &str, contents: &str) -> String {
         let path = crate::activity::log_file_path(pane_id);
         fs::write(&path, contents).unwrap();
@@ -1330,15 +1347,17 @@ mod tests {
         state.layout.line_to_row = vec![None, Some(0)];
         state.global.selected_pane_row = 0;
         state.global.status_filter = StatusFilter::All;
+        // Layout: " ≡2  ●1  ○1"
+        state.repo_groups = vec![group_with(&[PaneStatus::Running, PaneStatus::Idle])];
 
         // Click on "All" (x=1..3) should keep All
         reset_filter_debounce(&mut state);
         state.handle_mouse_click(0, 1);
         assert_eq!(state.global.status_filter, StatusFilter::All);
 
-        // Click on Running icon area (x=9..) should switch to Running
+        // Click on Running icon area (x=5..) should switch to Running
         reset_filter_debounce(&mut state);
-        state.handle_mouse_click(0, 9);
+        state.handle_mouse_click(0, 5);
         assert_eq!(state.global.status_filter, StatusFilter::Running);
 
         // agent selection unchanged
@@ -1523,8 +1542,15 @@ mod tests {
     #[test]
     fn filter_click_all_positions() {
         let mut state = AppState::new("%99".into());
-        // With 0 agents: " ≡0  ◆0  ●0  ◎0  ◐0  ○0  ✕0"
-        //                 0123456789...
+        state.repo_groups = vec![group_with(&[
+            PaneStatus::Running,
+            PaneStatus::Background,
+            PaneStatus::Waiting,
+            PaneStatus::Idle,
+            PaneStatus::Error,
+        ])];
+        // One agent of each status: " ≡5  ◆1  ●1  ◎1  ◐1  ○1  ✕1"
+        //                             0123456789...
         let expected = [
             (1, StatusFilter::All),
             (2, StatusFilter::All),
@@ -1556,8 +1582,8 @@ mod tests {
             has_focus: true,
             panes: vec![(idle, PaneGitInfo::default())],
         }];
-        // 21 columns: " ≡1 ○1", empty entries dropped.
-        state.layout.filter_bar_width = 21;
+        // 6 columns: " ≡1 ○1", single-space gaps.
+        state.layout.filter_bar_width = 6;
         reset_filter_debounce(&mut state);
         state.handle_filter_click(4);
         assert_eq!(state.global.status_filter, StatusFilter::Idle);
@@ -1580,15 +1606,17 @@ mod tests {
     fn filter_click_debounce_ignores_rapid_clicks() {
         let mut state = AppState::new("%99".into());
         state.global.status_filter = StatusFilter::All;
+        // Layout: " ≡1  ●1"
+        state.repo_groups = vec![group_with(&[PaneStatus::Running])];
 
         // First click within debounce window should be ignored
         // (AppState::new sets last_filter_click to now)
-        state.handle_filter_click(9); // would be Running
+        state.handle_filter_click(5); // would be Running
         assert_eq!(state.global.status_filter, StatusFilter::All); // unchanged due to debounce
 
         // After resetting debounce, click should work
         reset_filter_debounce(&mut state);
-        state.handle_filter_click(9);
+        state.handle_filter_click(5);
         assert_eq!(state.global.status_filter, StatusFilter::Running);
 
         // Immediate second click should be debounced
@@ -1600,37 +1628,35 @@ mod tests {
     fn filter_click_with_large_counts() {
         let mut state = AppState::new("%99".into());
         // Add 10 running agents to shift positions
-        let panes: Vec<_> = (0..10)
+        let mut panes: Vec<_> = (0..10)
             .map(|i| {
                 let mut p = test_pane(&format!("%{i}"));
                 p.status = PaneStatus::Running;
                 (p, PaneGitInfo::default())
             })
             .collect();
+        let mut idle = test_pane("%10");
+        idle.status = PaneStatus::Idle;
+        panes.push((idle, PaneGitInfo::default()));
         state.repo_groups = vec![RepoGroup {
             name: "project".into(),
             has_focus: true,
             panes,
         }];
-        // Layout: " ≡10  ◆0  ●10  ◎0  ◐0  ○0  ✕0"
+        // Layout: " ≡11  ●10  ○1"
         //          0123456789...
-        // "●10" at x=10..12 (icon + "10")
+        // "●10" at x=6..8 (icon + "10")
         reset_filter_debounce(&mut state);
-        state.handle_filter_click(10);
+        state.handle_filter_click(6);
         assert_eq!(state.global.status_filter, StatusFilter::Running);
         reset_filter_debounce(&mut state);
-        state.handle_filter_click(12);
+        state.handle_filter_click(8);
         assert_eq!(state.global.status_filter, StatusFilter::Running);
 
-        // "◎0" shifts to x=15..16
+        // "○1" shifts to x=11..12
         reset_filter_debounce(&mut state);
-        state.handle_filter_click(15);
-        assert_eq!(state.global.status_filter, StatusFilter::Background);
-
-        // "◐0" shifts to x=19..20
-        reset_filter_debounce(&mut state);
-        state.handle_filter_click(19);
-        assert_eq!(state.global.status_filter, StatusFilter::Waiting);
+        state.handle_filter_click(11);
+        assert_eq!(state.global.status_filter, StatusFilter::Idle);
     }
 
     #[test]
@@ -1656,18 +1682,18 @@ mod tests {
         assert_eq!(state.layout.pane_row_targets.len(), 3);
 
         // Click Running filter — row_targets should update immediately
-        // Layout: " ≡3  ◆0  ●2  ◎0  ◐0  ○1  ✕0" → Running at x=9
+        // Layout: " ≡3  ●2  ○1" → Running at x=5
         reset_filter_debounce(&mut state);
-        state.handle_filter_click(9);
+        state.handle_filter_click(5);
         assert_eq!(state.global.status_filter, StatusFilter::Running);
         assert_eq!(state.layout.pane_row_targets.len(), 2);
         assert_eq!(state.layout.pane_row_targets[0].pane_id, "%1");
         assert_eq!(state.layout.pane_row_targets[1].pane_id, "%3");
 
         // Click Idle filter — row_targets should update again
-        // Layout: " ≡3  ◆0  ●2  ◎0  ◐0  ○1  ✕0" → Idle at x=21
+        // Layout: " ≡3  ●2  ○1" → Idle at x=9
         reset_filter_debounce(&mut state);
-        state.handle_filter_click(21);
+        state.handle_filter_click(9);
         assert_eq!(state.global.status_filter, StatusFilter::Idle);
         assert_eq!(state.layout.pane_row_targets.len(), 1);
         assert_eq!(state.layout.pane_row_targets[0].pane_id, "%2");

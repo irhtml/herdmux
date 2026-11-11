@@ -7,7 +7,7 @@ use ratatui::{
     layout::{Alignment, Rect},
     style::{Color, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Paragraph},
+    widgets::Paragraph,
 };
 
 use crate::state::{AppState, BottomTab, BottomTabTarget, Focus};
@@ -35,7 +35,7 @@ pub fn draw_bottom(frame: &mut Frame, state: &mut AppState, area: Rect) {
     };
 
     let (tab_title, tab_ranges) = build_tab_title(state, area.width);
-    // Title text starts after "╭ ".
+    // Title text starts after "─ ".
     let title_x = area.x + 2;
     state.layout.bottom_tab_targets = tab_ranges
         .into_iter()
@@ -46,40 +46,29 @@ pub fn draw_bottom(frame: &mut Frame, state: &mut AppState, area: Rect) {
         })
         .collect();
 
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .style(Style::default().fg(border_color));
-
-    let inner = block.inner(area);
-    frame.render_widget(block, area);
-
-    let title_spans = tab_title.spans;
-    let title_dw = title_spans
+    // A rule with the tabs on it, and the content below at full width: no
+    // box, so a narrow sidebar keeps two more columns and a row.
+    let title_dw = tab_title
+        .spans
         .iter()
         .map(|span| display_width(&span.content))
         .sum::<usize>();
-    let top_fill_len = (area.width as usize).saturating_sub(title_dw + 4);
-    let mut top_line_spans = vec![Span::styled("╭ ", Style::default().fg(border_color))];
-    top_line_spans.extend(title_spans);
+    let fill_len = (area.width as usize).saturating_sub(title_dw + 3);
+    let rule_style = Style::default().fg(border_color);
+    let mut top_line_spans = vec![Span::styled("─ ", rule_style)];
+    top_line_spans.extend(tab_title.spans);
     top_line_spans.push(Span::styled(
-        format!(" {}╮", "─".repeat(top_fill_len)),
-        Style::default().fg(border_color),
+        format!(" {}", "─".repeat(fill_len)),
+        rule_style,
     ));
-    let top_line = Line::from(top_line_spans);
-    let top_rect = Rect::new(area.x, area.y, area.width, 1);
-    frame.render_widget(Paragraph::new(top_line), top_rect);
-
-    let bottom_line = Line::from(Span::styled(
-        format!("╰{}╯", "─".repeat((area.width as usize).saturating_sub(2))),
-        Style::default().fg(border_color),
-    ));
-    let bottom_rect = Rect::new(
+    let top_rect = Rect::new(area.x, area.y, area.width, area.height.min(1));
+    frame.render_widget(Paragraph::new(Line::from(top_line_spans)), top_rect);
+    let inner = Rect::new(
         area.x,
-        area.y + area.height.saturating_sub(1),
+        area.y + top_rect.height,
         area.width,
-        1,
+        area.height - top_rect.height,
     );
-    frame.render_widget(Paragraph::new(bottom_line), bottom_rect);
 
     match state.bottom_tab {
         BottomTab::Activity => activity::draw_activity_content(frame, state, inner),
@@ -92,7 +81,7 @@ pub fn draw_bottom(frame: &mut Frame, state: &mut AppState, area: Rect) {
 
 /// Tab label sets from widest to narrowest, with the separator between
 /// labels. The first set whose title fits the panel is drawn, so a narrow
-/// sidebar keeps every tab and the top-right corner visible.
+/// sidebar keeps every tab visible.
 const TAB_TITLE_VARIANTS: [([&str; 3], &str); 3] = [
     (["Activity", "Git", "MRs"], " \u{2502} "),
     (["Act", "Git", "MRs"], " \u{2502} "),
@@ -110,7 +99,7 @@ const TABS: [BottomTab; 3] = [
 /// with spaced separators a range includes the space on either side.
 fn build_tab_title(state: &AppState, width: u16) -> (Line<'static>, Vec<(u16, u16, BottomTab)>) {
     let theme = &state.theme;
-    // "╭ " + title + " ╮"
+    // "─ " + title + " ─"
     let available = (width as usize).saturating_sub(4);
     let (labels, separator) = TAB_TITLE_VARIANTS
         .iter()

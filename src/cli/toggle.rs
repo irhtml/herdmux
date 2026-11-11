@@ -156,7 +156,7 @@ struct SidebarSplit {
 
 impl SidebarSplit {
     /// `-d` keeps the window's active pane, so focus never moves and the
-    /// `after-select-pane` hook does not fire once per window.
+    /// focus hooks do not fire once per window.
     fn command<'a>(&'a self, bin: &'a str) -> Vec<&'a str> {
         vec![
             "split-window",

@@ -45,12 +45,15 @@ pub fn run(args: &[String]) -> Option<i32> {
     Some(code)
 }
 
-/// `mark-read <window_id>`: run by the focus hooks. Clears the unread mark
-/// of every agent the window shows on screen right now.
+/// `mark-read <window_id>`: run by the focus hooks after a pane, window or
+/// session change. Clears the unread mark of every agent the window shows
+/// on screen right now, then tells the sidebars on screen to refresh: the
+/// one in the window just selected has a frame from before the change.
 fn cmd_mark_read(args: &[String]) -> i32 {
     match args.first() {
         Some(window) if !window.is_empty() => {
             tmux::mark_window_read(window);
+            tmux::notify_sidebars();
             0
         }
         _ => {
